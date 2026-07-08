@@ -1,5 +1,14 @@
 import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  DndContext,
+  PointerSensor,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
 import {
   addDays,
   addMonths,
@@ -17,11 +26,14 @@ import {
   startOfWeek,
 } from 'date-fns'
 import { fr } from 'date-fns/locale'
+import { GlossaryText, InfoTip, glossaryKeyFor } from '../../lib/glossary'
 import {
   fetchCalendar,
   fetchPlanDetail,
   fetchPlans,
+  updateSession,
   type SessionResponse,
+  type SessionStatus,
   type WeekResponse,
 } from './api'
 import {
@@ -41,6 +53,7 @@ export function CalendarPage() {
   const [view, setView] = useState<View>('week')
   const [anchor, setAnchor] = useState(() => new Date())
   const [selected, setSelected] = useState<SessionResponse | null>(null)
+  const queryClient = useQueryClient()
 
   const range = useMemo(() => {
     if (view === 'week') {
@@ -64,6 +77,15 @@ export function CalendarPage() {
     queryKey: ['plan', activePlan?.id],
     queryFn: () => fetchPlanDetail(activePlan!.id),
     enabled: !!activePlan,
+  })
+
+  const mutation = useMutation({
+    mutationFn: ({ id, ...body }: { id: string; date?: string; status?: SessionStatus }) =>
+      updateSession(id, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['calendar'] })
+      setSelected(null)
+    },
   })
 
   const currentWeek = useMemo(() => {
@@ -97,7 +119,12 @@ export function CalendarPage() {
       )}
 
       {view === 'week' ? (
-        <WeekView range={range} sessions={sessions.data ?? []} onSelect={setSelected} />
+        <WeekView
+          range={range}
+          sessions={sessions.data ?? []}
+          onSelect={setSelected}
+          onMove={(id, date) => mutation.mutate({ id, date })}
+        />
       ) : (
         <MonthView
           anchor={anchor}
@@ -110,12 +137,19 @@ export function CalendarPage() {
         />
       )}
 
-      {selected && <SessionModal session={selected} onClose={() => setSelected(null)} />}
+      {selected && (
+        <SessionModal
+          session={selected}
+          pending={mutation.isPending}
+          onStatus={(status) => mutation.mutate({ id: selected.id, status })}
+          onClose={() => setSelected(null)}
+        />
+      )}
     </div>
   )
 }
 
-/* ── Header: navigation, week identity, targets ────────────────────── */
+/* ── Header ────────────────────────────────────────────────────────── */
 
 interface HeaderProps {
   view: View
@@ -180,14 +214,22 @@ function CalendarHeader({ view, range, anchor, week, onShift, onToday, onView }:
 
       {week && (
         <div className="w-full text-sm text-moss-500 dark:text-moss-400">
-          {[
-            week.targetVolumeKm != null && `${week.targetVolumeKm} km`,
-            week.targetElevationM != null && `${week.targetElevationM} m D+`,
-            week.targetLoadUa != null && `${week.targetLoadUa} UA`,
-          ]
-            .filter(Boolean)
-            .join(' · ')}
-          {week.focus && <span className="block truncate">{week.focus}</span>}
+          {week.targetVolumeKm != null && <span>{week.targetVolumeKm} km · </span>}
+          {week.targetElevationM != null && (
+            <span>
+              {week.targetElevationM} m <InfoTip term="D+">D+</InfoTip> ·{' '}
+            </span>
+          )}
+          {week.targetLoadUa != null && (
+            <span>
+              {week.targetLoadUa} <InfoTip term="UA">UA</InfoTip>
+            </span>
+          )}
+          {week.focus && (
+            <span className="block truncate">
+              <GlossaryText text={week.focus} />
+            </span>
+          )}
         </div>
       )}
     </div>
@@ -206,85 +248,148 @@ function NavButton({ label, onClick, children }: { label: string; onClick: () =>
   )
 }
 
-/* ── Week view: 7 day rows with session cards ──────────────────────── */
+/* ── Week view with drag & drop ────────────────────────────────────── */
 
 function WeekView({
   range,
   sessions,
   onSelect,
+  onMove,
 }: {
   range: { start: Date; end: Date }
   sessions: SessionResponse[]
   onSelect: (s: SessionResponse) => void
+  onMove: (sessionId: string, date: string) => void
 }) {
   const days = eachDayOfInterval(range)
+  // Require a small drag distance so plain clicks still open the modal
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
+
+  function handleDragEnd(event: DragEndEvent) {
+    const sessionId = String(event.active.id)
+    const targetDate = event.over?.id ? String(event.over.id) : null
+    const session = sessions.find((s) => s.id === sessionId)
+    if (!targetDate || !session || session.date === targetDate) return
+    onMove(sessionId, targetDate)
+  }
 
   return (
-    <div className="mt-5 space-y-2">
-      {days.map((day) => {
-        const daySessions = sessions.filter((s) => isSameDay(parseISO(s.date), day))
-        return (
-          <div
-            key={day.toISOString()}
-            className={`rounded-xl border p-3 ${
-              isToday(day)
-                ? 'border-pine-600 dark:border-pine-350'
-                : 'border-moss-200 dark:border-moss-750'
-            } bg-moss-25 dark:bg-moss-850`}
-          >
-            <p className="text-xs font-semibold tracking-wide text-moss-500 uppercase dark:text-moss-400">
-              {format(day, 'EEEE d MMMM', { locale: fr })}
-              {isToday(day) && (
-                <span className="ml-2 text-pine-700 dark:text-pine-300">aujourd'hui</span>
-              )}
-            </p>
-            {daySessions.length === 0 ? (
-              <p className="mt-1 text-sm text-moss-300 dark:text-moss-700">—</p>
-            ) : (
-              <div className="mt-2 space-y-1.5">
-                {daySessions.map((s) => (
-                  <SessionCard key={s.id} session={s} onClick={() => onSelect(s)} />
-                ))}
-              </div>
-            )}
-          </div>
-        )
-      })}
+    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+      <div className="mt-5 space-y-2">
+        {days.map((day) => (
+          <DayRow key={day.toISOString()} day={day} onSelect={onSelect}
+            sessions={sessions.filter((s) => isSameDay(parseISO(s.date), day))} />
+        ))}
+      </div>
+    </DndContext>
+  )
+}
+
+function DayRow({
+  day,
+  sessions,
+  onSelect,
+}: {
+  day: Date
+  sessions: SessionResponse[]
+  onSelect: (s: SessionResponse) => void
+}) {
+  const { isOver, setNodeRef } = useDroppable({ id: iso(day) })
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`rounded-xl border p-3 transition ${
+        isOver
+          ? 'border-pine-600 bg-pine-100/50 dark:border-pine-350 dark:bg-pine-900/40'
+          : isToday(day)
+            ? 'border-pine-600 bg-moss-25 dark:border-pine-350 dark:bg-moss-850'
+            : 'border-moss-200 bg-moss-25 dark:border-moss-750 dark:bg-moss-850'
+      }`}
+    >
+      <p className="text-xs font-semibold tracking-wide text-moss-500 uppercase dark:text-moss-400">
+        {format(day, 'EEEE d MMMM', { locale: fr })}
+        {isToday(day) && <span className="ml-2 text-pine-700 dark:text-pine-300">aujourd'hui</span>}
+      </p>
+      {sessions.length === 0 ? (
+        <p className="mt-1 text-sm text-moss-300 dark:text-moss-700">—</p>
+      ) : (
+        <div className="mt-2 space-y-1.5">
+          {sessions.map((s) => (
+            <DraggableSessionCard key={s.id} session={s} onClick={() => onSelect(s)} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
 
-function SessionCard({ session, onClick }: { session: SessionResponse; onClick: () => void }) {
+const STATUS_MARK: Partial<Record<SessionStatus, { label: string; cls: string }>> = {
+  DONE: { label: '✓', cls: 'text-pine-700 dark:text-pine-300' },
+  SKIPPED: { label: '✗', cls: 'text-clay-500 dark:text-clay-300' },
+  MOVED: { label: '↻', cls: 'text-moss-400 dark:text-moss-500' },
+}
+
+function DraggableSessionCard({ session, onClick }: { session: SessionResponse; onClick: () => void }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: session.id,
+  })
+
   const meta = [
     formatDuration(session.durationMin),
     session.elevationM != null && `${session.elevationM} m D+`,
-    session.rpeMin != null &&
-      `RPE ${session.rpeMin}${session.rpeMax !== session.rpeMin ? `–${session.rpeMax}` : ''}`,
   ].filter(Boolean)
 
+  const mark = STATUS_MARK[session.status]
+  const zoneKey = session.zone ? glossaryKeyFor(session.zone) : null
+
   return (
-    <button
-      onClick={onClick}
-      className={`flex w-full items-center gap-3 rounded-lg border border-l-4 border-moss-200 bg-moss-50 px-3 py-2 text-left transition hover:border-moss-300 dark:border-moss-750 dark:bg-moss-800 dark:hover:border-moss-700 ${DISCIPLINE_EDGE[session.discipline]}`}
+    <div
+      ref={setNodeRef}
+      style={
+        transform
+          ? { transform: `translate(${transform.x}px, ${transform.y}px)`, zIndex: 30, position: 'relative' }
+          : undefined
+      }
+      className={isDragging ? 'opacity-80' : undefined}
     >
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium">{session.title}</p>
-        {meta.length > 0 && (
+      <button
+        {...listeners}
+        {...attributes}
+        onClick={onClick}
+        className={`flex w-full touch-none items-center gap-3 rounded-lg border border-l-4 border-moss-200 bg-moss-50 px-3 py-2 text-left transition hover:border-moss-300 dark:border-moss-750 dark:bg-moss-800 dark:hover:border-moss-700 ${DISCIPLINE_EDGE[session.discipline]} ${
+          session.status === 'DONE' || session.status === 'SKIPPED' ? 'opacity-60' : ''
+        }`}
+      >
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium">
+            {mark && <span className={`mr-1.5 ${mark.cls}`}>{mark.label}</span>}
+            <span className={session.status === 'SKIPPED' ? 'line-through' : ''}>{session.title}</span>
+          </p>
           <p className="text-xs text-moss-500 tabular-nums dark:text-moss-400">
             {meta.join(' · ')}
+            {meta.length > 0 && session.rpeMin != null && ' · '}
+            {session.rpeMin != null && (
+              <InfoTip term="RPE">
+                {`RPE ${session.rpeMin}${session.rpeMax !== session.rpeMin ? `–${session.rpeMax}` : ''}`}
+              </InfoTip>
+            )}
           </p>
+        </div>
+        {session.zone && (
+          <span
+            className="shrink-0 rounded-full bg-pine-100 px-2 py-0.5 text-[11px] font-semibold text-pine-700 dark:bg-pine-900 dark:text-pine-300"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {zoneKey ? <InfoTip term={zoneKey}>{session.zone}</InfoTip> : session.zone}
+          </span>
         )}
-      </div>
-      {session.zone && (
-        <span className="shrink-0 rounded-full bg-pine-100 px-2 py-0.5 text-[11px] font-semibold text-pine-700 dark:bg-pine-900 dark:text-pine-300">
-          {session.zone}
-        </span>
-      )}
-    </button>
+      </button>
+    </div>
   )
 }
 
-/* ── Month view: compact grid with discipline dots ─────────────────── */
+/* ── Month view ────────────────────────────────────────────────────── */
 
 function MonthView({
   anchor,
@@ -346,9 +451,26 @@ function MonthView({
   )
 }
 
-/* ── Session detail modal ──────────────────────────────────────────── */
+/* ── Session detail modal with validation ──────────────────────────── */
 
-function SessionModal({ session, onClose }: { session: SessionResponse; onClose: () => void }) {
+const STATUS_LABEL: Record<SessionStatus, string> = {
+  PLANNED: 'Planifiée',
+  DONE: 'Validée',
+  SKIPPED: 'Manquée',
+  MOVED: 'Déplacée',
+}
+
+function SessionModal({
+  session,
+  pending,
+  onStatus,
+  onClose,
+}: {
+  session: SessionResponse
+  pending: boolean
+  onStatus: (status: SessionStatus) => void
+  onClose: () => void
+}) {
   const facts = [
     ['Discipline', DISCIPLINE_LABEL[session.discipline]],
     ['Zone', session.zone],
@@ -360,7 +482,10 @@ function SessionModal({ session, onClose }: { session: SessionResponse; onClose:
         ? `${session.rpeMin}${session.rpeMax !== session.rpeMin ? `–${session.rpeMax}` : ''}`
         : null,
     ],
+    ['Statut', STATUS_LABEL[session.status]],
   ].filter(([, v]) => v != null) as [string, string][]
+
+  const isSettled = session.status === 'DONE' || session.status === 'SKIPPED'
 
   return (
     <div
@@ -379,9 +504,7 @@ function SessionModal({ session, onClose }: { session: SessionResponse; onClose:
             <p className="text-xs font-semibold tracking-wide text-moss-500 uppercase dark:text-moss-400">
               {format(parseISO(session.date), 'EEEE d MMMM', { locale: fr })}
             </p>
-            <h2 className="mt-1 font-display text-lg font-semibold text-balance">
-              {session.title}
-            </h2>
+            <h2 className="mt-1 font-display text-lg font-semibold text-balance">{session.title}</h2>
           </div>
           <button
             onClick={onClose}
@@ -395,17 +518,55 @@ function SessionModal({ session, onClose }: { session: SessionResponse; onClose:
         <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
           {facts.map(([label, value]) => (
             <div key={label}>
-              <dt className="text-xs text-moss-500 dark:text-moss-400">{label}</dt>
-              <dd className="font-medium">{value}</dd>
+              <dt className="text-xs text-moss-500 dark:text-moss-400">
+                {label === 'RPE' ? <InfoTip term="RPE">RPE</InfoTip> : label}
+              </dt>
+              <dd className="font-medium">
+                {label === 'Zone' && glossaryKeyFor(value) ? (
+                  <InfoTip term={glossaryKeyFor(value)!}>{value}</InfoTip>
+                ) : (
+                  value
+                )}
+              </dd>
             </div>
           ))}
         </dl>
 
         {session.detail && (
           <p className="mt-4 border-t border-moss-200 pt-4 text-sm whitespace-pre-line text-moss-500 dark:border-moss-750 dark:text-moss-400">
-            {session.detail}
+            <GlossaryText text={session.detail} />
           </p>
         )}
+
+        <div className="mt-5 flex flex-wrap gap-2 border-t border-moss-200 pt-4 dark:border-moss-750">
+          {session.status !== 'DONE' && (
+            <button
+              onClick={() => onStatus('DONE')}
+              disabled={pending}
+              className="rounded-lg bg-pine-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
+            >
+              ✓ Valider
+            </button>
+          )}
+          {session.status !== 'SKIPPED' && (
+            <button
+              onClick={() => onStatus('SKIPPED')}
+              disabled={pending}
+              className="rounded-lg border border-clay-500/40 px-4 py-2 text-sm font-semibold text-clay-500 transition hover:bg-clay-100 disabled:opacity-50 dark:text-clay-300 dark:hover:bg-clay-900"
+            >
+              ✗ Manquée
+            </button>
+          )}
+          {isSettled && (
+            <button
+              onClick={() => onStatus('PLANNED')}
+              disabled={pending}
+              className="rounded-lg border border-moss-200 px-4 py-2 text-sm font-medium text-moss-500 transition hover:bg-moss-100 disabled:opacity-50 dark:border-moss-750 dark:text-moss-400 dark:hover:bg-moss-800"
+            >
+              Remettre à planifiée
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )

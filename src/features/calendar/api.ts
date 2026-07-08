@@ -64,3 +64,13 @@ export function fetchPlans(): Promise<PlanResponse[]> {
 export function fetchPlanDetail(planId: string): Promise<PlanDetailResponse> {
   return api.get<PlanDetailResponse>(`/api/plans/${planId}`)
 }
+
+export interface UpdateSessionRequest {
+  date?: string
+  orderInDay?: number
+  status?: SessionStatus
+}
+
+export function updateSession(sessionId: string, body: UpdateSessionRequest): Promise<SessionResponse> {
+  return api.patch<SessionResponse>(`/api/sessions/${sessionId}`, body)
+}

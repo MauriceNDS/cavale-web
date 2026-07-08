@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { clearToken, getToken, setToken } from '../../lib/api'
+import { ApiError, clearToken, getToken, setToken } from '../../lib/api'
 import { fetchMe, loginUser, type UserResponse } from './api'
 
 interface AuthState {
@@ -25,14 +25,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 
   // Restore the session on app load: a stored token is only trusted after /me confirms it.
+  // Drop the token ONLY when the server rejects it (401) — a network hiccup or an
+  // API restart must not log the user out; retry once, then give up for this load.
   useEffect(() => {
     if (!getToken()) return
-    fetchMe()
-      .then(setUser)
-      .catch(() => {
-        clearToken()
-        setUser(null)
-      })
+    let cancelled = false
+
+    function restore(attempt: number) {
+      fetchMe()
+        .then((me) => {
+          if (!cancelled) setUser(me)
+        })
+        .catch((error) => {
+          if (cancelled) return
+          if (error instanceof ApiError && error.status === 401) {
+            clearToken()
+            setUser(null)
+          } else if (attempt < 2) {
+            setTimeout(() => restore(attempt + 1), 1500)
+          } else {
+            setUser(null) // token kept — next load will try again
+          }
+        })
+    }
+
+    restore(0)
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const login = useCallback(async (email: string, password: string) => {
