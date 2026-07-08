@@ -1,14 +1,6 @@
 import { useState } from 'react'
 import { getTheme, setTheme, type Theme } from '../lib/theme'
 
-const CYCLE: Theme[] = ['light', 'dark', 'system']
-
-const LABEL: Record<Theme, string> = {
-  light: 'Light theme',
-  dark: 'Dark theme',
-  system: 'System theme',
-}
-
 function Icon({ theme }: { theme: Theme }) {
   if (theme === 'light') {
     return (
@@ -18,17 +10,9 @@ function Icon({ theme }: { theme: Theme }) {
       </svg>
     )
   }
-  if (theme === 'dark') {
-    return (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z" />
-      </svg>
-    )
-  }
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-      <rect x="2" y="4" width="20" height="13" rx="2" />
-      <path d="M8 21h8m-4-4v4" />
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z" />
     </svg>
   )
 }
@@ -36,17 +20,17 @@ function Icon({ theme }: { theme: Theme }) {
 export function ThemeToggle() {
   const [theme, setCurrent] = useState<Theme>(getTheme)
 
-  function cycle() {
-    const next = CYCLE[(CYCLE.indexOf(theme) + 1) % CYCLE.length]
+  function toggle() {
+    const next: Theme = theme === 'light' ? 'dark' : 'light'
     setTheme(next)
     setCurrent(next)
   }
 
   return (
     <button
-      onClick={cycle}
-      title={LABEL[theme]}
-      aria-label={`Theme: ${LABEL[theme]}. Click to change.`}
+      onClick={toggle}
+      title={theme === 'light' ? 'Passer en mode sombre' : 'Passer en mode clair'}
+      aria-label={theme === 'light' ? 'Passer en mode sombre' : 'Passer en mode clair'}
       className="grid h-8 w-8 place-items-center rounded-lg text-moss-500 transition hover:bg-moss-100 hover:text-ink dark:text-moss-400 dark:hover:bg-moss-800 dark:hover:text-linen"
     >
       <Icon theme={theme} />
