@@ -1,0 +1,9 @@
+@import 'tailwindcss';
+
+@theme {
+  /* Cavale palette — night trail: deep slate + energetic amber */
+  --color-cavale-50: #fffbeb;
+  --color-cavale-400: #fbbf24;
+  --color-cavale-500: #f59e0b;
+  --color-cavale-600: #d97706;
+}
