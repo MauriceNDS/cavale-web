@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
 import { z } from 'zod'
-import { registerUser } from './api'
+import { registerUser, type RegisterRequest } from './api'
+import { useAuth } from './session'
 import { ApiError } from '../../lib/api'
 
 const registerSchema = z.object({
@@ -13,10 +15,17 @@ const registerSchema = z.object({
 type FieldErrors = Partial<Record<'email' | 'password' | 'displayName', string>>
 
 export function RegisterPage() {
+  const { login } = useAuth()
+  const navigate = useNavigate()
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
 
   const mutation = useMutation({
-    mutationFn: registerUser,
+    mutationFn: async (request: RegisterRequest) => {
+      await registerUser(request)
+      // Auto-login right after registration for a seamless first run
+      return login(request.email, request.password)
+    },
+    onSuccess: () => navigate({ to: '/' }),
   })
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -39,17 +48,6 @@ export function RegisterPage() {
   }
 
   const serverProblem = mutation.error instanceof ApiError ? mutation.error.problem : undefined
-
-  if (mutation.isSuccess) {
-    return (
-      <div className="mx-auto mt-16 max-w-md rounded-xl bg-white p-8 shadow">
-        <h1 className="text-2xl font-bold text-slate-900">Welcome, {mutation.data.displayName} 🏔️</h1>
-        <p className="mt-2 text-slate-600">
-          Your account is ready. Login arrives with the next milestone.
-        </p>
-      </div>
-    )
-  }
 
   return (
     <div className="mx-auto mt-16 max-w-md rounded-xl bg-white p-8 shadow">
