@@ -11,6 +11,7 @@ import { ThemeToggle } from './components/ThemeToggle'
 import { LoginPage } from './features/auth/LoginPage'
 import { RegisterPage } from './features/auth/RegisterPage'
 import { useAuth } from './features/auth/session'
+import { CalendarPage } from './features/calendar/CalendarPage'
 
 /* ── Navigation model ──────────────────────────────────────────────── */
 
@@ -156,23 +157,7 @@ function Home() {
   }
 
   if (user) {
-    return (
-      <div className="mt-8 max-w-2xl">
-        <h1 className="font-display text-3xl font-semibold text-balance">
-          Salut, {user.displayName}
-        </h1>
-        <p className="mt-2 text-moss-500 dark:text-moss-400">
-          Ton tableau de bord arrive : calendrier d'entraînement, plan, et séances renfo.
-        </p>
-        <div className="mt-8 rounded-xl border border-moss-200 bg-moss-25 p-6 dark:border-moss-750 dark:bg-moss-850">
-          <h2 className="font-display text-lg font-semibold">Prochaine étape</h2>
-          <p className="mt-1 text-sm text-moss-500 dark:text-moss-400">
-            Le domaine « plan d'entraînement » est en construction — ton plan SaintéLyon
-            (21 semaines) sera importé ici, semaine par semaine.
-          </p>
-        </div>
-      </div>
-    )
+    return <CalendarPage />
   }
 
   return (
