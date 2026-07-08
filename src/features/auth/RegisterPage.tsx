@@ -1,15 +1,16 @@
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { useNavigate } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { z } from 'zod'
+import { AuthCard, ErrorAlert, Field, SubmitButton } from '../../components/form'
+import { ApiError } from '../../lib/api'
 import { registerUser, type RegisterRequest } from './api'
 import { useAuth } from './session'
-import { ApiError } from '../../lib/api'
 
 const registerSchema = z.object({
-  email: z.email('Enter a valid email address'),
-  password: z.string().min(8, 'At least 8 characters').max(72, 'At most 72 characters'),
-  displayName: z.string().trim().min(1, 'Display name is required').max(100),
+  email: z.email('Adresse email invalide'),
+  password: z.string().min(8, 'Au moins 8 caractères').max(72, 'Au plus 72 caractères'),
+  displayName: z.string().trim().min(1, 'Le nom est requis').max(100),
 })
 
 type FieldErrors = Partial<Record<'email' | 'password' | 'displayName', string>>
@@ -30,8 +31,9 @@ export function RegisterPage() {
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const formData = new FormData(event.currentTarget)
-    const parsed = registerSchema.safeParse(Object.fromEntries(formData))
+    const parsed = registerSchema.safeParse(
+      Object.fromEntries(new FormData(event.currentTarget)),
+    )
 
     if (!parsed.success) {
       const errors: FieldErrors = {}
@@ -50,61 +52,42 @@ export function RegisterPage() {
   const serverProblem = mutation.error instanceof ApiError ? mutation.error.problem : undefined
 
   return (
-    <div className="mx-auto mt-16 max-w-md rounded-xl bg-white p-8 shadow">
-      <h1 className="text-2xl font-bold text-slate-900">Create your account</h1>
-      <p className="mt-1 text-sm text-slate-500">Run free. Train with intent.</p>
-
-      {serverProblem && (
-        <div role="alert" className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
-          {serverProblem.detail ?? serverProblem.title}
-        </div>
-      )}
+    <AuthCard title="Créer un compte" subtitle="Cours libre. Entraîne-toi avec intention.">
+      {serverProblem && <ErrorAlert message={serverProblem.detail ?? serverProblem.title} />}
 
       <form onSubmit={handleSubmit} noValidate className="mt-6 space-y-4">
-        <Field label="Email" name="email" type="email" error={fieldErrors.email ?? serverProblem?.errors?.email} />
         <Field
-          label="Password"
+          label="Email"
+          name="email"
+          type="email"
+          autoComplete="email"
+          error={fieldErrors.email ?? serverProblem?.errors?.email}
+        />
+        <Field
+          label="Mot de passe"
           name="password"
           type="password"
+          autoComplete="new-password"
           error={fieldErrors.password ?? serverProblem?.errors?.password}
         />
         <Field
-          label="Display name"
+          label="Nom affiché"
           name="displayName"
           type="text"
+          autoComplete="nickname"
           error={fieldErrors.displayName ?? serverProblem?.errors?.displayName}
         />
-
-        <button
-          type="submit"
-          disabled={mutation.isPending}
-          className="w-full rounded-lg bg-cavale-500 px-4 py-2.5 font-semibold text-white transition hover:bg-cavale-600 disabled:opacity-50"
-        >
-          {mutation.isPending ? 'Creating…' : 'Create account'}
-        </button>
+        <SubmitButton pending={mutation.isPending} pendingText="Création…">
+          Créer mon compte
+        </SubmitButton>
       </form>
-    </div>
-  )
-}
 
-interface FieldProps {
-  label: string
-  name: string
-  type: string
-  error?: string
-}
-
-function Field({ label, name, type, error }: FieldProps) {
-  return (
-    <label className="block">
-      <span className="text-sm font-medium text-slate-700">{label}</span>
-      <input
-        name={name}
-        type={type}
-        aria-invalid={!!error}
-        className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 focus:border-cavale-500 focus:outline-none focus:ring-2 focus:ring-cavale-400/40"
-      />
-      {error && <span className="mt-1 block text-sm text-red-600">{error}</span>}
-    </label>
+      <p className="mt-4 text-center text-sm text-moss-500 dark:text-moss-400">
+        Déjà un compte ?{' '}
+        <Link to="/login" className="font-medium text-pine-700 hover:underline dark:text-pine-300">
+          Se connecter
+        </Link>
+      </p>
+    </AuthCard>
   )
 }

@@ -6,102 +6,202 @@ import {
   Outlet,
   useNavigate,
 } from '@tanstack/react-router'
+import type { ReactNode } from 'react'
+import { ThemeToggle } from './components/ThemeToggle'
 import { LoginPage } from './features/auth/LoginPage'
 import { RegisterPage } from './features/auth/RegisterPage'
 import { useAuth } from './features/auth/session'
 
-function Header() {
+/* ── Navigation model ──────────────────────────────────────────────── */
+
+interface NavItem {
+  label: string
+  soon?: boolean
+}
+
+const NAV: NavItem[] = [
+  { label: 'Calendrier' },
+  { label: 'Plan', soon: true },
+  { label: 'Renfo', soon: true },
+  { label: 'Théorie', soon: true },
+  { label: 'Stats', soon: true },
+]
+
+function NavLinks({ vertical }: { vertical?: boolean }) {
+  return (
+    <>
+      {NAV.map((item) =>
+        item.soon ? (
+          <span
+            key={item.label}
+            title="Bientôt"
+            className={`flex items-center gap-2 text-moss-400 dark:text-moss-500 ${
+              vertical ? 'rounded-lg px-3 py-2 text-sm' : 'flex-col py-1 text-[11px]'
+            } cursor-default`}
+          >
+            {item.label}
+            {vertical && (
+              <span className="ml-auto rounded-full bg-moss-100 px-1.5 py-0.5 text-[10px] font-medium text-moss-500 dark:bg-moss-800 dark:text-moss-400">
+                bientôt
+              </span>
+            )}
+          </span>
+        ) : (
+          <Link
+            key={item.label}
+            to="/"
+            className={`font-medium text-ink transition dark:text-linen ${
+              vertical
+                ? 'flex items-center rounded-lg bg-pine-100 px-3 py-2 text-sm dark:bg-pine-900'
+                : 'flex flex-col items-center py-1 text-[11px] text-pine-700 dark:text-pine-300'
+            }`}
+          >
+            {item.label}
+          </Link>
+        ),
+      )}
+    </>
+  )
+}
+
+/* ── App shell ─────────────────────────────────────────────────────── */
+
+function Shell({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
 
-  return (
-    <header className="border-b border-slate-200 bg-slate-900">
-      <nav className="mx-auto flex max-w-5xl items-center gap-6 px-4 py-3">
-        <Link to="/" className="text-lg font-bold tracking-tight text-cavale-400">
-          Cavale
-        </Link>
-        <div className="ml-auto flex items-center gap-4">
-          {user ? (
-            <>
-              <span className="text-sm text-slate-300">{user.displayName}</span>
-              <button
-                onClick={() => {
-                  logout()
-                  navigate({ to: '/login' })
-                }}
-                className="text-sm text-slate-400 transition hover:text-white"
-              >
-                Sign out
-              </button>
-            </>
-          ) : (
-            <>
+  if (!user) {
+    // Signed-out chrome: slim public header
+    return (
+      <div className="min-h-screen">
+        <header className="border-b border-moss-200 bg-moss-25 dark:border-moss-750 dark:bg-moss-850">
+          <nav className="mx-auto flex max-w-5xl items-center gap-4 px-4 py-3">
+            <Link to="/" className="font-display text-xl font-semibold text-pine-700 dark:text-pine-300">
+              Cavale
+            </Link>
+            <div className="ml-auto flex items-center gap-2">
+              <ThemeToggle />
               <Link
                 to="/login"
-                className="text-sm text-slate-300 transition hover:text-white [&.active]:text-white"
+                className="rounded-lg px-3 py-1.5 text-sm font-medium text-moss-500 transition hover:text-ink dark:text-moss-400 dark:hover:text-linen [&.active]:text-ink dark:[&.active]:text-linen"
               >
-                Sign in
+                Se connecter
               </Link>
               <Link
                 to="/register"
-                className="rounded-lg bg-cavale-500 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-cavale-600"
+                className="rounded-lg bg-pine-600 px-3.5 py-1.5 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
               >
-                Register
+                Créer un compte
               </Link>
-            </>
-          )}
+            </div>
+          </nav>
+        </header>
+        <main className="mx-auto max-w-5xl px-4 pb-16">{children}</main>
+      </div>
+    )
+  }
+
+  // Signed-in chrome: sidebar (desktop) + bottom tabs (mobile)
+  return (
+    <div className="min-h-screen md:flex">
+      <aside className="hidden w-52 shrink-0 flex-col border-r border-moss-200 bg-moss-25 p-4 md:flex dark:border-moss-750 dark:bg-moss-850">
+        <Link to="/" className="mb-6 px-3 font-display text-2xl font-semibold text-pine-700 dark:text-pine-300">
+          Cavale
+        </Link>
+        <nav className="flex flex-col gap-1">
+          <NavLinks vertical />
+        </nav>
+        <div className="mt-auto border-t border-moss-200 pt-3 dark:border-moss-750">
+          <p className="truncate px-3 text-sm font-medium">{user.displayName}</p>
+          <button
+            onClick={() => {
+              logout()
+              navigate({ to: '/login' })
+            }}
+            className="px-3 py-1 text-sm text-moss-500 transition hover:text-ink dark:text-moss-400 dark:hover:text-linen"
+          >
+            Se déconnecter
+          </button>
         </div>
-      </nav>
-    </header>
+      </aside>
+
+      <div className="flex min-h-screen flex-1 flex-col">
+        <header className="flex items-center gap-3 border-b border-moss-200 bg-moss-25 px-4 py-2.5 dark:border-moss-750 dark:bg-moss-850">
+          <span className="font-display text-lg font-semibold text-pine-700 md:hidden dark:text-pine-300">
+            Cavale
+          </span>
+          <div className="ml-auto flex items-center gap-2">
+            <ThemeToggle />
+            <span className="hidden text-sm text-moss-500 md:block dark:text-moss-400">
+              {user.email}
+            </span>
+          </div>
+        </header>
+        <main className="flex-1 px-4 pb-24 md:px-8 md:pb-10">{children}</main>
+        <nav className="fixed inset-x-0 bottom-0 grid grid-cols-5 border-t border-moss-200 bg-moss-25/95 px-2 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden dark:border-moss-750 dark:bg-moss-850/95">
+          <NavLinks />
+        </nav>
+      </div>
+    </div>
   )
 }
+
+/* ── Pages ─────────────────────────────────────────────────────────── */
 
 function Home() {
   const { user } = useAuth()
 
+  if (user === undefined) {
+    return <p className="mt-16 text-center text-moss-500 dark:text-moss-400">Chargement…</p>
+  }
+
   if (user) {
     return (
-      <div className="mt-16">
-        <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">
-          Salut, {user.displayName} 👋
+      <div className="mt-8 max-w-2xl">
+        <h1 className="font-display text-3xl font-semibold text-balance">
+          Salut, {user.displayName}
         </h1>
-        <p className="mt-2 text-slate-600">
-          Your dashboard is on its way — training calendar, plan, and gym
-          sessions will land here.
+        <p className="mt-2 text-moss-500 dark:text-moss-400">
+          Ton tableau de bord arrive : calendrier d'entraînement, plan, et séances renfo.
         </p>
+        <div className="mt-8 rounded-xl border border-moss-200 bg-moss-25 p-6 dark:border-moss-750 dark:bg-moss-850">
+          <h2 className="font-display text-lg font-semibold">Prochaine étape</h2>
+          <p className="mt-1 text-sm text-moss-500 dark:text-moss-400">
+            Le domaine « plan d'entraînement » est en construction — ton plan SaintéLyon
+            (21 semaines) sera importé ici, semaine par semaine.
+          </p>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="mt-16 text-center">
-      <h1 className="text-4xl font-extrabold tracking-tight text-slate-900">
-        Cavale <span className="text-cavale-500">/ka.val/</span>
+    <div className="mt-20 text-center">
+      <h1 className="font-display text-5xl font-semibold text-balance">
+        Cavale <span className="text-pine-600 dark:text-pine-350">/ka.val/</span>
       </h1>
-      <p className="mx-auto mt-3 max-w-xl text-slate-600">
-        Training companion for ultra-trail running — plans, strength work, and
-        progress, all in one place.
+      <p className="mx-auto mt-4 max-w-xl text-lg text-moss-500 dark:text-moss-400">
+        Compagnon d'entraînement ultra-trail — plans, renfo et progression, au même endroit.
       </p>
-      <div className="mt-8">
+      <div className="mt-10">
         <Link
           to="/register"
-          className="rounded-lg bg-cavale-500 px-5 py-2.5 font-semibold text-white transition hover:bg-cavale-600"
+          className="rounded-lg bg-pine-600 px-6 py-3 font-semibold text-moss-25 transition hover:bg-pine-700 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
         >
-          Start training
+          Commencer l'entraînement
         </Link>
       </div>
     </div>
   )
 }
 
+/* ── Route tree ────────────────────────────────────────────────────── */
+
 const rootRoute = createRootRoute({
   component: () => (
-    <div className="min-h-screen bg-slate-100">
-      <Header />
-      <main className="mx-auto max-w-5xl px-4 pb-16">
-        <Outlet />
-      </main>
-    </div>
+    <Shell>
+      <Outlet />
+    </Shell>
   ),
 })
 

@@ -1,9 +1,61 @@
+@import '@fontsource-variable/source-serif-4';
 @import 'tailwindcss';
 
+/* Class-based dark mode: .dark on <html>, managed by src/lib/theme.ts */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
-  /* Cavale palette — night trail: deep slate + energetic amber */
-  --color-cavale-50: #fffbeb;
-  --color-cavale-400: #fbbf24;
-  --color-cavale-500: #f59e0b;
-  --color-cavale-600: #d97706;
+  /* ── Massif design system ─────────────────────────────────────────
+     Alpine mineral: pine green on stone/moss neutrals, copper for
+     strength work, clay for shock/alerts. Serif display headings. */
+
+  --font-display: 'Source Serif 4 Variable', 'Iowan Old Style', Georgia, serif;
+  --font-sans: 'Seravek', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  /* Neutrals — greened stone ("moss") */
+  --color-moss-25: #fbfbf8;   /* card (light) */
+  --color-moss-50: #f2f3ef;   /* page bg (light) */
+  --color-moss-100: #eef0ea;  /* fields (light) */
+  --color-moss-200: #e0e3d8;  /* borders (light) */
+  --color-moss-300: #c6ccbe;
+  --color-moss-400: #8f988c;  /* muted text (dark mode) */
+  --color-moss-500: #77806f;  /* muted text (light mode) */
+  --color-moss-700: #3a443b;
+  --color-moss-750: #2b332c;  /* borders (dark) */
+  --color-moss-800: #28302a;  /* fields (dark) */
+  --color-moss-850: #202721;  /* card (dark) */
+  --color-moss-900: #171c17;  /* page bg (dark) */
+  --color-moss-950: #10190f;
+
+  /* Text inks */
+  --color-ink: #22291f;       /* primary text (light mode) */
+  --color-linen: #e9ece4;     /* primary text (dark mode) */
+
+  /* Accent — pine */
+  --color-pine-100: #e2ece4;  /* soft bg (light) */
+  --color-pine-300: #8fc4a3;  /* accent-strong (dark) */
+  --color-pine-350: #7fb493;  /* accent (dark) */
+  --color-pine-600: #3d6b4f;  /* accent (light) */
+  --color-pine-700: #315940;  /* accent-strong (light) */
+  --color-pine-900: #263b2e;  /* soft bg (dark) */
+
+  /* Strength work — copper */
+  --color-copper-300: #cf9668;
+  --color-copper-600: #a4653a;
+
+  /* Shock / errors — clay */
+  --color-clay-100: #f3e2d6;
+  --color-clay-300: #e0966a;
+  --color-clay-500: #c25c2e;
+  --color-clay-600: #a4552a;
+  --color-clay-900: #40291d;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+  }
+  body {
+    @apply bg-moss-50 text-ink dark:bg-moss-900 dark:text-linen;
+  }
 }

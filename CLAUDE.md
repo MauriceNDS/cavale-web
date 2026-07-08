@@ -19,6 +19,30 @@ pointer in the meta repo.
 - **TanStack Query** for all server state — no manual fetch in components
 - **Zod** for form/API payload validation
 
+## Design system — "Massif" (chosen 2026-07-08)
+
+Alpine mineral identity: pine green on stone/moss neutrals, copper for
+strength work, clay for shock/errors. Serif display headings (Source Serif 4,
+self-hosted via @fontsource — `font-display` utility), system sans body.
+All tokens live in `src/index.css` under `@theme` — never hardcode hex in
+components.
+
+- **Dark mode**: class-based (`.dark` on `<html>`), managed by
+  `src/lib/theme.ts` (light/dark/system, persisted, follows OS in system
+  mode). Every component styles BOTH modes via `dark:` variants.
+- **Token roles** (light → dark): page `moss-50→moss-900`, card
+  `moss-25→moss-850`, field `moss-100→moss-800`, border `moss-200→moss-750`,
+  muted text `moss-500→moss-400`, text `ink→linen`, accent
+  `pine-600/700→pine-350/300`, accent-soft `pine-100→pine-900`.
+- **Semantic colors**: copper = gym/strength; clay = shock weeks & errors;
+  pine doubles as success. Week types get themed badges (see the design
+  artifact for reference mockups).
+- **Layout**: signed-in shell = sidebar (desktop ≥ md) + bottom tab bar
+  (mobile, thumb-first); signed-out = slim public header. Cards:
+  `rounded-xl border` on card bg — no heavy shadows.
+- Shared form primitives in `src/components/form.tsx` (AuthCard, Field,
+  ErrorAlert, SubmitButton) — extend these, don't duplicate input styling.
+
 ## Conventions
 
 - **Feature-first layout**: `src/features/<feature>/` holds that feature's
