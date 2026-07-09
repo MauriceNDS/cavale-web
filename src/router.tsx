@@ -12,20 +12,23 @@ import { LoginPage } from './features/auth/LoginPage'
 import { RegisterPage } from './features/auth/RegisterPage'
 import { useAuth } from './features/auth/session'
 import { CalendarPage } from './features/calendar/CalendarPage'
+import { SettingsPage } from './features/settings/SettingsPage'
 
 /* ── Navigation model ──────────────────────────────────────────────── */
 
 interface NavItem {
   label: string
+  to?: '/' | '/settings'
   soon?: boolean
 }
 
 const NAV: NavItem[] = [
-  { label: 'Calendrier' },
+  { label: 'Calendrier', to: '/' },
   { label: 'Plan', soon: true },
   { label: 'Renfo', soon: true },
   { label: 'Théorie', soon: true },
   { label: 'Stats', soon: true },
+  { label: 'Réglages', to: '/settings' },
 ]
 
 function NavLinks({ vertical }: { vertical?: boolean }) {
@@ -50,11 +53,11 @@ function NavLinks({ vertical }: { vertical?: boolean }) {
         ) : (
           <Link
             key={item.label}
-            to="/"
-            className={`font-medium text-ink transition dark:text-linen ${
+            to={item.to ?? '/'}
+            className={`font-medium transition ${
               vertical
-                ? 'flex items-center rounded-lg bg-pine-100 px-3 py-2 text-sm dark:bg-pine-900'
-                : 'flex flex-col items-center py-1 text-[11px] text-pine-700 dark:text-pine-300'
+                ? 'flex items-center rounded-lg px-3 py-2 text-sm text-ink hover:bg-moss-100 dark:text-linen dark:hover:bg-moss-800 [&.active]:bg-pine-100 dark:[&.active]:bg-pine-900'
+                : 'flex flex-col items-center py-1 text-[11px] text-moss-500 dark:text-moss-400 [&.active]:text-pine-700 dark:[&.active]:text-pine-300'
             }`}
           >
             {item.label}
@@ -139,7 +142,7 @@ function Shell({ children }: { children: ReactNode }) {
           </div>
         </header>
         <main className="flex-1 px-4 pb-24 md:px-8 md:pb-10">{children}</main>
-        <nav className="fixed inset-x-0 bottom-0 grid grid-cols-5 border-t border-moss-200 bg-moss-25/95 px-2 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden dark:border-moss-750 dark:bg-moss-850/95">
+        <nav className="fixed inset-x-0 bottom-0 grid grid-cols-6 border-t border-moss-200 bg-moss-25/95 px-2 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden dark:border-moss-750 dark:bg-moss-850/95">
           <NavLinks />
         </nav>
       </div>
@@ -208,7 +211,13 @@ const loginRoute = createRoute({
   component: LoginPage,
 })
 
-const routeTree = rootRoute.addChildren([indexRoute, registerRoute, loginRoute])
+const settingsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/settings',
+  component: SettingsPage,
+})
+
+const routeTree = rootRoute.addChildren([indexRoute, registerRoute, loginRoute, settingsRoute])
 
 export const router = createRouter({ routeTree })
 
