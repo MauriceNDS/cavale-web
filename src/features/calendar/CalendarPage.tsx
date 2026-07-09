@@ -105,7 +105,7 @@ export function CalendarPage() {
   }
 
   return (
-    <div className="mx-auto mt-6 max-w-3xl">
+    <div className={`mx-auto mt-6 ${view === 'month' ? 'max-w-6xl' : 'max-w-3xl'}`}>
       <CalendarHeader
         view={view}
         range={range}
@@ -528,7 +528,7 @@ function MonthView({
           <span key={d.toISOString()}>{format(d, 'EEEEE', { locale: fr })}</span>
         ))}
       </div>
-      <div className="mt-1 grid grid-cols-7 gap-1">
+      <div className="mt-1 grid grid-cols-7 gap-1.5">
         {days.map((day) => {
           const daySessions = sessions.filter((s) => isSameDay(parseISO(s.date), day))
           const inMonth = isSameMonth(day, anchor)
@@ -536,20 +536,45 @@ function MonthView({
             <button
               key={day.toISOString()}
               onClick={() => onPickDay(day)}
-              className={`min-h-14 rounded-lg border p-1.5 text-left transition hover:border-pine-600 dark:hover:border-pine-350 ${
+              className={`min-h-16 rounded-lg border p-2 text-left align-top transition hover:border-pine-600 md:min-h-28 dark:hover:border-pine-350 ${
                 isToday(day)
                   ? 'border-pine-600 dark:border-pine-350'
                   : 'border-moss-200 dark:border-moss-750'
               } ${inMonth ? 'bg-moss-25 dark:bg-moss-850' : 'bg-transparent opacity-40'}`}
             >
-              <span className="text-xs font-medium tabular-nums">{format(day, 'd')}</span>
-              <span className="mt-1 flex flex-wrap gap-0.5">
+              <span className="text-xs font-medium tabular-nums md:text-sm">{format(day, 'd')}</span>
+
+              {/* Small screens: dots */}
+              <span className="mt-1 flex flex-wrap gap-1 md:hidden">
                 {daySessions.slice(0, 4).map((s) => (
-                  <span
-                    key={s.id}
-                    className={`h-1.5 w-1.5 rounded-full ${KIND_DOT[trainingKind(s)]}`}
-                  />
+                  <span key={s.id} className={`h-2 w-2 rounded-full ${KIND_DOT[trainingKind(s)]}`} />
                 ))}
+              </span>
+
+              {/* md+: session titles with kind dots */}
+              <span className="mt-1.5 hidden space-y-1 md:block">
+                {daySessions.slice(0, 3).map((s) => (
+                  <span key={s.id} className="flex items-center gap-1.5">
+                    <span
+                      className={`h-2 w-2 shrink-0 rounded-full ${KIND_DOT[trainingKind(s)]}`}
+                    />
+                    <span
+                      className={`truncate text-[11px] leading-tight ${
+                        s.status === 'DONE' || s.status === 'SKIPPED'
+                          ? 'text-moss-400 dark:text-moss-500'
+                          : 'text-moss-500 dark:text-moss-400'
+                      }`}
+                    >
+                      {s.status === 'DONE' && '✓ '}
+                      {s.title}
+                    </span>
+                  </span>
+                ))}
+                {daySessions.length > 3 && (
+                  <span className="block text-[11px] text-moss-400 dark:text-moss-500">
+                    +{daySessions.length - 3}
+                  </span>
+                )}
               </span>
             </button>
           )
