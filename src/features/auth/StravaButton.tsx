@@ -1,0 +1,47 @@
+import { useState } from 'react'
+import { api, ApiError } from '../../lib/api'
+
+/** "Continuer avec Strava" — one click: sign in, or sign up + connect at once. */
+export function StravaButton() {
+  const [pending, setPending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function start() {
+    setPending(true)
+    setError(null)
+    try {
+      const { url } = await api.get<{ url: string }>('/api/auth/strava/login-url')
+      window.location.href = url
+    } catch (e) {
+      setPending(false)
+      setError(
+        e instanceof ApiError && e.status === 409
+          ? "L'intégration Strava n'est pas encore configurée sur ce serveur."
+          : 'Connexion Strava indisponible. Réessaie.',
+      )
+    }
+  }
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={start}
+        disabled={pending}
+        className="w-full rounded-lg bg-[#fc4c02] px-4 py-2.5 font-semibold text-white transition hover:bg-[#e04502] disabled:opacity-50"
+      >
+        {pending ? 'Redirection…' : 'Continuer avec Strava'}
+      </button>
+      {error && (
+        <p role="alert" className="mt-2 text-sm text-clay-500 dark:text-clay-300">
+          {error}
+        </p>
+      )}
+      <div className="mt-4 mb-0 flex items-center gap-3 text-xs text-moss-400 dark:text-moss-500">
+        <span className="h-px flex-1 bg-moss-200 dark:bg-moss-750" />
+        ou par email
+        <span className="h-px flex-1 bg-moss-200 dark:bg-moss-750" />
+      </div>
+    </div>
+  )
+}

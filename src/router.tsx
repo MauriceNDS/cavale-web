@@ -10,6 +10,7 @@ import type { ReactNode } from 'react'
 import { ThemeToggle } from './components/ThemeToggle'
 import { LoginPage } from './features/auth/LoginPage'
 import { RegisterPage } from './features/auth/RegisterPage'
+import { StravaCallbackPage } from './features/auth/StravaCallbackPage'
 import { useAuth } from './features/auth/session'
 import { CalendarPage } from './features/calendar/CalendarPage'
 import { SettingsPage } from './features/settings/SettingsPage'
@@ -217,7 +218,19 @@ const settingsRoute = createRoute({
   component: SettingsPage,
 })
 
-const routeTree = rootRoute.addChildren([indexRoute, registerRoute, loginRoute, settingsRoute])
+const stravaCallbackRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/auth/strava',
+  component: StravaCallbackPage,
+})
+
+const routeTree = rootRoute.addChildren([
+  indexRoute,
+  registerRoute,
+  loginRoute,
+  settingsRoute,
+  stravaCallbackRoute,
+])
 
 export const router = createRouter({ routeTree })
 

@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { AuthCard, ErrorAlert, Field, SubmitButton } from '../../components/form'
 import { ApiError } from '../../lib/api'
 import { registerUser, type RegisterRequest } from './api'
+import { StravaButton } from './StravaButton'
 import { useAuth } from './session'
 
 const registerSchema = z.object({
@@ -55,7 +56,11 @@ export function RegisterPage() {
     <AuthCard title="Créer un compte" subtitle="Cours libre. Entraîne-toi avec intention.">
       {serverProblem && <ErrorAlert message={serverProblem.detail ?? serverProblem.title} />}
 
-      <form onSubmit={handleSubmit} noValidate className="mt-6 space-y-4">
+      <div className="mt-6">
+        <StravaButton />
+      </div>
+
+      <form onSubmit={handleSubmit} noValidate className="mt-4 space-y-4">
         <Field
           label="Email"
           name="email"

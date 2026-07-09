@@ -4,6 +4,7 @@ import { Link, useNavigate } from '@tanstack/react-router'
 import { z } from 'zod'
 import { AuthCard, ErrorAlert, Field, SubmitButton } from '../../components/form'
 import { ApiError } from '../../lib/api'
+import { StravaButton } from './StravaButton'
 import { useAuth } from './session'
 
 const loginSchema = z.object({
@@ -50,7 +51,11 @@ export function LoginPage() {
     <AuthCard title="Se connecter" subtitle="Bon retour sur les sentiers.">
       {serverProblem && <ErrorAlert message={serverProblem.detail ?? serverProblem.title} />}
 
-      <form onSubmit={handleSubmit} noValidate className="mt-6 space-y-4">
+      <div className="mt-6">
+        <StravaButton />
+      </div>
+
+      <form onSubmit={handleSubmit} noValidate className="mt-4 space-y-4">
         <Field label="Email" name="email" type="email" autoComplete="email" error={fieldErrors.email} />
         <Field
           label="Mot de passe"
