@@ -33,8 +33,10 @@ import {
   fetchPlans,
   updateSession,
   updateWeek,
+  validateSession,
   type SessionResponse,
   type SessionStatus,
+  type ValidateSessionRequest,
   type WeekResponse,
 } from './api'
 import {
@@ -86,6 +88,15 @@ export function CalendarPage() {
   const sessionMutation = useMutation({
     mutationFn: ({ id, ...body }: { id: string; date?: string; status?: SessionStatus }) =>
       updateSession(id, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['calendar'] })
+      setSelected(null)
+    },
+  })
+
+  const validateMutation = useMutation({
+    mutationFn: ({ id, body }: { id: string; body: ValidateSessionRequest }) =>
+      validateSession(id, body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['calendar'] })
       setSelected(null)
@@ -145,8 +156,9 @@ export function CalendarPage() {
       {selected && (
         <SessionModal
           session={selected}
-          pending={sessionMutation.isPending}
+          pending={sessionMutation.isPending || validateMutation.isPending}
           onStatus={(status) => sessionMutation.mutate({ id: selected.id, status })}
+          onValidate={(body) => validateMutation.mutate({ id: selected.id, body })}
           onClose={() => setSelected(null)}
         />
       )}
@@ -231,20 +243,29 @@ function CalendarHeader({ view, range, anchor, week, weekSessions, onShift, onTo
  */
 function WeekMetrics({ week, sessions }: { week: WeekResponse; sessions: SessionResponse[] }) {
   const done = sessions.filter((s) => s.status === 'DONE')
-  const doneElevation = done.reduce((sum, s) => sum + (s.elevationM ?? 0), 0)
-  const doneMinutes = done.reduce((sum, s) => sum + (s.durationMin ?? 0), 0)
+  // Real measures (activity) win; planned values stand in for validated
+  // sessions without data (e.g. gym).
+  const doneDistance = done.reduce((sum, s) => sum + (s.activity?.distanceKm ?? 0), 0)
+  const doneElevation = done.reduce(
+    (sum, s) => sum + (s.activity?.elevationM ?? s.elevationM ?? 0),
+    0,
+  )
+  const doneMinutes = done.reduce(
+    (sum, s) => sum + (s.activity?.durationMin ?? s.durationMin ?? 0),
+    0,
+  )
   const plannedMinutes = sessions
     .filter((s) => s.discipline !== 'REST')
     .reduce((sum, s) => sum + (s.durationMin ?? 0), 0)
   const doneLoad = done.reduce((sum, s) => {
     const rpe = s.rpeMin != null && s.rpeMax != null ? (s.rpeMin + s.rpeMax) / 2 : (s.rpeMin ?? 0)
-    return sum + rpe * (s.durationMin ?? 0)
+    return sum + rpe * (s.activity?.durationMin ?? s.durationMin ?? 0)
   }, 0)
 
   const metrics: { label: string; actual: string | null; target: string | null }[] = [
     {
       label: 'Volume',
-      actual: null, // per-session distance arrives with Strava sync
+      actual: doneDistance > 0 ? `${Math.round(doneDistance * 10) / 10}` : '—',
       target: week.targetVolumeKm != null ? `${week.targetVolumeKm} km` : null,
     },
     {
@@ -601,17 +622,28 @@ const STATUS_LABEL: Record<SessionStatus, string> = {
   MOVED: 'Déplacée',
 }
 
+function formatPace(durationMin: number, distanceKm: number | null): string | null {
+  if (!distanceKm || distanceKm <= 0) return null
+  const secPerKm = Math.round((durationMin * 60) / distanceKm)
+  return `${Math.floor(secPerKm / 60)}:${String(secPerKm % 60).padStart(2, '0')} /km`
+}
+
 function SessionModal({
   session,
   pending,
   onStatus,
+  onValidate,
   onClose,
 }: {
   session: SessionResponse
   pending: boolean
   onStatus: (status: SessionStatus) => void
+  onValidate: (body: ValidateSessionRequest) => void
   onClose: () => void
 }) {
+  const [showForm, setShowForm] = useState(false)
+  // Repos & marche need no validation at all
+  const validatable = session.discipline === 'RUN' || session.discipline === 'GYM'
   const facts = [
     ['Discipline', DISCIPLINE_LABEL[session.discipline]],
     ['Zone', session.zone],
@@ -673,42 +705,171 @@ function SessionModal({
           ))}
         </dl>
 
+        {session.activity && (
+          <div className="mt-4 rounded-lg bg-pine-100/60 p-3 text-sm dark:bg-pine-900/40">
+            <p className="text-xs font-semibold tracking-wide text-pine-700 uppercase dark:text-pine-300">
+              Réalisé
+            </p>
+            <p className="mt-1 font-medium tabular-nums">
+              {[
+                session.activity.distanceKm != null && `${session.activity.distanceKm} km`,
+                formatDuration(session.activity.durationMin),
+                formatPace(session.activity.durationMin, session.activity.distanceKm),
+                session.activity.elevationM != null && `${session.activity.elevationM} m D+`,
+                session.activity.avgHr != null && `${session.activity.avgHr} bpm`,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </p>
+            {session.activity.comment && (
+              <p className="mt-1 text-moss-500 dark:text-moss-400">{session.activity.comment}</p>
+            )}
+          </div>
+        )}
+
         {session.detail && (
           <p className="mt-4 border-t border-moss-200 pt-4 text-sm whitespace-pre-line text-moss-500 dark:border-moss-750 dark:text-moss-400">
             <GlossaryText text={session.detail} />
           </p>
         )}
 
-        <div className="mt-5 flex flex-wrap gap-2 border-t border-moss-200 pt-4 dark:border-moss-750">
-          {session.status !== 'DONE' && (
-            <button
-              onClick={() => onStatus('DONE')}
-              disabled={pending}
-              className="rounded-lg bg-pine-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
-            >
-              ✓ Valider
-            </button>
-          )}
-          {session.status !== 'SKIPPED' && (
-            <button
-              onClick={() => onStatus('SKIPPED')}
-              disabled={pending}
-              className="rounded-lg border border-clay-500/40 px-4 py-2 text-sm font-semibold text-clay-500 transition hover:bg-clay-100 disabled:opacity-50 dark:text-clay-300 dark:hover:bg-clay-900"
-            >
-              ✗ Manquée
-            </button>
-          )}
-          {isSettled && (
-            <button
-              onClick={() => onStatus('PLANNED')}
-              disabled={pending}
-              className="rounded-lg border border-moss-200 px-4 py-2 text-sm font-medium text-moss-500 transition hover:bg-moss-100 disabled:opacity-50 dark:border-moss-750 dark:text-moss-400 dark:hover:bg-moss-800"
-            >
-              Remettre à planifiée
-            </button>
-          )}
-        </div>
+        {showForm ? (
+          <ValidateForm
+            session={session}
+            pending={pending}
+            onSubmit={onValidate}
+            onCancel={() => setShowForm(false)}
+          />
+        ) : (
+          validatable && (
+            <div className="mt-5 flex flex-wrap gap-2 border-t border-moss-200 pt-4 dark:border-moss-750">
+              {session.status !== 'DONE' && (
+                <button
+                  onClick={() => (session.discipline === 'RUN' ? setShowForm(true) : onStatus('DONE'))}
+                  disabled={pending}
+                  className="rounded-lg bg-pine-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
+                >
+                  ✓ Valider
+                </button>
+              )}
+              {session.status === 'DONE' && session.discipline === 'RUN' && (
+                <button
+                  onClick={() => setShowForm(true)}
+                  disabled={pending}
+                  className="rounded-lg border border-pine-600/40 px-4 py-2 text-sm font-medium text-pine-700 transition hover:bg-pine-100 disabled:opacity-50 dark:text-pine-300 dark:hover:bg-pine-900"
+                >
+                  Modifier les mesures
+                </button>
+              )}
+              {session.status !== 'SKIPPED' && (
+                <button
+                  onClick={() => onStatus('SKIPPED')}
+                  disabled={pending}
+                  className="rounded-lg border border-clay-500/40 px-4 py-2 text-sm font-semibold text-clay-500 transition hover:bg-clay-100 disabled:opacity-50 dark:text-clay-300 dark:hover:bg-clay-900"
+                >
+                  ✗ Manquée
+                </button>
+              )}
+              {isSettled && (
+                <button
+                  onClick={() => onStatus('PLANNED')}
+                  disabled={pending}
+                  className="rounded-lg border border-moss-200 px-4 py-2 text-sm font-medium text-moss-500 transition hover:bg-moss-100 disabled:opacity-50 dark:border-moss-750 dark:text-moss-400 dark:hover:bg-moss-800"
+                >
+                  Remettre à planifiée
+                </button>
+              )}
+            </div>
+          )
+        )}
       </div>
     </div>
+  )
+}
+
+/** Manual measures form — time and distance are the price of a ✓. */
+function ValidateForm({
+  session,
+  pending,
+  onSubmit,
+  onCancel,
+}: {
+  session: SessionResponse
+  pending: boolean
+  onSubmit: (body: ValidateSessionRequest) => void
+  onCancel: () => void
+}) {
+  const [error, setError] = useState<string | null>(null)
+
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const data = new FormData(event.currentTarget)
+    const durationMin = Number(data.get('durationMin'))
+    const distanceKm = Number(data.get('distanceKm'))
+    if (!durationMin || durationMin <= 0 || !distanceKm || distanceKm <= 0) {
+      setError('La durée et la distance sont obligatoires.')
+      return
+    }
+    setError(null)
+    const elevationM = data.get('elevationM') ? Number(data.get('elevationM')) : undefined
+    const avgHr = data.get('avgHr') ? Number(data.get('avgHr')) : undefined
+    const comment = String(data.get('comment') ?? '').trim() || undefined
+    onSubmit({ durationMin, distanceKm, elevationM, avgHr, comment })
+  }
+
+  const inputCls =
+    'mt-0.5 w-full rounded-lg border border-moss-200 bg-moss-100 px-2.5 py-1.5 text-sm outline-none focus:border-pine-600 focus:ring-2 focus:ring-pine-600/25 dark:border-moss-750 dark:bg-moss-800 dark:focus:border-pine-350 dark:focus:ring-pine-350/25'
+
+  return (
+    <form onSubmit={handleSubmit} className="mt-5 border-t border-moss-200 pt-4 dark:border-moss-750">
+      <p className="text-sm font-semibold">Mesures de la sortie</p>
+      {error && (
+        <p role="alert" className="mt-1 text-sm text-clay-500 dark:text-clay-300">
+          {error}
+        </p>
+      )}
+      <div className="mt-2 grid grid-cols-2 gap-3">
+        <label className="block text-xs text-moss-500 dark:text-moss-400">
+          Durée (min) *
+          <input name="durationMin" type="number" min="1" required
+            defaultValue={session.activity?.durationMin ?? session.durationMin ?? ''} className={inputCls} />
+        </label>
+        <label className="block text-xs text-moss-500 dark:text-moss-400">
+          Distance (km) *
+          <input name="distanceKm" type="number" min="0.1" step="0.01" required
+            defaultValue={session.activity?.distanceKm ?? ''} className={inputCls} />
+        </label>
+        <label className="block text-xs text-moss-500 dark:text-moss-400">
+          D+ (m)
+          <input name="elevationM" type="number" min="0"
+            defaultValue={session.activity?.elevationM ?? ''} className={inputCls} />
+        </label>
+        <label className="block text-xs text-moss-500 dark:text-moss-400">
+          FC moyenne (bpm)
+          <input name="avgHr" type="number" min="30" max="250"
+            defaultValue={session.activity?.avgHr ?? ''} className={inputCls} />
+        </label>
+        <label className="col-span-2 block text-xs text-moss-500 dark:text-moss-400">
+          Commentaire
+          <textarea name="comment" rows={2} defaultValue={session.activity?.comment ?? ''} className={inputCls} />
+        </label>
+      </div>
+      <div className="mt-3 flex gap-2">
+        <button
+          type="submit"
+          disabled={pending}
+          className="rounded-lg bg-pine-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
+        >
+          {pending ? 'Enregistrement…' : '✓ Valider la séance'}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-lg px-4 py-2 text-sm font-medium text-moss-500 transition hover:bg-moss-100 dark:text-moss-400 dark:hover:bg-moss-800"
+        >
+          Annuler
+        </button>
+      </div>
+    </form>
   )
 }

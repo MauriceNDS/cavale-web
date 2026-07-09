@@ -11,6 +11,15 @@ export type WeekType =
   | 'TAPER'
   | 'RACE'
 
+export interface ActivitySummary {
+  source: 'MANUAL' | 'STRAVA'
+  durationMin: number
+  distanceKm: number | null
+  elevationM: number | null
+  avgHr: number | null
+  comment: string | null
+}
+
 export interface SessionResponse {
   id: string
   weekId: string
@@ -25,6 +34,7 @@ export interface SessionResponse {
   rpeMin: number | null
   rpeMax: number | null
   status: SessionStatus
+  activity: ActivitySummary | null
 }
 
 export interface PlanResponse {
@@ -77,4 +87,16 @@ export function updateSession(sessionId: string, body: UpdateSessionRequest): Pr
 
 export function updateWeek(weekId: string, body: { focus: string }): Promise<WeekResponse> {
   return api.patch<WeekResponse>(`/api/weeks/${weekId}`, body)
+}
+
+export interface ValidateSessionRequest {
+  durationMin: number
+  distanceKm: number
+  elevationM?: number
+  avgHr?: number
+  comment?: string
+}
+
+export function validateSession(sessionId: string, body: ValidateSessionRequest): Promise<SessionResponse> {
+  return api.post<SessionResponse>(`/api/sessions/${sessionId}/validate`, body)
 }
