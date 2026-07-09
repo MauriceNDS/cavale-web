@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   DndContext,
@@ -308,7 +308,23 @@ function WeekFocus({ week }: { week: WeekResponse }) {
   const [expanded, setExpanded] = useState(false)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
+  const [isTruncated, setIsTruncated] = useState(false)
+  const textRef = useRef<HTMLSpanElement>(null)
   const queryClient = useQueryClient()
+
+  // "Voir plus" only when the text actually overflows its line
+  useEffect(() => {
+    const el = textRef.current
+    if (!el) {
+      setIsTruncated(false)
+      return
+    }
+    const measure = () => setIsTruncated(el.scrollWidth > el.clientWidth)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [week.focus, expanded, editing])
 
   const mutation = useMutation({
     mutationFn: (focus: string) => updateWeek(week.id, { focus }),
@@ -348,32 +364,40 @@ function WeekFocus({ week }: { week: WeekResponse }) {
   }
 
   const focus = week.focus ?? ''
-  const isLong = focus.length > 90
 
   return (
     <div className="w-full text-sm text-moss-500 dark:text-moss-400">
-      {focus && (
-        <span className={expanded ? 'whitespace-pre-line' : 'block truncate'}>{focus}</span>
-      )}
-      <span className="flex gap-3">
-        {isLong && (
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="text-xs font-medium text-pine-700 hover:underline dark:text-pine-300"
+      <div className="flex items-start gap-1.5">
+        {focus && (
+          <span
+            ref={textRef}
+            className={`min-w-0 flex-1 ${expanded ? 'whitespace-pre-line' : 'truncate'}`}
           >
-            {expanded ? 'Réduire' : 'Voir plus'}
-          </button>
+            {focus}
+          </span>
         )}
         <button
           onClick={() => {
             setDraft(focus)
             setEditing(true)
           }}
-          className="text-xs font-medium text-moss-400 hover:text-ink hover:underline dark:text-moss-500 dark:hover:text-linen"
+          title={focus ? 'Modifier la description' : 'Ajouter une description'}
+          aria-label={focus ? 'Modifier la description' : 'Ajouter une description'}
+          className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-moss-400 transition hover:bg-moss-100 hover:text-ink dark:text-moss-500 dark:hover:bg-moss-800 dark:hover:text-linen"
         >
-          {focus ? 'Modifier' : 'Ajouter une description'}
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+          </svg>
         </button>
-      </span>
+      </div>
+      {(isTruncated || expanded) && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="text-xs font-medium text-pine-700 hover:underline dark:text-pine-300"
+        >
+          {expanded ? 'Réduire' : 'Voir plus'}
+        </button>
+      )}
     </div>
   )
 }
