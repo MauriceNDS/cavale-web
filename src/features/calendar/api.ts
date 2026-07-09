@@ -74,3 +74,7 @@ export interface UpdateSessionRequest {
 export function updateSession(sessionId: string, body: UpdateSessionRequest): Promise<SessionResponse> {
   return api.patch<SessionResponse>(`/api/sessions/${sessionId}`, body)
 }
+
+export function updateWeek(weekId: string, body: { focus: string }): Promise<WeekResponse> {
+  return api.patch<WeekResponse>(`/api/weeks/${weekId}`, body)
+}

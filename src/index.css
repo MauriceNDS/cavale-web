@@ -49,6 +49,18 @@
   --color-clay-500: #c25c2e;
   --color-clay-600: #a4552a;
   --color-clay-900: #40291d;
+
+  /* Training-kind accents (calendar coding) */
+  --color-gold-300: #d9b158;  /* Seuil 60 (dark mode) */
+  --color-gold-600: #b78827;  /* Seuil 60 (light mode) */
+  --color-teal-300: #6faca1;  /* Tempo / AC (dark) */
+  --color-teal-600: #3e7d74;  /* Tempo / AC (light) */
+  --color-lake-300: #8fb4d4;  /* Sortie longue (dark) */
+  --color-lake-600: #4d7ba0;  /* Sortie longue (light) */
+  --color-rowan-300: #d98a8a; /* VMA / VO2 (dark) */
+  --color-rowan-600: #a83232; /* VMA / VO2 (light) */
+  --color-wine-300: #c96a80;  /* Bloc choc (dark) */
+  --color-wine-700: #7d2a3c;  /* Bloc choc (light) */
 }
 
 @layer base {

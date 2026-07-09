@@ -32,17 +32,21 @@ import {
   fetchPlanDetail,
   fetchPlans,
   updateSession,
+  updateWeek,
   type SessionResponse,
   type SessionStatus,
   type WeekResponse,
 } from './api'
 import {
-  DISCIPLINE_DOT,
-  DISCIPLINE_EDGE,
   DISCIPLINE_LABEL,
+  KIND_DOT,
+  KIND_EDGE,
+  KIND_LEGEND,
+  KIND_LABEL,
   WEEK_TYPE_BADGE,
   WEEK_TYPE_LABEL,
   formatDuration,
+  trainingKind,
 } from './labels'
 
 type View = 'week' | 'month'
@@ -79,7 +83,7 @@ export function CalendarPage() {
     enabled: !!activePlan,
   })
 
-  const mutation = useMutation({
+  const sessionMutation = useMutation({
     mutationFn: ({ id, ...body }: { id: string; date?: string; status?: SessionStatus }) =>
       updateSession(id, body),
     onSuccess: () => {
@@ -107,6 +111,7 @@ export function CalendarPage() {
         range={range}
         anchor={anchor}
         week={currentWeek}
+        weekSessions={view === 'week' ? (sessions.data ?? []) : []}
         onShift={shift}
         onToday={() => setAnchor(new Date())}
         onView={setView}
@@ -123,7 +128,7 @@ export function CalendarPage() {
           range={range}
           sessions={sessions.data ?? []}
           onSelect={setSelected}
-          onMove={(id, date) => mutation.mutate({ id, date })}
+          onMove={(id, date) => sessionMutation.mutate({ id, date })}
         />
       ) : (
         <MonthView
@@ -140,8 +145,8 @@ export function CalendarPage() {
       {selected && (
         <SessionModal
           session={selected}
-          pending={mutation.isPending}
-          onStatus={(status) => mutation.mutate({ id: selected.id, status })}
+          pending={sessionMutation.isPending}
+          onStatus={(status) => sessionMutation.mutate({ id: selected.id, status })}
           onClose={() => setSelected(null)}
         />
       )}
@@ -149,19 +154,20 @@ export function CalendarPage() {
   )
 }
 
-/* ── Header ────────────────────────────────────────────────────────── */
+/* ── Header: navigation, week identity, metrics, editable focus ────── */
 
 interface HeaderProps {
   view: View
   range: { start: Date; end: Date }
   anchor: Date
   week: WeekResponse | undefined
+  weekSessions: SessionResponse[]
   onShift: (d: 1 | -1) => void
   onToday: () => void
   onView: (v: View) => void
 }
 
-function CalendarHeader({ view, range, anchor, week, onShift, onToday, onView }: HeaderProps) {
+function CalendarHeader({ view, range, anchor, week, weekSessions, onShift, onToday, onView }: HeaderProps) {
   const title =
     view === 'week'
       ? `${format(range.start, 'd', { locale: fr })}–${format(range.end, 'd MMM', { locale: fr })}`
@@ -212,26 +218,141 @@ function CalendarHeader({ view, range, anchor, week, onShift, onToday, onView }:
         ))}
       </div>
 
-      {week && (
-        <div className="w-full text-sm text-moss-500 dark:text-moss-400">
-          {week.targetVolumeKm != null && <span>{week.targetVolumeKm} km · </span>}
-          {week.targetElevationM != null && (
-            <span>
-              {week.targetElevationM} m <InfoTip term="D+">D+</InfoTip> ·{' '}
-            </span>
-          )}
-          {week.targetLoadUa != null && (
-            <span>
-              {week.targetLoadUa} <InfoTip term="UA">UA</InfoTip>
-            </span>
-          )}
-          {week.focus && (
-            <span className="block truncate">
-              <GlossaryText text={week.focus} />
-            </span>
-          )}
+      {week && <WeekMetrics week={week} sessions={weekSessions} />}
+      {week && <WeekFocus week={week} />}
+    </div>
+  )
+}
+
+/**
+ * Week metrics as "actual / target". Actuals are computed from VALIDATED
+ * sessions of the week (they'll get more precise once Strava data lands):
+ * distance has no per-session actual yet, time and D+ do.
+ */
+function WeekMetrics({ week, sessions }: { week: WeekResponse; sessions: SessionResponse[] }) {
+  const done = sessions.filter((s) => s.status === 'DONE')
+  const doneElevation = done.reduce((sum, s) => sum + (s.elevationM ?? 0), 0)
+  const doneMinutes = done.reduce((sum, s) => sum + (s.durationMin ?? 0), 0)
+  const plannedMinutes = sessions
+    .filter((s) => s.discipline !== 'REST')
+    .reduce((sum, s) => sum + (s.durationMin ?? 0), 0)
+  const doneLoad = done.reduce((sum, s) => {
+    const rpe = s.rpeMin != null && s.rpeMax != null ? (s.rpeMin + s.rpeMax) / 2 : (s.rpeMin ?? 0)
+    return sum + rpe * (s.durationMin ?? 0)
+  }, 0)
+
+  const metrics: { label: string; actual: string | null; target: string | null }[] = [
+    {
+      label: 'Volume',
+      actual: null, // per-session distance arrives with Strava sync
+      target: week.targetVolumeKm != null ? `${week.targetVolumeKm} km` : null,
+    },
+    {
+      label: 'D+',
+      actual: doneElevation > 0 ? `${doneElevation}` : '0',
+      target: week.targetElevationM != null ? `${week.targetElevationM} m` : null,
+    },
+    {
+      label: 'Temps',
+      actual: formatDuration(doneMinutes) ?? '0',
+      target: formatDuration(plannedMinutes),
+    },
+    {
+      label: 'Charge',
+      actual: doneLoad > 0 ? `${Math.round(doneLoad)}` : '0',
+      target: week.targetLoadUa != null ? `${week.targetLoadUa} UA` : null,
+    },
+  ]
+
+  return (
+    <div className="flex w-full flex-wrap gap-2">
+      {metrics
+        .filter((m) => m.target != null || (m.actual != null && m.actual !== '0'))
+        .map((m) => (
+          <span
+            key={m.label}
+            className="rounded-lg border border-moss-200 bg-moss-25 px-2.5 py-1 text-xs tabular-nums dark:border-moss-750 dark:bg-moss-850"
+          >
+            <span className="text-moss-500 dark:text-moss-400">{m.label} </span>
+            <span className="font-semibold">{m.actual ?? '—'}</span>
+            {m.target && <span className="text-moss-500 dark:text-moss-400"> / {m.target}</span>}
+          </span>
+        ))}
+    </div>
+  )
+}
+
+/** Collapsible + editable week description. */
+function WeekFocus({ week }: { week: WeekResponse }) {
+  const [expanded, setExpanded] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  const queryClient = useQueryClient()
+
+  const mutation = useMutation({
+    mutationFn: (focus: string) => updateWeek(week.id, { focus }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['plan'] })
+      setEditing(false)
+    },
+  })
+
+  if (editing) {
+    return (
+      <div className="w-full">
+        <textarea
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          rows={3}
+          autoFocus
+          className="w-full rounded-lg border border-moss-200 bg-moss-25 p-2.5 text-sm outline-none focus:border-pine-600 focus:ring-2 focus:ring-pine-600/25 dark:border-moss-750 dark:bg-moss-850 dark:focus:border-pine-350 dark:focus:ring-pine-350/25"
+        />
+        <div className="mt-1.5 flex gap-2">
+          <button
+            onClick={() => mutation.mutate(draft)}
+            disabled={mutation.isPending}
+            className="rounded-lg bg-pine-600 px-3 py-1 text-xs font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
+          >
+            Enregistrer
+          </button>
+          <button
+            onClick={() => setEditing(false)}
+            className="rounded-lg px-3 py-1 text-xs font-medium text-moss-500 transition hover:bg-moss-100 dark:text-moss-400 dark:hover:bg-moss-800"
+          >
+            Annuler
+          </button>
         </div>
+      </div>
+    )
+  }
+
+  const focus = week.focus ?? ''
+  const isLong = focus.length > 90
+
+  return (
+    <div className="w-full text-sm text-moss-500 dark:text-moss-400">
+      {focus && (
+        <span className={expanded ? 'whitespace-pre-line' : 'block truncate'}>{focus}</span>
       )}
+      <span className="flex gap-3">
+        {isLong && (
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="text-xs font-medium text-pine-700 hover:underline dark:text-pine-300"
+          >
+            {expanded ? 'Réduire' : 'Voir plus'}
+          </button>
+        )}
+        <button
+          onClick={() => {
+            setDraft(focus)
+            setEditing(true)
+          }}
+          className="text-xs font-medium text-moss-400 hover:text-ink hover:underline dark:text-moss-500 dark:hover:text-linen"
+        >
+          {focus ? 'Modifier' : 'Ajouter une description'}
+        </button>
+      </span>
     </div>
   )
 }
@@ -262,7 +383,6 @@ function WeekView({
   onMove: (sessionId: string, date: string) => void
 }) {
   const days = eachDayOfInterval(range)
-  // Require a small drag distance so plain clicks still open the modal
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
   function handleDragEnd(event: DragEndEvent) {
@@ -277,8 +397,12 @@ function WeekView({
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="mt-5 space-y-2">
         {days.map((day) => (
-          <DayRow key={day.toISOString()} day={day} onSelect={onSelect}
-            sessions={sessions.filter((s) => isSameDay(parseISO(s.date), day))} />
+          <DayRow
+            key={day.toISOString()}
+            day={day}
+            onSelect={onSelect}
+            sessions={sessions.filter((s) => isSameDay(parseISO(s.date), day))}
+          />
         ))}
       </div>
     </DndContext>
@@ -338,10 +462,11 @@ function DraggableSessionCard({ session, onClick }: { session: SessionResponse; 
   const meta = [
     formatDuration(session.durationMin),
     session.elevationM != null && `${session.elevationM} m D+`,
+    session.rpeMin != null &&
+      `RPE ${session.rpeMin}${session.rpeMax !== session.rpeMin ? `–${session.rpeMax}` : ''}`,
   ].filter(Boolean)
 
   const mark = STATUS_MARK[session.status]
-  const zoneKey = session.zone ? glossaryKeyFor(session.zone) : null
 
   return (
     <div
@@ -357,7 +482,7 @@ function DraggableSessionCard({ session, onClick }: { session: SessionResponse; 
         {...listeners}
         {...attributes}
         onClick={onClick}
-        className={`flex w-full touch-none items-center gap-3 rounded-lg border border-l-4 border-moss-200 bg-moss-50 px-3 py-2 text-left transition hover:border-moss-300 dark:border-moss-750 dark:bg-moss-800 dark:hover:border-moss-700 ${DISCIPLINE_EDGE[session.discipline]} ${
+        className={`flex w-full touch-none items-center gap-3 rounded-lg border border-l-4 border-moss-200 bg-moss-50 px-3 py-2 text-left transition hover:border-moss-300 dark:border-moss-750 dark:bg-moss-800 dark:hover:border-moss-700 ${KIND_EDGE[trainingKind(session)]} ${
           session.status === 'DONE' || session.status === 'SKIPPED' ? 'opacity-60' : ''
         }`}
       >
@@ -366,22 +491,13 @@ function DraggableSessionCard({ session, onClick }: { session: SessionResponse; 
             {mark && <span className={`mr-1.5 ${mark.cls}`}>{mark.label}</span>}
             <span className={session.status === 'SKIPPED' ? 'line-through' : ''}>{session.title}</span>
           </p>
-          <p className="text-xs text-moss-500 tabular-nums dark:text-moss-400">
-            {meta.join(' · ')}
-            {meta.length > 0 && session.rpeMin != null && ' · '}
-            {session.rpeMin != null && (
-              <InfoTip term="RPE">
-                {`RPE ${session.rpeMin}${session.rpeMax !== session.rpeMin ? `–${session.rpeMax}` : ''}`}
-              </InfoTip>
-            )}
-          </p>
+          {meta.length > 0 && (
+            <p className="text-xs text-moss-500 tabular-nums dark:text-moss-400">{meta.join(' · ')}</p>
+          )}
         </div>
         {session.zone && (
-          <span
-            className="shrink-0 rounded-full bg-pine-100 px-2 py-0.5 text-[11px] font-semibold text-pine-700 dark:bg-pine-900 dark:text-pine-300"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {zoneKey ? <InfoTip term={zoneKey}>{session.zone}</InfoTip> : session.zone}
+          <span className="shrink-0 rounded-full bg-pine-100 px-2 py-0.5 text-[11px] font-semibold text-pine-700 dark:bg-pine-900 dark:text-pine-300">
+            {session.zone}
           </span>
         )}
       </button>
@@ -431,7 +547,7 @@ function MonthView({
                 {daySessions.slice(0, 4).map((s) => (
                   <span
                     key={s.id}
-                    className={`h-1.5 w-1.5 rounded-full ${DISCIPLINE_DOT[s.discipline]}`}
+                    className={`h-1.5 w-1.5 rounded-full ${KIND_DOT[trainingKind(s)]}`}
                   />
                 ))}
               </span>
@@ -439,11 +555,11 @@ function MonthView({
           )
         })}
       </div>
-      <p className="mt-3 flex flex-wrap gap-4 text-xs text-moss-500 dark:text-moss-400">
-        {(['RUN', 'GYM', 'CROSS', 'REST'] as const).map((d) => (
-          <span key={d} className="flex items-center gap-1.5">
-            <span className={`h-1.5 w-1.5 rounded-full ${DISCIPLINE_DOT[d]}`} />
-            {DISCIPLINE_LABEL[d]}
+      <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-moss-500 dark:text-moss-400">
+        {KIND_LEGEND.map((k) => (
+          <span key={k} className="flex items-center gap-1.5">
+            <span className={`h-1.5 w-1.5 rounded-full ${KIND_DOT[k]}`} />
+            {KIND_LABEL[k]}
           </span>
         ))}
       </p>
@@ -451,7 +567,7 @@ function MonthView({
   )
 }
 
-/* ── Session detail modal with validation ──────────────────────────── */
+/* ── Session detail modal (the ONE place with glossary tips) ───────── */
 
 const STATUS_LABEL: Record<SessionStatus, string> = {
   PLANNED: 'Planifiée',
@@ -519,7 +635,7 @@ function SessionModal({
           {facts.map(([label, value]) => (
             <div key={label}>
               <dt className="text-xs text-moss-500 dark:text-moss-400">
-                {label === 'RPE' ? <InfoTip term="RPE">RPE</InfoTip> : label}
+                {label === 'RPE' ? <InfoTip term="RPE">RPE</InfoTip> : label === 'D+' ? <InfoTip term="D+">D+</InfoTip> : label}
               </dt>
               <dd className="font-medium">
                 {label === 'Zone' && glossaryKeyFor(value) ? (
