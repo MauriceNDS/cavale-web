@@ -20,17 +20,18 @@ export interface ActivitySummary {
   comment: string | null
 }
 
-export interface WorkoutStep {
-  label: string
-  repeats: number | null
-  repeatLabel: string | null
+export interface WorkoutNode {
+  type: 'step' | 'repeat'
+  label: string | null
   durationSec: number | null
   zone: string | null
+  count: number | null
+  children: WorkoutNode[] | null
 }
 
 export interface WorkoutBlock {
   section: 'WARMUP' | 'MAIN' | 'COOLDOWN'
-  steps: WorkoutStep[]
+  nodes: WorkoutNode[]
 }
 
 export interface SessionResponse {
@@ -119,4 +120,21 @@ export function validateSession(sessionId: string, body: ValidateSessionRequest)
 
 export function validateSessionFromStrava(sessionId: string, stravaActivityId: number): Promise<SessionResponse> {
   return api.post<SessionResponse>(`/api/sessions/${sessionId}/validate-strava`, { stravaActivityId })
+}
+
+export interface CreateSessionRequest {
+  date: string
+  orderInDay: number
+  discipline: Discipline
+  title: string
+  detail?: string
+  zone?: string
+  durationMin?: number
+  elevationM?: number
+  rpeMin?: number
+  rpeMax?: number
+}
+
+export function createSession(weekId: string, body: CreateSessionRequest): Promise<SessionResponse> {
+  return api.post<SessionResponse>(`/api/weeks/${weekId}/sessions`, body)
 }

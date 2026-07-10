@@ -29,6 +29,7 @@ import { fr } from 'date-fns/locale'
 import { ApiError, getToken } from '../../lib/api'
 import { GlossaryText, InfoTip, glossaryKeyFor } from '../../lib/glossary'
 import {
+  createSession,
   fetchCalendar,
   fetchPlanDetail,
   fetchPlans,
@@ -36,10 +37,13 @@ import {
   updateWeek,
   validateSession,
   validateSessionFromStrava,
+  type CreateSessionRequest,
   type SessionResponse,
   type SessionStatus,
   type ValidateSessionRequest,
   type WeekResponse,
+  type WorkoutBlock,
+  type WorkoutNode,
 } from './api'
 import { fetchStravaActivities } from '../strava/api'
 import {
@@ -82,6 +86,11 @@ export function CalendarPage() {
     queryKey: ['calendar', iso(range.start), iso(range.end)],
     queryFn: () => fetchCalendar(iso(range.start), iso(range.end)),
   })
+  // Rest days aren't shown: an empty day IS the rest
+  const visibleSessions = useMemo(
+    () => (sessions.data ?? []).filter((s) => s.discipline !== 'REST'),
+    [sessions.data],
+  )
 
   const plans = useQuery({ queryKey: ['plans'], queryFn: fetchPlans })
   const activePlan = plans.data?.find((p) => p.status === 'ACTIVE') ?? plans.data?.[0]
@@ -127,6 +136,24 @@ export function CalendarPage() {
     })
   }, [view, planDetail.data, range.start])
 
+  const [adding, setAdding] = useState<Date | null>(null)
+
+  const createMutation = useMutation({
+    mutationFn: ({ weekId, body }: { weekId: string; body: CreateSessionRequest }) =>
+      createSession(weekId, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['calendar'] })
+      setAdding(null)
+    },
+  })
+
+  function weekForDay(day: Date): WeekResponse | undefined {
+    return planDetail.data?.weeks.find((w) => {
+      const start = parseISO(w.startDate)
+      return isWithinInterval(day, { start, end: addDays(start, 6) })
+    })
+  }
+
   function shift(direction: 1 | -1) {
     setAnchor(view === 'week' ? addWeeks(anchor, direction) : addMonths(anchor, direction))
   }
@@ -153,19 +180,31 @@ export function CalendarPage() {
       {view === 'week' ? (
         <WeekView
           range={range}
-          sessions={sessions.data ?? []}
+          sessions={visibleSessions}
           onSelect={setSelected}
           onMove={(id, date) => sessionMutation.mutate({ id, date })}
+          onAdd={setAdding}
         />
       ) : (
         <MonthView
           anchor={anchor}
           range={range}
-          sessions={sessions.data ?? []}
+          sessions={visibleSessions}
           onPickDay={(day) => {
             setAnchor(day)
             setView('week')
           }}
+        />
+      )}
+
+      {adding && (
+        <AddSessionModal
+          day={adding}
+          week={weekForDay(adding)}
+          orderInDay={visibleSessions.filter((s) => s.date === iso(adding)).length}
+          pending={createMutation.isPending}
+          onCreate={(weekId, body) => createMutation.mutate({ weekId, body })}
+          onClose={() => setAdding(null)}
         />
       )}
 
@@ -443,11 +482,13 @@ function WeekView({
   sessions,
   onSelect,
   onMove,
+  onAdd,
 }: {
   range: { start: Date; end: Date }
   sessions: SessionResponse[]
   onSelect: (s: SessionResponse) => void
   onMove: (sessionId: string, date: string) => void
+  onAdd: (day: Date) => void
 }) {
   const days = eachDayOfInterval(range)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
@@ -468,6 +509,7 @@ function WeekView({
             key={day.toISOString()}
             day={day}
             onSelect={onSelect}
+            onAdd={onAdd}
             sessions={sessions.filter((s) => isSameDay(parseISO(s.date), day))}
           />
         ))}
@@ -480,17 +522,19 @@ function DayRow({
   day,
   sessions,
   onSelect,
+  onAdd,
 }: {
   day: Date
   sessions: SessionResponse[]
   onSelect: (s: SessionResponse) => void
+  onAdd: (day: Date) => void
 }) {
   const { isOver, setNodeRef } = useDroppable({ id: iso(day) })
 
   return (
     <div
       ref={setNodeRef}
-      className={`rounded-xl border p-3 transition ${
+      className={`group/day rounded-xl border p-3 transition ${
         isOver
           ? 'border-pine-600 bg-pine-100/50 dark:border-pine-350 dark:bg-pine-900/40'
           : isToday(day)
@@ -498,12 +542,22 @@ function DayRow({
             : 'border-moss-200 bg-moss-25 dark:border-moss-750 dark:bg-moss-850'
       }`}
     >
-      <p className="text-xs font-semibold tracking-wide text-moss-500 uppercase dark:text-moss-400">
-        {format(day, 'EEEE d MMMM', { locale: fr })}
-        {isToday(day) && <span className="ml-2 text-pine-700 dark:text-pine-300">aujourd'hui</span>}
-      </p>
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold tracking-wide text-moss-500 uppercase dark:text-moss-400">
+          {format(day, 'EEEE d MMMM', { locale: fr })}
+          {isToday(day) && <span className="ml-2 text-pine-700 dark:text-pine-300">aujourd'hui</span>}
+        </p>
+        <button
+          onClick={() => onAdd(day)}
+          aria-label={`Ajouter une séance le ${format(day, 'd MMMM', { locale: fr })}`}
+          title="Ajouter une séance"
+          className="grid h-6 w-6 place-items-center rounded-md text-moss-400 opacity-0 transition group-hover/day:opacity-100 hover:bg-moss-100 hover:text-ink focus-visible:opacity-100 dark:text-moss-500 dark:hover:bg-moss-800 dark:hover:text-linen"
+        >
+          +
+        </button>
+      </div>
       {sessions.length === 0 ? (
-        <p className="mt-1 text-sm text-moss-300 dark:text-moss-700">—</p>
+        <p className="mt-1 text-sm text-moss-300 dark:text-moss-700">Repos</p>
       ) : (
         <div className="mt-2 space-y-1.5">
           {sessions.map((s) => (
@@ -709,8 +763,8 @@ function SessionModal({
   const [panel, setPanel] = useState<'none' | 'choose' | 'form' | 'strava'>('none')
   const [exporting, setExporting] = useState(false)
   const showForm = panel === 'form'
-  // Repos & marche need no validation at all
-  const validatable = session.discipline === 'RUN' || session.discipline === 'GYM'
+  // Everything except Repos validates; runs take data, gym & marche a plain ✓
+  const validatable = session.discipline !== 'REST'
   const hasStructure = session.discipline === 'RUN' && session.structure.length > 0
 
   async function handleExport() {
@@ -745,7 +799,7 @@ function SessionModal({
       aria-label={session.title}
     >
       <div
-        className="w-full max-w-md rounded-xl border border-moss-200 bg-moss-25 p-6 dark:border-moss-750 dark:bg-moss-850"
+        className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-xl border border-moss-200 bg-moss-25 p-6 dark:border-moss-750 dark:bg-moss-850"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4">
@@ -926,10 +980,10 @@ function SessionModal({
 }
 
 /**
- * Structured description: one colored row per step — repetitions, duration,
- * zone — mirroring how the .fit export will drive the watch.
+ * Structured description: colored step rows and repeat groups with a loop
+ * gutter (count + arrows) — mirroring how the .fit export drives the watch.
  */
-function WorkoutBlocks({ blocks }: { blocks: import('./api').WorkoutBlock[] }) {
+function WorkoutBlocks({ blocks }: { blocks: WorkoutBlock[] }) {
   return (
     <div className="mt-4 space-y-3 border-t border-moss-200 pt-4 dark:border-moss-750">
       {blocks.map((block, blockIndex) => (
@@ -938,40 +992,64 @@ function WorkoutBlocks({ blocks }: { blocks: import('./api').WorkoutBlock[] }) {
             {SECTION_LABEL[block.section]}
           </p>
           <div className="mt-1.5 space-y-1.5">
-            {block.steps.map((step, stepIndex) => {
-              const colors = zoneChip(step.zone)
-              const quantified = [
-                step.repeatLabel && `${step.repeatLabel} ×`,
-                formatStepDuration(step.durationSec),
-              ]
-                .filter(Boolean)
-                .join(' ')
-              return (
-                <div
-                  key={stepIndex}
-                  className={`rounded-lg border border-l-4 border-moss-200 bg-moss-50 px-3 py-2 dark:border-moss-750 dark:bg-moss-800 ${colors.edge}`}
-                >
-                  <div className="flex items-center gap-2">
-                    {quantified && (
-                      <span className="font-display text-base font-semibold tabular-nums">
-                        {quantified}
-                      </span>
-                    )}
-                    {step.zone && (
-                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${colors.chip}`}>
-                        {step.zone}
-                      </span>
-                    )}
-                  </div>
-                  <p className="mt-0.5 text-xs leading-relaxed text-moss-500 dark:text-moss-400">
-                    {step.label}
-                  </p>
-                </div>
-              )
-            })}
+            {block.nodes.map((node, nodeIndex) => (
+              <NodeView key={nodeIndex} node={node} />
+            ))}
           </div>
         </div>
       ))}
+    </div>
+  )
+}
+
+function NodeView({ node }: { node: WorkoutNode }) {
+  if (node.type === 'repeat') {
+    return (
+      <div className="flex overflow-hidden rounded-lg border border-moss-200 bg-moss-25 dark:border-moss-750 dark:bg-moss-850">
+        <div className="min-w-0 flex-1 space-y-1.5 p-1.5">
+          {(node.children ?? []).map((child, i) => (
+            <NodeView key={i} node={child} />
+          ))}
+        </div>
+        <div
+          className="flex w-11 shrink-0 flex-col items-center justify-center border-l border-moss-200 bg-moss-100 text-moss-500 dark:border-moss-750 dark:bg-moss-800 dark:text-moss-400"
+          title={`À répéter ${node.count} fois`}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+            <path d="M21 3v5h-5" />
+          </svg>
+          <span className="font-display text-base font-semibold tabular-nums">{node.count}</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+            <path d="M3 21v-5h5" />
+          </svg>
+        </div>
+      </div>
+    )
+  }
+
+  const colors = zoneChip(node.zone)
+  const duration = formatStepDuration(node.durationSec)
+  return (
+    <div
+      className={`rounded-lg border border-l-4 border-moss-200 bg-moss-50 px-3 py-2 dark:border-moss-750 dark:bg-moss-800 ${colors.edge}`}
+    >
+      <div className="flex items-center gap-2">
+        {duration && (
+          <span className="font-display text-base font-semibold tabular-nums">{duration}</span>
+        )}
+        {node.zone && (
+          <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${colors.chip}`}>
+            {node.zone}
+          </span>
+        )}
+      </div>
+      {node.label && (
+        <p className="mt-0.5 text-xs leading-relaxed text-moss-500 dark:text-moss-400">
+          {node.label}
+        </p>
+      )}
     </div>
   )
 }
@@ -1048,6 +1126,159 @@ function CommentSection({
           + Ajouter un commentaire
         </button>
       )}
+    </div>
+  )
+}
+
+/** Manual creation of a session (running or strength) on a given day. */
+function AddSessionModal({
+  day,
+  week,
+  orderInDay,
+  pending,
+  onCreate,
+  onClose,
+}: {
+  day: Date
+  week: WeekResponse | undefined
+  orderInDay: number
+  pending: boolean
+  onCreate: (weekId: string, body: CreateSessionRequest) => void
+  onClose: () => void
+}) {
+  const [error, setError] = useState<string | null>(null)
+
+  const inputCls =
+    'mt-0.5 w-full rounded-lg border border-moss-200 bg-moss-100 px-2.5 py-1.5 text-sm outline-none focus:border-pine-600 focus:ring-2 focus:ring-pine-600/25 dark:border-moss-750 dark:bg-moss-800 dark:focus:border-pine-350 dark:focus:ring-pine-350/25'
+
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!week) return
+    const data = new FormData(event.currentTarget)
+    const title = String(data.get('title') ?? '').trim()
+    if (!title) {
+      setError('Le titre est requis.')
+      return
+    }
+    setError(null)
+    const num = (name: string) => (data.get(name) ? Number(data.get(name)) : undefined)
+    onCreate(week.id, {
+      date: iso(day),
+      orderInDay,
+      discipline: String(data.get('discipline')) as CreateSessionRequest['discipline'],
+      title,
+      zone: String(data.get('zone') ?? '') || undefined,
+      durationMin: num('durationMin'),
+      elevationM: num('elevationM'),
+      rpeMin: num('rpeMin'),
+      rpeMax: num('rpeMax'),
+      detail: String(data.get('detail') ?? '').trim() || undefined,
+    })
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 grid place-items-center bg-moss-950/50 p-4"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Ajouter une séance"
+    >
+      <div
+        className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-xl border border-moss-200 bg-moss-25 p-6 dark:border-moss-750 dark:bg-moss-850"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold tracking-wide text-moss-500 uppercase dark:text-moss-400">
+              {format(day, 'EEEE d MMMM', { locale: fr })}
+            </p>
+            <h2 className="mt-1 font-display text-lg font-semibold">Ajouter une séance</h2>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Fermer"
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-moss-500 transition hover:bg-moss-100 hover:text-ink dark:text-moss-400 dark:hover:bg-moss-800 dark:hover:text-linen"
+          >
+            ✕
+          </button>
+        </div>
+
+        {!week ? (
+          <p className="mt-4 text-sm text-moss-500 dark:text-moss-400">
+            Ce jour est en dehors de ton plan actif — ajoute d'abord la semaine au plan.
+          </p>
+        ) : (
+          <form onSubmit={handleSubmit} className="mt-4 space-y-3">
+            {error && (
+              <p role="alert" className="text-sm text-clay-500 dark:text-clay-300">
+                {error}
+              </p>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block text-xs text-moss-500 dark:text-moss-400">
+                Discipline
+                <select name="discipline" defaultValue="RUN" className={inputCls}>
+                  <option value="RUN">Course</option>
+                  <option value="GYM">Renfo</option>
+                  <option value="CROSS">Croisé (marche, vélo…)</option>
+                </select>
+              </label>
+              <label className="block text-xs text-moss-500 dark:text-moss-400">
+                Zone (course)
+                <select name="zone" defaultValue="" className={inputCls}>
+                  <option value="">—</option>
+                  {['Récup', 'EF', 'Tempo/AC', 'Seuil 60', 'Seuil 30', 'VMA', 'Sprint'].map((z) => (
+                    <option key={z} value={z}>
+                      {z}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="col-span-2 block text-xs text-moss-500 dark:text-moss-400">
+                Titre *
+                <input name="title" type="text" required placeholder="EF 45′ · Renfo FM-A · …" className={inputCls} />
+              </label>
+              <label className="block text-xs text-moss-500 dark:text-moss-400">
+                Durée (min)
+                <input name="durationMin" type="number" min="1" className={inputCls} />
+              </label>
+              <label className="block text-xs text-moss-500 dark:text-moss-400">
+                D+ (m)
+                <input name="elevationM" type="number" min="0" className={inputCls} />
+              </label>
+              <label className="block text-xs text-moss-500 dark:text-moss-400">
+                RPE min
+                <input name="rpeMin" type="number" min="0" max="10" className={inputCls} />
+              </label>
+              <label className="block text-xs text-moss-500 dark:text-moss-400">
+                RPE max
+                <input name="rpeMax" type="number" min="0" max="10" className={inputCls} />
+              </label>
+              <label className="col-span-2 block text-xs text-moss-500 dark:text-moss-400">
+                Description (Échauffement : … Corps : … Retour au calme : …)
+                <textarea name="detail" rows={3} className={inputCls} />
+              </label>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                disabled={pending}
+                className="rounded-lg bg-pine-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
+              >
+                {pending ? 'Création…' : 'Ajouter la séance'}
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-lg px-4 py-2 text-sm font-medium text-moss-500 transition hover:bg-moss-100 dark:text-moss-400 dark:hover:bg-moss-800"
+              >
+                Annuler
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
     </div>
   )
 }
