@@ -113,6 +113,37 @@ export const KIND_LEGEND: TrainingKind[] = [
   'CROSS',
 ]
 
+/** Workout-step chip styling by pace zone (structured description blocks). */
+export function zoneChip(zone: string | null): { chip: string; edge: string } {
+  const z = zone ?? ''
+  if (z.includes('VMA') || z.includes('Test'))
+    return { chip: 'bg-rowan-600/15 text-rowan-600 dark:bg-rowan-300/15 dark:text-rowan-300', edge: 'border-l-rowan-600 dark:border-l-rowan-300' }
+  if (z.includes('Seuil 30'))
+    return { chip: 'bg-clay-500/15 text-clay-500 dark:bg-clay-300/15 dark:text-clay-300', edge: 'border-l-clay-500 dark:border-l-clay-300' }
+  if (z.includes('Seuil'))
+    return { chip: 'bg-gold-600/15 text-gold-600 dark:bg-gold-300/15 dark:text-gold-300', edge: 'border-l-gold-600 dark:border-l-gold-300' }
+  if (z.includes('Tempo') || z.includes('AC') || z.includes('allure course'))
+    return { chip: 'bg-teal-600/15 text-teal-600 dark:bg-teal-300/15 dark:text-teal-300', edge: 'border-l-teal-600 dark:border-l-teal-300' }
+  if (z.includes('Sprint'))
+    return { chip: 'bg-copper-600/15 text-copper-600 dark:bg-copper-300/15 dark:text-copper-300', edge: 'border-l-copper-600 dark:border-l-copper-300' }
+  if (z.includes('EF') || z.includes('Récup') || z.includes('Z1') || z.includes('Z2'))
+    return { chip: 'bg-pine-100 text-pine-700 dark:bg-pine-900 dark:text-pine-300', edge: 'border-l-pine-600 dark:border-l-pine-350' }
+  return { chip: 'bg-moss-100 text-moss-500 dark:bg-moss-800 dark:text-moss-400', edge: 'border-l-moss-300 dark:border-l-moss-700' }
+}
+
+/** "30″" under a minute, "20′" / "1h05" above. */
+export function formatStepDuration(sec: number | null): string | null {
+  if (sec == null) return null
+  if (sec < 60) return `${sec}″`
+  return formatDuration(Math.round(sec / 60))
+}
+
+export const SECTION_LABEL: Record<'WARMUP' | 'MAIN' | 'COOLDOWN', string> = {
+  WARMUP: 'Échauffement',
+  MAIN: 'Corps de séance',
+  COOLDOWN: 'Retour au calme',
+}
+
 export function formatDuration(min: number | null): string | null {
   if (min == null) return null
   if (min < 60) return `${min}′`

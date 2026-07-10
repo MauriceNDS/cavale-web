@@ -26,7 +26,7 @@ import {
   startOfWeek,
 } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { ApiError } from '../../lib/api'
+import { ApiError, getToken } from '../../lib/api'
 import { GlossaryText, InfoTip, glossaryKeyFor } from '../../lib/glossary'
 import {
   fetchCalendar,
@@ -48,10 +48,13 @@ import {
   KIND_EDGE,
   KIND_LEGEND,
   KIND_LABEL,
+  SECTION_LABEL,
   WEEK_TYPE_BADGE,
   WEEK_TYPE_LABEL,
   formatDuration,
+  formatStepDuration,
   trainingKind,
+  zoneChip,
 } from './labels'
 
 type View = 'week' | 'month'
@@ -89,7 +92,7 @@ export function CalendarPage() {
   })
 
   const sessionMutation = useMutation({
-    mutationFn: ({ id, ...body }: { id: string; date?: string; status?: SessionStatus }) =>
+    mutationFn: ({ id, ...body }: { id: string; date?: string; status?: SessionStatus; comment?: string }) =>
       updateSession(id, body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['calendar'] })
@@ -173,6 +176,7 @@ export function CalendarPage() {
             sessionMutation.isPending || validateMutation.isPending || stravaImportMutation.isPending
           }
           onStatus={(status) => sessionMutation.mutate({ id: selected.id, status })}
+          onComment={(comment) => sessionMutation.mutate({ id: selected.id, comment })}
           onValidate={(body) => validateMutation.mutate({ id: selected.id, body })}
           onStravaImport={(stravaActivityId) =>
             stravaImportMutation.mutate({ id: selected.id, stravaActivityId })
@@ -660,8 +664,23 @@ function MonthView({
 const STATUS_LABEL: Record<SessionStatus, string> = {
   PLANNED: 'Planifiée',
   DONE: 'Validée',
-  SKIPPED: 'Manquée',
+  SKIPPED: 'Passée',
   MOVED: 'Déplacée',
+}
+
+/** Authenticated download of the session's .fit workout file. */
+async function downloadFit(session: SessionResponse) {
+  const response = await fetch(`/api/sessions/${session.id}/export.fit`, {
+    headers: { Authorization: `Bearer ${getToken()}` },
+  })
+  if (!response.ok) throw new Error('export failed')
+  const blob = await response.blob()
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `cavale-${session.date}.fit`
+  link.click()
+  URL.revokeObjectURL(url)
 }
 
 function formatPace(durationMin: number, distanceKm: number | null): string | null {
@@ -674,6 +693,7 @@ function SessionModal({
   session,
   pending,
   onStatus,
+  onComment,
   onValidate,
   onStravaImport,
   onClose,
@@ -681,14 +701,26 @@ function SessionModal({
   session: SessionResponse
   pending: boolean
   onStatus: (status: SessionStatus) => void
+  onComment: (comment: string) => void
   onValidate: (body: ValidateSessionRequest) => void
   onStravaImport: (stravaActivityId: number) => void
   onClose: () => void
 }) {
-  const [panel, setPanel] = useState<'none' | 'form' | 'strava'>('none')
+  const [panel, setPanel] = useState<'none' | 'choose' | 'form' | 'strava'>('none')
+  const [exporting, setExporting] = useState(false)
   const showForm = panel === 'form'
   // Repos & marche need no validation at all
   const validatable = session.discipline === 'RUN' || session.discipline === 'GYM'
+  const hasStructure = session.discipline === 'RUN' && session.structure.length > 0
+
+  async function handleExport() {
+    setExporting(true)
+    try {
+      await downloadFit(session)
+    } finally {
+      setExporting(false)
+    }
+  }
   const facts = [
     ['Discipline', DISCIPLINE_LABEL[session.discipline]],
     ['Zone', session.zone],
@@ -703,7 +735,6 @@ function SessionModal({
     ['Statut', STATUS_LABEL[session.status]],
   ].filter(([, v]) => v != null) as [string, string][]
 
-  const isSettled = session.status === 'DONE' || session.status === 'SKIPPED'
 
   return (
     <div
@@ -772,11 +803,17 @@ function SessionModal({
           </div>
         )}
 
-        {session.detail && (
-          <p className="mt-4 border-t border-moss-200 pt-4 text-sm whitespace-pre-line text-moss-500 dark:border-moss-750 dark:text-moss-400">
-            <GlossaryText text={session.detail} />
-          </p>
+        {hasStructure ? (
+          <WorkoutBlocks blocks={session.structure} />
+        ) : (
+          session.detail && (
+            <p className="mt-4 border-t border-moss-200 pt-4 text-sm whitespace-pre-line text-moss-500 dark:border-moss-750 dark:text-moss-400">
+              <GlossaryText text={session.detail} />
+            </p>
+          )
         )}
+
+        <CommentSection session={session} pending={pending} onSave={onComment} />
 
         {showForm && (
           <ValidateForm
@@ -795,33 +832,63 @@ function SessionModal({
           />
         )}
 
+        {panel === 'choose' && (
+          <div className="mt-5 border-t border-moss-200 pt-4 dark:border-moss-750">
+            <div className="flex items-baseline justify-between">
+              <p className="text-sm font-semibold">Comment valider ?</p>
+              <button
+                onClick={() => setPanel('none')}
+                className="text-xs font-medium text-moss-500 hover:underline dark:text-moss-400"
+              >
+                Annuler
+              </button>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button
+                onClick={() => setPanel('strava')}
+                disabled={pending}
+                className="rounded-lg bg-[#fc4c02] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#e04502] disabled:opacity-50"
+              >
+                Importer depuis Strava
+              </button>
+              <button
+                onClick={() => setPanel('form')}
+                disabled={pending}
+                className="rounded-lg border border-pine-600/50 px-4 py-2 text-sm font-semibold text-pine-700 transition hover:bg-pine-100 disabled:opacity-50 dark:text-pine-300 dark:hover:bg-pine-900"
+              >
+                Saisir manuellement
+              </button>
+            </div>
+          </div>
+        )}
+
         {panel === 'none' && validatable && (
           <div className="mt-5 flex flex-wrap gap-2 border-t border-moss-200 pt-4 dark:border-moss-750">
-            {session.status !== 'DONE' && session.discipline === 'RUN' && (
-              <>
-                <button
-                  onClick={() => setPanel('strava')}
-                  disabled={pending}
-                  className="rounded-lg bg-[#fc4c02] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#e04502] disabled:opacity-50"
-                >
-                  Importer depuis Strava
-                </button>
-                <button
-                  onClick={() => setPanel('form')}
-                  disabled={pending}
-                  className="rounded-lg bg-pine-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
-                >
-                  ✓ Valider manuellement
-                </button>
-              </>
-            )}
-            {session.status !== 'DONE' && session.discipline === 'GYM' && (
+            {session.discipline === 'RUN' && (
               <button
-                onClick={() => onStatus('DONE')}
+                onClick={handleExport}
+                disabled={exporting}
+                className="rounded-lg border border-moss-200 px-4 py-2 text-sm font-medium text-ink transition hover:bg-moss-100 disabled:opacity-50 dark:border-moss-750 dark:text-linen dark:hover:bg-moss-800"
+              >
+                {exporting ? 'Export…' : '⌚ Exporter .fit'}
+              </button>
+            )}
+            {session.status !== 'DONE' && session.status !== 'SKIPPED' && (
+              <button
+                onClick={() => (session.discipline === 'RUN' ? setPanel('choose') : onStatus('DONE'))}
                 disabled={pending}
                 className="rounded-lg bg-pine-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
               >
                 ✓ Valider
+              </button>
+            )}
+            {session.status !== 'DONE' && session.status !== 'SKIPPED' && (
+              <button
+                onClick={() => onStatus('SKIPPED')}
+                disabled={pending}
+                className="rounded-lg border border-clay-500/40 px-4 py-2 text-sm font-semibold text-clay-500 transition hover:bg-clay-100 disabled:opacity-50 dark:text-clay-300 dark:hover:bg-clay-900"
+              >
+                Passer
               </button>
             )}
             {session.status === 'DONE' && session.discipline === 'RUN' && session.activity?.source === 'MANUAL' && (
@@ -833,16 +900,16 @@ function SessionModal({
                 Modifier les mesures
               </button>
             )}
-            {session.status !== 'SKIPPED' && (
+            {session.status === 'SKIPPED' && (
               <button
-                onClick={() => onStatus('SKIPPED')}
+                onClick={() => onStatus('PLANNED')}
                 disabled={pending}
-                className="rounded-lg border border-clay-500/40 px-4 py-2 text-sm font-semibold text-clay-500 transition hover:bg-clay-100 disabled:opacity-50 dark:text-clay-300 dark:hover:bg-clay-900"
+                className="rounded-lg border border-moss-200 px-4 py-2 text-sm font-medium text-moss-500 transition hover:bg-moss-100 disabled:opacity-50 dark:border-moss-750 dark:text-moss-400 dark:hover:bg-moss-800"
               >
-                ✗ Manquée
+                Annuler « passée »
               </button>
             )}
-            {isSettled && (
+            {session.status === 'DONE' && (
               <button
                 onClick={() => onStatus('PLANNED')}
                 disabled={pending}
@@ -854,6 +921,133 @@ function SessionModal({
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+/**
+ * Structured description: one colored row per step — repetitions, duration,
+ * zone — mirroring how the .fit export will drive the watch.
+ */
+function WorkoutBlocks({ blocks }: { blocks: import('./api').WorkoutBlock[] }) {
+  return (
+    <div className="mt-4 space-y-3 border-t border-moss-200 pt-4 dark:border-moss-750">
+      {blocks.map((block, blockIndex) => (
+        <div key={blockIndex}>
+          <p className="text-xs font-semibold tracking-wide text-moss-500 uppercase dark:text-moss-400">
+            {SECTION_LABEL[block.section]}
+          </p>
+          <div className="mt-1.5 space-y-1.5">
+            {block.steps.map((step, stepIndex) => {
+              const colors = zoneChip(step.zone)
+              const quantified = [
+                step.repeatLabel && `${step.repeatLabel} ×`,
+                formatStepDuration(step.durationSec),
+              ]
+                .filter(Boolean)
+                .join(' ')
+              return (
+                <div
+                  key={stepIndex}
+                  className={`rounded-lg border border-l-4 border-moss-200 bg-moss-50 px-3 py-2 dark:border-moss-750 dark:bg-moss-800 ${colors.edge}`}
+                >
+                  <div className="flex items-center gap-2">
+                    {quantified && (
+                      <span className="font-display text-base font-semibold tabular-nums">
+                        {quantified}
+                      </span>
+                    )}
+                    {step.zone && (
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${colors.chip}`}>
+                        {step.zone}
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-0.5 text-xs leading-relaxed text-moss-500 dark:text-moss-400">
+                    {step.label}
+                  </p>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/** Athlete's free-text comment, inline-editable. */
+function CommentSection({
+  session,
+  pending,
+  onSave,
+}: {
+  session: SessionResponse
+  pending: boolean
+  onSave: (comment: string) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+
+  if (editing) {
+    return (
+      <div className="mt-4">
+        <textarea
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          rows={2}
+          autoFocus
+          placeholder="Sensations, météo, matériel…"
+          className="w-full rounded-lg border border-moss-200 bg-moss-100 p-2.5 text-sm outline-none focus:border-pine-600 focus:ring-2 focus:ring-pine-600/25 dark:border-moss-750 dark:bg-moss-800 dark:focus:border-pine-350 dark:focus:ring-pine-350/25"
+        />
+        <div className="mt-1.5 flex gap-2">
+          <button
+            onClick={() => onSave(draft)}
+            disabled={pending}
+            className="rounded-lg bg-pine-600 px-3 py-1 text-xs font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
+          >
+            Enregistrer
+          </button>
+          <button
+            onClick={() => setEditing(false)}
+            className="rounded-lg px-3 py-1 text-xs font-medium text-moss-500 transition hover:bg-moss-100 dark:text-moss-400 dark:hover:bg-moss-800"
+          >
+            Annuler
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="mt-4 text-sm">
+      {session.comment ? (
+        <div className="rounded-lg bg-moss-100 p-3 dark:bg-moss-800">
+          <p className="text-xs font-semibold tracking-wide text-moss-500 uppercase dark:text-moss-400">
+            Commentaire
+          </p>
+          <p className="mt-1 whitespace-pre-line">{session.comment}</p>
+          <button
+            onClick={() => {
+              setDraft(session.comment ?? '')
+              setEditing(true)
+            }}
+            className="mt-1.5 text-xs font-medium text-moss-500 hover:underline dark:text-moss-400"
+          >
+            Modifier
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={() => {
+            setDraft('')
+            setEditing(true)
+          }}
+          className="text-xs font-medium text-moss-400 hover:text-ink hover:underline dark:text-moss-500 dark:hover:text-linen"
+        >
+          + Ajouter un commentaire
+        </button>
+      )}
     </div>
   )
 }

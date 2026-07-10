@@ -20,6 +20,19 @@ export interface ActivitySummary {
   comment: string | null
 }
 
+export interface WorkoutStep {
+  label: string
+  repeats: number | null
+  repeatLabel: string | null
+  durationSec: number | null
+  zone: string | null
+}
+
+export interface WorkoutBlock {
+  section: 'WARMUP' | 'MAIN' | 'COOLDOWN'
+  steps: WorkoutStep[]
+}
+
 export interface SessionResponse {
   id: string
   weekId: string
@@ -28,6 +41,7 @@ export interface SessionResponse {
   discipline: Discipline
   title: string
   detail: string | null
+  comment: string | null
   zone: string | null
   durationMin: number | null
   elevationM: number | null
@@ -35,6 +49,7 @@ export interface SessionResponse {
   rpeMax: number | null
   status: SessionStatus
   activity: ActivitySummary | null
+  structure: WorkoutBlock[]
 }
 
 export interface PlanResponse {
@@ -79,6 +94,7 @@ export interface UpdateSessionRequest {
   date?: string
   orderInDay?: number
   status?: SessionStatus
+  comment?: string
 }
 
 export function updateSession(sessionId: string, body: UpdateSessionRequest): Promise<SessionResponse> {
