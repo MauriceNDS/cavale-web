@@ -1,14 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { format, parseISO } from 'date-fns'
-import { fr } from 'date-fns/locale'
-import {
-  disconnectStrava,
-  fetchAuthorizeUrl,
-  fetchStravaStatus,
-  syncStrava,
-  type SyncResult,
-} from '../strava/api'
+import { disconnectStrava, fetchAuthorizeUrl, fetchStravaStatus } from '../strava/api'
 
 export function SettingsPage() {
   const [banner, setBanner] = useState<'connected' | 'error' | null>(null)
@@ -29,7 +21,7 @@ export function SettingsPage() {
 
       {banner === 'connected' && (
         <div role="status" className="mt-4 rounded-lg bg-pine-100 p-3 text-sm text-pine-700 dark:bg-pine-900 dark:text-pine-300">
-          Strava est connecté. Lance une synchronisation pour importer tes sorties.
+          Strava est connecté. Valide tes séances depuis le calendrier : « Importer depuis Strava ».
         </div>
       )}
       {banner === 'error' && (
@@ -46,7 +38,6 @@ export function SettingsPage() {
 function StravaCard() {
   const queryClient = useQueryClient()
   const status = useQuery({ queryKey: ['strava-status'], queryFn: fetchStravaStatus })
-  const [syncResult, setSyncResult] = useState<SyncResult | null>(null)
 
   const connect = useMutation({
     mutationFn: fetchAuthorizeUrl,
@@ -55,21 +46,9 @@ function StravaCard() {
     },
   })
 
-  const sync = useMutation({
-    mutationFn: syncStrava,
-    onSuccess: (result) => {
-      setSyncResult(result)
-      queryClient.invalidateQueries({ queryKey: ['calendar'] })
-      queryClient.invalidateQueries({ queryKey: ['strava-status'] })
-    },
-  })
-
   const disconnect = useMutation({
     mutationFn: disconnectStrava,
-    onSuccess: () => {
-      setSyncResult(null)
-      queryClient.invalidateQueries({ queryKey: ['strava-status'] })
-    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['strava-status'] }),
   })
 
   const data = status.data
@@ -80,7 +59,7 @@ function StravaCard() {
         <div>
           <h2 className="font-display text-lg font-semibold">Strava</h2>
           <p className="mt-0.5 text-sm text-moss-500 dark:text-moss-400">
-            Importe tes sorties et valide automatiquement les séances correspondantes.
+            Une fois connecté, chaque séance du calendrier propose « Importer depuis Strava ».
           </p>
         </div>
         {data?.connected && (
@@ -104,8 +83,8 @@ function StravaCard() {
               (domaine d'autorisation : <code>localhost</code>)
             </li>
             <li>
-              Exporte <code>CAVALE_STRAVA_CLIENT_ID</code> et <code>CAVALE_STRAVA_CLIENT_SECRET</code>,
-              puis redémarre l'API
+              Renseigne <code>CAVALE_STRAVA_CLIENT_ID</code> et <code>CAVALE_STRAVA_CLIENT_SECRET</code>{' '}
+              (fichier <code>api/.env</code>), puis redémarre l'API
             </li>
           </ol>
         </div>
@@ -115,7 +94,7 @@ function StravaCard() {
         <button
           onClick={() => connect.mutate()}
           disabled={connect.isPending}
-          className="mt-4 rounded-lg bg-pine-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
+          className="mt-4 rounded-lg bg-[#fc4c02] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#e04502] disabled:opacity-50"
         >
           {connect.isPending ? 'Redirection…' : 'Connecter Strava'}
         </button>
@@ -123,42 +102,14 @@ function StravaCard() {
 
       {data?.connected && (
         <div className="mt-4 space-y-3">
-          <p className="text-sm text-moss-500 tabular-nums dark:text-moss-400">
-            Athlète #{data.athleteId}
-            {data.lastSyncAt &&
-              ` · dernière synchro ${format(parseISO(data.lastSyncAt), "d MMM 'à' HH:mm", { locale: fr })}`}
-          </p>
-
-          {sync.isError && (
-            <p role="alert" className="text-sm text-clay-500 dark:text-clay-300">
-              La synchronisation a échoué. Réessaie dans quelques minutes.
-            </p>
-          )}
-          {syncResult && (
-            <p role="status" className="rounded-lg bg-pine-100/60 p-2.5 text-sm dark:bg-pine-900/40">
-              {syncResult.matched} séance{syncResult.matched > 1 ? 's' : ''} validée
-              {syncResult.matched > 1 ? 's' : ''} · {syncResult.alreadyImported} déjà importée
-              {syncResult.alreadyImported > 1 ? 's' : ''} · {syncResult.unmatched} sortie
-              {syncResult.unmatched > 1 ? 's' : ''} sans séance correspondante
-            </p>
-          )}
-
-          <div className="flex gap-2">
-            <button
-              onClick={() => sync.mutate()}
-              disabled={sync.isPending}
-              className="rounded-lg bg-pine-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
-            >
-              {sync.isPending ? 'Synchronisation…' : 'Synchroniser (30 derniers jours)'}
-            </button>
-            <button
-              onClick={() => disconnect.mutate()}
-              disabled={disconnect.isPending}
-              className="rounded-lg border border-moss-200 px-4 py-2 text-sm font-medium text-moss-500 transition hover:bg-moss-100 dark:border-moss-750 dark:text-moss-400 dark:hover:bg-moss-800"
-            >
-              Déconnecter
-            </button>
-          </div>
+          <p className="text-sm text-moss-500 tabular-nums dark:text-moss-400">Athlète #{data.athleteId}</p>
+          <button
+            onClick={() => disconnect.mutate()}
+            disabled={disconnect.isPending}
+            className="rounded-lg border border-moss-200 px-4 py-2 text-sm font-medium text-moss-500 transition hover:bg-moss-100 dark:border-moss-750 dark:text-moss-400 dark:hover:bg-moss-800"
+          >
+            Déconnecter
+          </button>
         </div>
       )}
     </section>

@@ -100,3 +100,7 @@ export interface ValidateSessionRequest {
 export function validateSession(sessionId: string, body: ValidateSessionRequest): Promise<SessionResponse> {
   return api.post<SessionResponse>(`/api/sessions/${sessionId}/validate`, body)
 }
+
+export function validateSessionFromStrava(sessionId: string, stravaActivityId: number): Promise<SessionResponse> {
+  return api.post<SessionResponse>(`/api/sessions/${sessionId}/validate-strava`, { stravaActivityId })
+}

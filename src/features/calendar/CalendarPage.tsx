@@ -26,6 +26,7 @@ import {
   startOfWeek,
 } from 'date-fns'
 import { fr } from 'date-fns/locale'
+import { ApiError } from '../../lib/api'
 import { GlossaryText, InfoTip, glossaryKeyFor } from '../../lib/glossary'
 import {
   fetchCalendar,
@@ -34,11 +35,13 @@ import {
   updateSession,
   updateWeek,
   validateSession,
+  validateSessionFromStrava,
   type SessionResponse,
   type SessionStatus,
   type ValidateSessionRequest,
   type WeekResponse,
 } from './api'
+import { fetchStravaActivities } from '../strava/api'
 import {
   DISCIPLINE_LABEL,
   KIND_DOT,
@@ -103,6 +106,16 @@ export function CalendarPage() {
     },
   })
 
+  const stravaImportMutation = useMutation({
+    mutationFn: ({ id, stravaActivityId }: { id: string; stravaActivityId: number }) =>
+      validateSessionFromStrava(id, stravaActivityId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['calendar'] })
+      queryClient.invalidateQueries({ queryKey: ['strava-activities'] })
+      setSelected(null)
+    },
+  })
+
   const currentWeek = useMemo(() => {
     if (view !== 'week' || !planDetail.data) return undefined
     return planDetail.data.weeks.find((w) => {
@@ -156,9 +169,14 @@ export function CalendarPage() {
       {selected && (
         <SessionModal
           session={selected}
-          pending={sessionMutation.isPending || validateMutation.isPending}
+          pending={
+            sessionMutation.isPending || validateMutation.isPending || stravaImportMutation.isPending
+          }
           onStatus={(status) => sessionMutation.mutate({ id: selected.id, status })}
           onValidate={(body) => validateMutation.mutate({ id: selected.id, body })}
+          onStravaImport={(stravaActivityId) =>
+            stravaImportMutation.mutate({ id: selected.id, stravaActivityId })
+          }
           onClose={() => setSelected(null)}
         />
       )}
@@ -657,15 +675,18 @@ function SessionModal({
   pending,
   onStatus,
   onValidate,
+  onStravaImport,
   onClose,
 }: {
   session: SessionResponse
   pending: boolean
   onStatus: (status: SessionStatus) => void
   onValidate: (body: ValidateSessionRequest) => void
+  onStravaImport: (stravaActivityId: number) => void
   onClose: () => void
 }) {
-  const [showForm, setShowForm] = useState(false)
+  const [panel, setPanel] = useState<'none' | 'form' | 'strava'>('none')
+  const showForm = panel === 'form'
   // Repos & marche need no validation at all
   const validatable = session.discipline === 'RUN' || session.discipline === 'GYM'
   const facts = [
@@ -757,56 +778,168 @@ function SessionModal({
           </p>
         )}
 
-        {showForm ? (
+        {showForm && (
           <ValidateForm
             session={session}
             pending={pending}
             onSubmit={onValidate}
-            onCancel={() => setShowForm(false)}
+            onCancel={() => setPanel('none')}
           />
-        ) : (
-          validatable && (
-            <div className="mt-5 flex flex-wrap gap-2 border-t border-moss-200 pt-4 dark:border-moss-750">
-              {session.status !== 'DONE' && (
+        )}
+
+        {panel === 'strava' && (
+          <StravaImportPanel
+            pending={pending}
+            onPick={onStravaImport}
+            onCancel={() => setPanel('none')}
+          />
+        )}
+
+        {panel === 'none' && validatable && (
+          <div className="mt-5 flex flex-wrap gap-2 border-t border-moss-200 pt-4 dark:border-moss-750">
+            {session.status !== 'DONE' && session.discipline === 'RUN' && (
+              <>
                 <button
-                  onClick={() => (session.discipline === 'RUN' ? setShowForm(true) : onStatus('DONE'))}
+                  onClick={() => setPanel('strava')}
+                  disabled={pending}
+                  className="rounded-lg bg-[#fc4c02] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#e04502] disabled:opacity-50"
+                >
+                  Importer depuis Strava
+                </button>
+                <button
+                  onClick={() => setPanel('form')}
                   disabled={pending}
                   className="rounded-lg bg-pine-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
                 >
-                  ✓ Valider
+                  ✓ Valider manuellement
                 </button>
-              )}
-              {session.status === 'DONE' && session.discipline === 'RUN' && (
-                <button
-                  onClick={() => setShowForm(true)}
-                  disabled={pending}
-                  className="rounded-lg border border-pine-600/40 px-4 py-2 text-sm font-medium text-pine-700 transition hover:bg-pine-100 disabled:opacity-50 dark:text-pine-300 dark:hover:bg-pine-900"
-                >
-                  Modifier les mesures
-                </button>
-              )}
-              {session.status !== 'SKIPPED' && (
-                <button
-                  onClick={() => onStatus('SKIPPED')}
-                  disabled={pending}
-                  className="rounded-lg border border-clay-500/40 px-4 py-2 text-sm font-semibold text-clay-500 transition hover:bg-clay-100 disabled:opacity-50 dark:text-clay-300 dark:hover:bg-clay-900"
-                >
-                  ✗ Manquée
-                </button>
-              )}
-              {isSettled && (
-                <button
-                  onClick={() => onStatus('PLANNED')}
-                  disabled={pending}
-                  className="rounded-lg border border-moss-200 px-4 py-2 text-sm font-medium text-moss-500 transition hover:bg-moss-100 disabled:opacity-50 dark:border-moss-750 dark:text-moss-400 dark:hover:bg-moss-800"
-                >
-                  Remettre à planifiée
-                </button>
-              )}
-            </div>
-          )
+              </>
+            )}
+            {session.status !== 'DONE' && session.discipline === 'GYM' && (
+              <button
+                onClick={() => onStatus('DONE')}
+                disabled={pending}
+                className="rounded-lg bg-pine-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
+              >
+                ✓ Valider
+              </button>
+            )}
+            {session.status === 'DONE' && session.discipline === 'RUN' && session.activity?.source === 'MANUAL' && (
+              <button
+                onClick={() => setPanel('form')}
+                disabled={pending}
+                className="rounded-lg border border-pine-600/40 px-4 py-2 text-sm font-medium text-pine-700 transition hover:bg-pine-100 disabled:opacity-50 dark:text-pine-300 dark:hover:bg-pine-900"
+              >
+                Modifier les mesures
+              </button>
+            )}
+            {session.status !== 'SKIPPED' && (
+              <button
+                onClick={() => onStatus('SKIPPED')}
+                disabled={pending}
+                className="rounded-lg border border-clay-500/40 px-4 py-2 text-sm font-semibold text-clay-500 transition hover:bg-clay-100 disabled:opacity-50 dark:text-clay-300 dark:hover:bg-clay-900"
+              >
+                ✗ Manquée
+              </button>
+            )}
+            {isSettled && (
+              <button
+                onClick={() => onStatus('PLANNED')}
+                disabled={pending}
+                className="rounded-lg border border-moss-200 px-4 py-2 text-sm font-medium text-moss-500 transition hover:bg-moss-100 disabled:opacity-50 dark:border-moss-750 dark:text-moss-400 dark:hover:bg-moss-800"
+              >
+                Remettre à planifiée
+              </button>
+            )}
+          </div>
         )}
       </div>
+    </div>
+  )
+}
+
+/** Recent not-yet-imported Strava runs — pick one to validate the session. */
+function StravaImportPanel({
+  pending,
+  onPick,
+  onCancel,
+}: {
+  pending: boolean
+  onPick: (stravaActivityId: number) => void
+  onCancel: () => void
+}) {
+  const activities = useQuery({
+    queryKey: ['strava-activities'],
+    queryFn: fetchStravaActivities,
+    staleTime: 60_000,
+    retry: false,
+  })
+
+  const notConnected =
+    activities.error instanceof ApiError && activities.error.status === 409
+
+  return (
+    <div className="mt-5 border-t border-moss-200 pt-4 dark:border-moss-750">
+      <div className="flex items-baseline justify-between">
+        <p className="text-sm font-semibold">Sorties Strava récentes</p>
+        <button
+          onClick={onCancel}
+          className="text-xs font-medium text-moss-500 hover:underline dark:text-moss-400"
+        >
+          Annuler
+        </button>
+      </div>
+
+      {activities.isLoading && (
+        <p className="mt-2 text-sm text-moss-500 dark:text-moss-400">Chargement des sorties…</p>
+      )}
+
+      {notConnected && (
+        <p className="mt-2 text-sm text-moss-500 dark:text-moss-400">
+          Strava n'est pas connecté.{' '}
+          <a href="/settings" className="font-medium text-pine-700 underline dark:text-pine-300">
+            Connecter dans les réglages
+          </a>
+        </p>
+      )}
+      {activities.isError && !notConnected && (
+        <p role="alert" className="mt-2 text-sm text-clay-500 dark:text-clay-300">
+          Impossible de charger les sorties Strava. Réessaie.
+        </p>
+      )}
+
+      {activities.data && activities.data.length === 0 && (
+        <p className="mt-2 text-sm text-moss-500 dark:text-moss-400">
+          Aucune sortie récente à importer — tout est déjà rattaché.
+        </p>
+      )}
+
+      {activities.data && activities.data.length > 0 && (
+        <div className="mt-2 max-h-56 space-y-1.5 overflow-y-auto pr-1">
+          {activities.data.map((a) => (
+            <button
+              key={a.id}
+              onClick={() => onPick(a.id)}
+              disabled={pending}
+              className="w-full rounded-lg border border-moss-200 bg-moss-50 px-3 py-2 text-left transition hover:border-[#fc4c02] disabled:opacity-50 dark:border-moss-750 dark:bg-moss-800 dark:hover:border-[#fc4c02]"
+            >
+              <p className="truncate text-sm font-medium">{a.name}</p>
+              <p className="text-xs text-moss-500 tabular-nums dark:text-moss-400">
+                {format(parseISO(a.date), 'EEE d MMM', { locale: fr })} ·{' '}
+                {[
+                  `${a.distanceKm} km`,
+                  formatDuration(a.durationMin),
+                  formatPace(a.durationMin, a.distanceKm),
+                  a.elevationM != null && a.elevationM > 0 && `${a.elevationM} m D+`,
+                  a.avgHr != null && `${a.avgHr} bpm`,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </p>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

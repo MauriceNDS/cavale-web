@@ -7,11 +7,14 @@ export interface StravaStatus {
   lastSyncAt: string | null
 }
 
-export interface SyncResult {
-  fetched: number
-  matched: number
-  alreadyImported: number
-  unmatched: number
+export interface StravaActivityOption {
+  id: number
+  name: string
+  date: string
+  durationMin: number
+  distanceKm: number
+  elevationM: number | null
+  avgHr: number | null
 }
 
 export function fetchStravaStatus(): Promise<StravaStatus> {
@@ -22,8 +25,9 @@ export function fetchAuthorizeUrl(): Promise<{ url: string }> {
   return api.get<{ url: string }>('/api/strava/authorize-url')
 }
 
-export function syncStrava(): Promise<SyncResult> {
-  return api.post<SyncResult>('/api/strava/sync', {})
+/** Recent Strava runs not yet attached to any session. */
+export function fetchStravaActivities(): Promise<StravaActivityOption[]> {
+  return api.get<StravaActivityOption[]>('/api/strava/activities')
 }
 
 export function disconnectStrava(): Promise<void> {
