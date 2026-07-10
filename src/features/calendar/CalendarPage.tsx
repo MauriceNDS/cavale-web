@@ -867,6 +867,17 @@ function SessionModal({
           )
         )}
 
+        {hasStructure && session.structureNotes && (
+          <div className="mt-3 rounded-lg bg-moss-100 p-3 text-sm dark:bg-moss-800">
+            <p className="text-xs font-semibold tracking-wide text-moss-500 uppercase dark:text-moss-400">
+              Consignes
+            </p>
+            <p className="mt-1 whitespace-pre-line text-moss-500 dark:text-moss-400">
+              <GlossaryText text={session.structureNotes} />
+            </p>
+          </div>
+        )}
+
         <CommentSection session={session} pending={pending} onSave={onComment} />
 
         {showForm && (
@@ -1029,6 +1040,7 @@ function NodeView({ node }: { node: WorkoutNode }) {
     )
   }
 
+  // Strict format: time + zone only — everything else lives in the notes
   const colors = zoneChip(node.zone)
   const duration = formatStepDuration(node.durationSec)
   return (
@@ -1036,20 +1048,15 @@ function NodeView({ node }: { node: WorkoutNode }) {
       className={`rounded-lg border border-l-4 border-moss-200 bg-moss-50 px-3 py-2 dark:border-moss-750 dark:bg-moss-800 ${colors.edge}`}
     >
       <div className="flex items-center gap-2">
-        {duration && (
-          <span className="font-display text-base font-semibold tabular-nums">{duration}</span>
-        )}
+        <span className="font-display text-base font-semibold tabular-nums">
+          {duration ?? 'libre'}
+        </span>
         {node.zone && (
           <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${colors.chip}`}>
             {node.zone}
           </span>
         )}
       </div>
-      {node.label && (
-        <p className="mt-0.5 text-xs leading-relaxed text-moss-500 dark:text-moss-400">
-          {node.label}
-        </p>
-      )}
     </div>
   )
 }

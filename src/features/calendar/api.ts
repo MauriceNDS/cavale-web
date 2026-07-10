@@ -51,6 +51,7 @@ export interface SessionResponse {
   status: SessionStatus
   activity: ActivitySummary | null
   structure: WorkoutBlock[]
+  structureNotes: string | null
 }
 
 export interface PlanResponse {
