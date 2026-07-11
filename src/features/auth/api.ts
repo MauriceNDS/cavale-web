@@ -15,6 +15,11 @@ export interface UserResponse {
   id: string
   email: string
   displayName: string
+  weightKg: number | null
+  heightCm: number | null
+  birthDate: string | null
+  maxHr: number | null
+  restingHr: number | null
   createdAt: string
 }
 

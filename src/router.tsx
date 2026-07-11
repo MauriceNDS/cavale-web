@@ -13,6 +13,7 @@ import { LoginPage } from './features/auth/LoginPage'
 import { RegisterPage } from './features/auth/RegisterPage'
 import { StravaCallbackPage } from './features/auth/StravaCallbackPage'
 import { useAuth } from './features/auth/session'
+import { HomePage } from './features/athlete/HomePage'
 import { CalendarPage } from './features/calendar/CalendarPage'
 import { SessionPage } from './features/calendar/SessionPage'
 import { ObjectivePage } from './features/objective/ObjectivePage'
@@ -22,16 +23,16 @@ import { SettingsPage } from './features/settings/SettingsPage'
 
 interface NavItem {
   label: string
-  to?: '/' | '/objectif' | '/settings'
+  to?: '/' | '/calendrier' | '/objectif' | '/settings'
   soon?: boolean
 }
 
 const NAV: NavItem[] = [
-  { label: 'Calendrier', to: '/' },
+  { label: 'Accueil', to: '/' },
+  { label: 'Calendrier', to: '/calendrier' },
   { label: 'Objectif', to: '/objectif' },
   { label: 'Renfo', soon: true },
   { label: 'Théorie', soon: true },
-  { label: 'Stats', soon: true },
   { label: 'Réglages', to: '/settings' },
 ]
 
@@ -173,7 +174,7 @@ function Home() {
   }
 
   if (user) {
-    return <CalendarPage />
+    return <HomePage />
   }
 
   return (
@@ -210,6 +211,12 @@ const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
   component: Home,
+})
+
+const calendarRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/calendrier',
+  component: CalendarPage,
   validateSearch: (search: Record<string, unknown>): { week?: string } =>
     typeof search.week === 'string' ? { week: search.week } : {},
 })
@@ -254,6 +261,7 @@ const stravaCallbackRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
+  calendarRoute,
   sessionRoute,
   objectiveRoute,
   registerRoute,

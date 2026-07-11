@@ -93,7 +93,7 @@ export function SessionPage() {
   return (
     <div className="mx-auto mt-6 max-w-2xl">
       <Link
-        to="/"
+        to="/calendrier"
         search={search.from ? { week: search.from } : undefined}
         className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-medium text-moss-500 transition hover:bg-moss-100 hover:text-ink dark:text-moss-400 dark:hover:bg-moss-800 dark:hover:text-linen"
       >

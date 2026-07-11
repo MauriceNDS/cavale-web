@@ -99,6 +99,17 @@ export function fetchPlans(): Promise<PlanResponse[]> {
   return api.get<PlanResponse[]>('/api/plans')
 }
 
+export interface CreatePlanRequest {
+  name: string
+  goal?: string
+  startDate: string
+  endDate: string
+}
+
+export function createPlan(body: CreatePlanRequest): Promise<PlanResponse> {
+  return api.post<PlanResponse>('/api/plans', body)
+}
+
 export function fetchPlanDetail(planId: string): Promise<PlanDetailResponse> {
   return api.get<PlanDetailResponse>(`/api/plans/${planId}`)
 }
