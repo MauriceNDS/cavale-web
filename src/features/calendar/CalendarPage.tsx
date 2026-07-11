@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import {
   DndContext,
   PointerSensor,
@@ -20,14 +21,13 @@ import {
   isSameDay,
   isSameMonth,
   isToday,
+  isValid,
   isWithinInterval,
   parseISO,
   startOfMonth,
   startOfWeek,
 } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { ApiError, getToken } from '../../lib/api'
-import { GlossaryText, InfoTip, glossaryKeyFor } from '../../lib/glossary'
 import {
   createSession,
   fetchCalendar,
@@ -35,47 +35,37 @@ import {
   fetchPlans,
   updateSession,
   updateWeek,
-  validateSession,
-  validateSessionFromStrava,
   type CreateSessionRequest,
   type SessionResponse,
-  type SessionStatus,
-  type ValidateSessionRequest,
   type WeekResponse,
-  type WorkoutNode,
 } from './api'
-import { fetchStravaActivities } from '../strava/api'
 import {
-  ALLURE_LABEL,
-  DISCIPLINE_LABEL,
   KIND_DOT,
   KIND_EDGE,
   KIND_LEGEND,
   KIND_LABEL,
-  TERRAIN_LABEL,
   WEEK_TYPE_BADGE,
   WEEK_TYPE_LABEL,
-  allureStyle,
+  cleanTitle,
   formatDuration,
   formatSeconds,
+  totalWorkoutSeconds,
   trainingKind,
 } from './labels'
-import {
-  WorkoutBuilder,
-  draftsError,
-  draftsToNodes,
-  nodesToDrafts,
-  type ItemDraft,
-} from './WorkoutBuilder'
+import { WorkoutBuilder, draftsError, draftsToNodes, type ItemDraft } from './WorkoutBuilder'
 
 type View = 'week' | 'month'
 
 const iso = (d: Date) => format(d, 'yyyy-MM-dd')
 
 export function CalendarPage() {
+  const search = useSearch({ strict: false }) as { week?: string }
   const [view, setView] = useState<View>('week')
-  const [anchor, setAnchor] = useState(() => new Date())
-  const [selected, setSelected] = useState<SessionResponse | null>(null)
+  const [anchor, setAnchor] = useState(() => {
+    const fromSearch = search.week ? parseISO(search.week) : null
+    return fromSearch && isValid(fromSearch) ? fromSearch : new Date()
+  })
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
 
   const range = useMemo(() => {
@@ -107,39 +97,18 @@ export function CalendarPage() {
     enabled: !!activePlan,
   })
 
-  const sessionMutation = useMutation({
-    mutationFn: ({
-      id,
-      ...body
-    }: {
-      id: string
-      date?: string
-      status?: SessionStatus
-      comment?: string
-      workout?: WorkoutNode[]
-    }) => updateSession(id, body),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['calendar'] })
-      setSelected(null)
-    },
+  const moveMutation = useMutation({
+    mutationFn: ({ id, date }: { id: string; date: string }) => updateSession(id, { date }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['calendar'] }),
   })
 
-  const validateMutation = useMutation({
-    mutationFn: ({ id, body }: { id: string; body: ValidateSessionRequest }) =>
-      validateSession(id, body),
+  const [adding, setAdding] = useState<Date | null>(null)
+  const createMutation = useMutation({
+    mutationFn: ({ weekId, body }: { weekId: string; body: CreateSessionRequest }) =>
+      createSession(weekId, body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['calendar'] })
-      setSelected(null)
-    },
-  })
-
-  const stravaImportMutation = useMutation({
-    mutationFn: ({ id, stravaActivityId }: { id: string; stravaActivityId: number }) =>
-      validateSessionFromStrava(id, stravaActivityId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['calendar'] })
-      queryClient.invalidateQueries({ queryKey: ['strava-activities'] })
-      setSelected(null)
+      setAdding(null)
     },
   })
 
@@ -151,21 +120,18 @@ export function CalendarPage() {
     })
   }, [view, planDetail.data, range.start])
 
-  const [adding, setAdding] = useState<Date | null>(null)
-
-  const createMutation = useMutation({
-    mutationFn: ({ weekId, body }: { weekId: string; body: CreateSessionRequest }) =>
-      createSession(weekId, body),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['calendar'] })
-      setAdding(null)
-    },
-  })
-
   function weekForDay(day: Date): WeekResponse | undefined {
     return planDetail.data?.weeks.find((w) => {
       const start = parseISO(w.startDate)
       return isWithinInterval(day, { start, end: addDays(start, 6) })
+    })
+  }
+
+  function openSession(session: SessionResponse) {
+    navigate({
+      to: '/session/$sessionId',
+      params: { sessionId: session.id },
+      search: { from: iso(startOfWeek(anchor, { weekStartsOn: 1 })) },
     })
   }
 
@@ -180,7 +146,7 @@ export function CalendarPage() {
         range={range}
         anchor={anchor}
         week={currentWeek}
-        weekSessions={view === 'week' ? (sessions.data ?? []) : []}
+        weekSessions={view === 'week' ? visibleSessions : []}
         onShift={shift}
         onToday={() => setAnchor(new Date())}
         onView={setView}
@@ -196,8 +162,8 @@ export function CalendarPage() {
         <WeekView
           range={range}
           sessions={visibleSessions}
-          onSelect={setSelected}
-          onMove={(id, date) => sessionMutation.mutate({ id, date })}
+          onSelect={openSession}
+          onMove={(id, date) => moveMutation.mutate({ id, date })}
           onAdd={setAdding}
         />
       ) : (
@@ -220,23 +186,6 @@ export function CalendarPage() {
           pending={createMutation.isPending}
           onCreate={(weekId, body) => createMutation.mutate({ weekId, body })}
           onClose={() => setAdding(null)}
-        />
-      )}
-
-      {selected && (
-        <SessionModal
-          session={selected}
-          pending={
-            sessionMutation.isPending || validateMutation.isPending || stravaImportMutation.isPending
-          }
-          onStatus={(status) => sessionMutation.mutate({ id: selected.id, status })}
-          onComment={(comment) => sessionMutation.mutate({ id: selected.id, comment })}
-          onWorkout={(workout) => sessionMutation.mutate({ id: selected.id, workout })}
-          onValidate={(body) => validateMutation.mutate({ id: selected.id, body })}
-          onStravaImport={(stravaActivityId) =>
-            stravaImportMutation.mutate({ id: selected.id, stravaActivityId })
-          }
-          onClose={() => setSelected(null)}
         />
       )}
     </div>
@@ -314,14 +263,11 @@ function CalendarHeader({ view, range, anchor, week, weekSessions, onShift, onTo
 }
 
 /**
- * Week metrics as "actual / target". Actuals are computed from VALIDATED
- * sessions of the week (they'll get more precise once Strava data lands):
- * distance has no per-session actual yet, time and D+ do.
+ * Week metrics as "actual / target". Actuals come from validated sessions
+ * (real measures when present, planned values for validated gym work).
  */
 function WeekMetrics({ week, sessions }: { week: WeekResponse; sessions: SessionResponse[] }) {
   const done = sessions.filter((s) => s.status === 'DONE')
-  // Real measures (activity) win; planned values stand in for validated
-  // sessions without data (e.g. gym).
   const doneDistance = done.reduce((sum, s) => sum + (s.activity?.distanceKm ?? 0), 0)
   const doneElevation = done.reduce(
     (sum, s) => sum + (s.activity?.elevationM ?? s.elevationM ?? 0),
@@ -331,9 +277,7 @@ function WeekMetrics({ week, sessions }: { week: WeekResponse; sessions: Session
     (sum, s) => sum + (s.activity?.durationMin ?? s.durationMin ?? 0),
     0,
   )
-  const plannedMinutes = sessions
-    .filter((s) => s.discipline !== 'REST')
-    .reduce((sum, s) => sum + (s.durationMin ?? 0), 0)
+  const plannedMinutes = sessions.reduce((sum, s) => sum + (s.durationMin ?? 0), 0)
   const doneLoad = done.reduce((sum, s) => {
     const rpe = s.rpeMin != null && s.rpeMax != null ? (s.rpeMin + s.rpeMax) / 2 : (s.rpeMin ?? 0)
     return sum + rpe * (s.activity?.durationMin ?? s.durationMin ?? 0)
@@ -347,7 +291,7 @@ function WeekMetrics({ week, sessions }: { week: WeekResponse; sessions: Session
     },
     {
       label: 'D+',
-      actual: doneElevation > 0 ? `${doneElevation}` : '0',
+      actual: `${doneElevation}`,
       target: week.targetElevationM != null ? `${week.targetElevationM} m` : null,
     },
     {
@@ -357,7 +301,7 @@ function WeekMetrics({ week, sessions }: { week: WeekResponse; sessions: Session
     },
     {
       label: 'Charge',
-      actual: doneLoad > 0 ? `${Math.round(doneLoad)}` : '0',
+      actual: `${Math.round(doneLoad)}`,
       target: week.targetLoadUa != null ? `${week.targetLoadUa} UA` : null,
     },
   ]
@@ -365,7 +309,7 @@ function WeekMetrics({ week, sessions }: { week: WeekResponse; sessions: Session
   return (
     <div className="flex w-full flex-wrap gap-2">
       {metrics
-        .filter((m) => m.target != null || (m.actual != null && m.actual !== '0'))
+        .filter((m) => m.target != null)
         .map((m) => (
           <span
             key={m.label}
@@ -389,7 +333,6 @@ function WeekFocus({ week }: { week: WeekResponse }) {
   const textRef = useRef<HTMLSpanElement>(null)
   const queryClient = useQueryClient()
 
-  // "Voir plus" only when the text actually overflows its line
   useEffect(() => {
     const el = textRef.current
     if (!el) {
@@ -585,7 +528,7 @@ function DayRow({
   )
 }
 
-const STATUS_MARK: Partial<Record<SessionStatus, { label: string; cls: string }>> = {
+const STATUS_MARK: Partial<Record<SessionResponse['status'], { label: string; cls: string }>> = {
   DONE: { label: '✓', cls: 'text-pine-700 dark:text-pine-300' },
   SKIPPED: { label: '✗', cls: 'text-clay-500 dark:text-clay-300' },
   MOVED: { label: '↻', cls: 'text-moss-400 dark:text-moss-500' },
@@ -596,8 +539,13 @@ function DraggableSessionCard({ session, onClick }: { session: SessionResponse; 
     id: session.id,
   })
 
+  // total time shown ONCE: computed from the structure, else the planned duration
+  const totalSec =
+    session.workout.length > 0
+      ? totalWorkoutSeconds(session.workout)
+      : (session.durationMin ?? 0) * 60
   const meta = [
-    formatDuration(session.durationMin),
+    totalSec > 0 && formatSeconds(totalSec),
     session.elevationM != null && `${session.elevationM} m D+`,
     session.rpeMin != null &&
       `RPE ${session.rpeMin}${session.rpeMax !== session.rpeMin ? `–${session.rpeMax}` : ''}`,
@@ -626,7 +574,9 @@ function DraggableSessionCard({ session, onClick }: { session: SessionResponse; 
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">
             {mark && <span className={`mr-1.5 ${mark.cls}`}>{mark.label}</span>}
-            <span className={session.status === 'SKIPPED' ? 'line-through' : ''}>{session.title}</span>
+            <span className={session.status === 'SKIPPED' ? 'line-through' : ''}>
+              {cleanTitle(session.title)}
+            </span>
           </p>
           {meta.length > 0 && (
             <p className="text-xs text-moss-500 tabular-nums dark:text-moss-400">{meta.join(' · ')}</p>
@@ -681,20 +631,16 @@ function MonthView({
             >
               <span className="text-xs font-medium tabular-nums md:text-sm">{format(day, 'd')}</span>
 
-              {/* Small screens: dots */}
               <span className="mt-1 flex flex-wrap gap-1 md:hidden">
                 {daySessions.slice(0, 4).map((s) => (
                   <span key={s.id} className={`h-2 w-2 rounded-full ${KIND_DOT[trainingKind(s)]}`} />
                 ))}
               </span>
 
-              {/* md+: session titles with kind dots */}
               <span className="mt-1.5 hidden space-y-1 md:block">
                 {daySessions.slice(0, 3).map((s) => (
                   <span key={s.id} className="flex items-center gap-1.5">
-                    <span
-                      className={`h-2 w-2 shrink-0 rounded-full ${KIND_DOT[trainingKind(s)]}`}
-                    />
+                    <span className={`h-2 w-2 shrink-0 rounded-full ${KIND_DOT[trainingKind(s)]}`} />
                     <span
                       className={`truncate text-[11px] leading-tight ${
                         s.status === 'DONE' || s.status === 'SKIPPED'
@@ -703,7 +649,7 @@ function MonthView({
                       }`}
                     >
                       {s.status === 'DONE' && '✓ '}
-                      {s.title}
+                      {cleanTitle(s.title)}
                     </span>
                   </span>
                 ))}
@@ -729,507 +675,8 @@ function MonthView({
   )
 }
 
-/* ── Session detail modal (the ONE place with glossary tips) ───────── */
+/* ── Manual session creation ───────────────────────────────────────── */
 
-const STATUS_LABEL: Record<SessionStatus, string> = {
-  PLANNED: 'Planifiée',
-  DONE: 'Validée',
-  SKIPPED: 'Passée',
-  MOVED: 'Déplacée',
-}
-
-/** Authenticated download of the session's .fit workout file. */
-async function downloadFit(session: SessionResponse) {
-  const response = await fetch(`/api/sessions/${session.id}/export.fit`, {
-    headers: { Authorization: `Bearer ${getToken()}` },
-  })
-  if (!response.ok) throw new Error('export failed')
-  const blob = await response.blob()
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = `cavale-${session.date}.fit`
-  link.click()
-  URL.revokeObjectURL(url)
-}
-
-function formatPace(durationMin: number, distanceKm: number | null): string | null {
-  if (!distanceKm || distanceKm <= 0) return null
-  const secPerKm = Math.round((durationMin * 60) / distanceKm)
-  return `${Math.floor(secPerKm / 60)}:${String(secPerKm % 60).padStart(2, '0')} /km`
-}
-
-function SessionModal({
-  session,
-  pending,
-  onStatus,
-  onComment,
-  onWorkout,
-  onValidate,
-  onStravaImport,
-  onClose,
-}: {
-  session: SessionResponse
-  pending: boolean
-  onStatus: (status: SessionStatus) => void
-  onComment: (comment: string) => void
-  onWorkout: (workout: WorkoutNode[]) => void
-  onValidate: (body: ValidateSessionRequest) => void
-  onStravaImport: (stravaActivityId: number) => void
-  onClose: () => void
-}) {
-  const [panel, setPanel] = useState<'none' | 'choose' | 'form' | 'strava' | 'structure'>('none')
-  const [exporting, setExporting] = useState(false)
-  const showForm = panel === 'form'
-  // Everything except Repos validates; runs take data, gym & marche a plain ✓
-  const validatable = session.discipline !== 'REST'
-  const hasStructure = session.discipline === 'RUN' && session.workout.length > 0
-
-  async function handleExport() {
-    setExporting(true)
-    try {
-      await downloadFit(session)
-    } finally {
-      setExporting(false)
-    }
-  }
-  const facts = [
-    ['Discipline', DISCIPLINE_LABEL[session.discipline]],
-    ['Zone', session.zone],
-    ['Durée', formatDuration(session.durationMin)],
-    ['D+', session.elevationM != null ? `${session.elevationM} m` : null],
-    [
-      'RPE',
-      session.rpeMin != null
-        ? `${session.rpeMin}${session.rpeMax !== session.rpeMin ? `–${session.rpeMax}` : ''}`
-        : null,
-    ],
-    ['Statut', STATUS_LABEL[session.status]],
-  ].filter(([, v]) => v != null) as [string, string][]
-
-
-  return (
-    <div
-      className="fixed inset-0 z-50 grid place-items-center bg-moss-950/50 p-4"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      aria-label={session.title}
-    >
-      <div
-        className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-xl border border-moss-200 bg-moss-25 p-6 dark:border-moss-750 dark:bg-moss-850"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-xs font-semibold tracking-wide text-moss-500 uppercase dark:text-moss-400">
-              {format(parseISO(session.date), 'EEEE d MMMM', { locale: fr })}
-            </p>
-            <h2 className="mt-1 font-display text-lg font-semibold text-balance">{session.title}</h2>
-          </div>
-          <button
-            onClick={onClose}
-            aria-label="Fermer"
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-moss-500 transition hover:bg-moss-100 hover:text-ink dark:text-moss-400 dark:hover:bg-moss-800 dark:hover:text-linen"
-          >
-            ✕
-          </button>
-        </div>
-
-        <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-          {facts.map(([label, value]) => (
-            <div key={label}>
-              <dt className="text-xs text-moss-500 dark:text-moss-400">
-                {label === 'RPE' ? <InfoTip term="RPE">RPE</InfoTip> : label === 'D+' ? <InfoTip term="D+">D+</InfoTip> : label}
-              </dt>
-              <dd className="font-medium">
-                {label === 'Zone' && glossaryKeyFor(value) ? (
-                  <InfoTip term={glossaryKeyFor(value)!}>{value}</InfoTip>
-                ) : (
-                  value
-                )}
-              </dd>
-            </div>
-          ))}
-        </dl>
-
-        {session.activity && (
-          <div className="mt-4 rounded-lg bg-pine-100/60 p-3 text-sm dark:bg-pine-900/40">
-            <p className="text-xs font-semibold tracking-wide text-pine-700 uppercase dark:text-pine-300">
-              Réalisé
-            </p>
-            <p className="mt-1 font-medium tabular-nums">
-              {[
-                session.activity.distanceKm != null && `${session.activity.distanceKm} km`,
-                formatDuration(session.activity.durationMin),
-                formatPace(session.activity.durationMin, session.activity.distanceKm),
-                session.activity.elevationM != null && `${session.activity.elevationM} m D+`,
-                session.activity.avgHr != null && `${session.activity.avgHr} bpm`,
-              ]
-                .filter(Boolean)
-                .join(' · ')}
-            </p>
-            {session.activity.comment && (
-              <p className="mt-1 text-moss-500 dark:text-moss-400">{session.activity.comment}</p>
-            )}
-          </div>
-        )}
-
-        {panel === 'structure' ? (
-          <StructureEditor
-            session={session}
-            pending={pending}
-            onSave={onWorkout}
-            onCancel={() => setPanel('none')}
-          />
-        ) : hasStructure ? (
-          <div>
-            <WorkoutTree nodes={session.workout} />
-            {session.discipline === 'RUN' && (
-              <button
-                onClick={() => setPanel('structure')}
-                className="mt-1.5 text-xs font-medium text-moss-400 hover:text-ink hover:underline dark:text-moss-500 dark:hover:text-linen"
-              >
-                Modifier la structure
-              </button>
-            )}
-          </div>
-        ) : (
-          <div className="mt-4 border-t border-moss-200 pt-4 dark:border-moss-750">
-            {session.detail && (
-              <p className="text-sm whitespace-pre-line text-moss-500 dark:text-moss-400">
-                <GlossaryText text={session.detail} />
-              </p>
-            )}
-            {session.discipline === 'RUN' && (
-              <button
-                onClick={() => setPanel('structure')}
-                className="mt-1.5 text-xs font-medium text-pine-700 hover:underline dark:text-pine-300"
-              >
-                + Créer la structure
-              </button>
-            )}
-          </div>
-        )}
-
-        {hasStructure && session.structureNotes && (
-          <div className="mt-3 rounded-lg bg-moss-100 p-3 text-sm dark:bg-moss-800">
-            <p className="text-xs font-semibold tracking-wide text-moss-500 uppercase dark:text-moss-400">
-              Consignes
-            </p>
-            <p className="mt-1 whitespace-pre-line text-moss-500 dark:text-moss-400">
-              <GlossaryText text={session.structureNotes} />
-            </p>
-          </div>
-        )}
-
-        <CommentSection session={session} pending={pending} onSave={onComment} />
-
-        {showForm && (
-          <ValidateForm
-            session={session}
-            pending={pending}
-            onSubmit={onValidate}
-            onCancel={() => setPanel('none')}
-          />
-        )}
-
-        {panel === 'strava' && (
-          <StravaImportPanel
-            pending={pending}
-            onPick={onStravaImport}
-            onCancel={() => setPanel('none')}
-          />
-        )}
-
-        {panel === 'choose' && (
-          <div className="mt-5 border-t border-moss-200 pt-4 dark:border-moss-750">
-            <div className="flex items-baseline justify-between">
-              <p className="text-sm font-semibold">Comment valider ?</p>
-              <button
-                onClick={() => setPanel('none')}
-                className="text-xs font-medium text-moss-500 hover:underline dark:text-moss-400"
-              >
-                Annuler
-              </button>
-            </div>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <button
-                onClick={() => setPanel('strava')}
-                disabled={pending}
-                className="rounded-lg bg-[#fc4c02] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#e04502] disabled:opacity-50"
-              >
-                Importer depuis Strava
-              </button>
-              <button
-                onClick={() => setPanel('form')}
-                disabled={pending}
-                className="rounded-lg border border-pine-600/50 px-4 py-2 text-sm font-semibold text-pine-700 transition hover:bg-pine-100 disabled:opacity-50 dark:text-pine-300 dark:hover:bg-pine-900"
-              >
-                Saisir manuellement
-              </button>
-            </div>
-          </div>
-        )}
-
-        {panel === 'none' && validatable && (
-          <div className="mt-5 flex flex-wrap gap-2 border-t border-moss-200 pt-4 dark:border-moss-750">
-            {session.discipline === 'RUN' && (
-              <button
-                onClick={handleExport}
-                disabled={exporting}
-                className="rounded-lg border border-moss-200 px-4 py-2 text-sm font-medium text-ink transition hover:bg-moss-100 disabled:opacity-50 dark:border-moss-750 dark:text-linen dark:hover:bg-moss-800"
-              >
-                {exporting ? 'Export…' : '⌚ Exporter .fit'}
-              </button>
-            )}
-            {session.status !== 'DONE' && session.status !== 'SKIPPED' && (
-              <button
-                onClick={() => (session.discipline === 'RUN' ? setPanel('choose') : onStatus('DONE'))}
-                disabled={pending}
-                className="rounded-lg bg-pine-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
-              >
-                ✓ Valider
-              </button>
-            )}
-            {session.status !== 'DONE' && session.status !== 'SKIPPED' && (
-              <button
-                onClick={() => onStatus('SKIPPED')}
-                disabled={pending}
-                className="rounded-lg border border-clay-500/40 px-4 py-2 text-sm font-semibold text-clay-500 transition hover:bg-clay-100 disabled:opacity-50 dark:text-clay-300 dark:hover:bg-clay-900"
-              >
-                Passer
-              </button>
-            )}
-            {session.status === 'DONE' && session.discipline === 'RUN' && session.activity?.source === 'MANUAL' && (
-              <button
-                onClick={() => setPanel('form')}
-                disabled={pending}
-                className="rounded-lg border border-pine-600/40 px-4 py-2 text-sm font-medium text-pine-700 transition hover:bg-pine-100 disabled:opacity-50 dark:text-pine-300 dark:hover:bg-pine-900"
-              >
-                Modifier les mesures
-              </button>
-            )}
-            {session.status === 'SKIPPED' && (
-              <button
-                onClick={() => onStatus('PLANNED')}
-                disabled={pending}
-                className="rounded-lg border border-moss-200 px-4 py-2 text-sm font-medium text-moss-500 transition hover:bg-moss-100 disabled:opacity-50 dark:border-moss-750 dark:text-moss-400 dark:hover:bg-moss-800"
-              >
-                Annuler « passée »
-              </button>
-            )}
-            {session.status === 'DONE' && (
-              <button
-                onClick={() => onStatus('PLANNED')}
-                disabled={pending}
-                className="rounded-lg border border-moss-200 px-4 py-2 text-sm font-medium text-moss-500 transition hover:bg-moss-100 disabled:opacity-50 dark:border-moss-750 dark:text-moss-400 dark:hover:bg-moss-800"
-              >
-                Remettre à planifiée
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-/**
- * The workout body — deterministic blocks: allure as title, time (letters),
- * terrain; loops with the count gutter. Mirrors the .fit export exactly.
- */
-function WorkoutTree({ nodes }: { nodes: WorkoutNode[] }) {
-  return (
-    <div className="mt-4 space-y-1.5 border-t border-moss-200 pt-4 dark:border-moss-750">
-      {nodes.map((node, index) => (
-        <NodeView key={index} node={node} />
-      ))}
-    </div>
-  )
-}
-
-function NodeView({ node }: { node: WorkoutNode }) {
-  if (node.type === 'repeat') {
-    return (
-      <div className="flex overflow-hidden rounded-lg border border-moss-200 bg-moss-25 dark:border-moss-750 dark:bg-moss-850">
-        <div className="min-w-0 flex-1 space-y-1.5 p-1.5">
-          {(node.children ?? []).map((child, i) => (
-            <NodeView key={i} node={child} />
-          ))}
-        </div>
-        <div
-          className="flex w-11 shrink-0 flex-col items-center justify-center border-l border-moss-200 bg-moss-100 text-moss-500 dark:border-moss-750 dark:bg-moss-800 dark:text-moss-400"
-          title={`À répéter ${node.count} fois`}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
-            <path d="M21 3v5h-5" />
-          </svg>
-          <span className="font-display text-base font-semibold tabular-nums">{node.count}</span>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
-            <path d="M3 21v-5h5" />
-          </svg>
-        </div>
-      </div>
-    )
-  }
-
-  // A block's identity IS its allure; body = time (+ terrain, + récupération)
-  const style = allureStyle(node.allure)
-  const time = formatSeconds(node.seconds)
-  const body = [
-    time,
-    node.allure === 'LENTE' && time ? 'de récupération' : null,
-    node.terrain && node.terrain !== 'PLAT' ? TERRAIN_LABEL[node.terrain] : null,
-  ]
-    .filter(Boolean)
-    .join(' ')
-  return (
-    <div
-      className={`rounded-lg border border-l-4 border-moss-200 bg-moss-50 px-3 py-2 dark:border-moss-750 dark:bg-moss-800 ${style.edge}`}
-    >
-      <p className={`text-xs font-semibold ${style.title}`}>
-        {node.allure ? ALLURE_LABEL[node.allure] : 'Étape'}
-      </p>
-      <p className="font-display text-base font-semibold tabular-nums">{body || '—'}</p>
-    </div>
-  )
-}
-
-/** Edit a session's workout structure with the builder. */
-function StructureEditor({
-  session,
-  pending,
-  onSave,
-  onCancel,
-}: {
-  session: SessionResponse
-  pending: boolean
-  onSave: (workout: WorkoutNode[]) => void
-  onCancel: () => void
-}) {
-  const [items, setItems] = useState<ItemDraft[]>(() => nodesToDrafts(session.workout))
-  const [error, setError] = useState<string | null>(null)
-
-  function save() {
-    const problem = draftsError(items)
-    if (problem) {
-      setError(problem)
-      return
-    }
-    setError(null)
-    onSave(draftsToNodes(items))
-  }
-
-  return (
-    <div className="mt-4 border-t border-moss-200 pt-4 dark:border-moss-750">
-      <p className="text-sm font-semibold">Structure de la séance</p>
-      {error && (
-        <p role="alert" className="mt-1 text-sm text-clay-500 dark:text-clay-300">
-          {error}
-        </p>
-      )}
-      <div className="mt-2">
-        <WorkoutBuilder items={items} onChange={setItems} />
-      </div>
-      <div className="mt-3 flex gap-2">
-        <button
-          onClick={save}
-          disabled={pending}
-          className="rounded-lg bg-pine-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
-        >
-          {pending ? 'Enregistrement…' : 'Enregistrer la structure'}
-        </button>
-        <button
-          onClick={onCancel}
-          className="rounded-lg px-4 py-2 text-sm font-medium text-moss-500 transition hover:bg-moss-100 dark:text-moss-400 dark:hover:bg-moss-800"
-        >
-          Annuler
-        </button>
-      </div>
-    </div>
-  )
-}
-
-/** Athlete's free-text comment, inline-editable. */
-function CommentSection({
-  session,
-  pending,
-  onSave,
-}: {
-  session: SessionResponse
-  pending: boolean
-  onSave: (comment: string) => void
-}) {
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState('')
-
-  if (editing) {
-    return (
-      <div className="mt-4">
-        <textarea
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          rows={2}
-          autoFocus
-          placeholder="Sensations, météo, matériel…"
-          className="w-full rounded-lg border border-moss-200 bg-moss-100 p-2.5 text-sm outline-none focus:border-pine-600 focus:ring-2 focus:ring-pine-600/25 dark:border-moss-750 dark:bg-moss-800 dark:focus:border-pine-350 dark:focus:ring-pine-350/25"
-        />
-        <div className="mt-1.5 flex gap-2">
-          <button
-            onClick={() => onSave(draft)}
-            disabled={pending}
-            className="rounded-lg bg-pine-600 px-3 py-1 text-xs font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
-          >
-            Enregistrer
-          </button>
-          <button
-            onClick={() => setEditing(false)}
-            className="rounded-lg px-3 py-1 text-xs font-medium text-moss-500 transition hover:bg-moss-100 dark:text-moss-400 dark:hover:bg-moss-800"
-          >
-            Annuler
-          </button>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="mt-4 text-sm">
-      {session.comment ? (
-        <div className="rounded-lg bg-moss-100 p-3 dark:bg-moss-800">
-          <p className="text-xs font-semibold tracking-wide text-moss-500 uppercase dark:text-moss-400">
-            Commentaire
-          </p>
-          <p className="mt-1 whitespace-pre-line">{session.comment}</p>
-          <button
-            onClick={() => {
-              setDraft(session.comment ?? '')
-              setEditing(true)
-            }}
-            className="mt-1.5 text-xs font-medium text-moss-500 hover:underline dark:text-moss-400"
-          >
-            Modifier
-          </button>
-        </div>
-      ) : (
-        <button
-          onClick={() => {
-            setDraft('')
-            setEditing(true)
-          }}
-          className="text-xs font-medium text-moss-400 hover:text-ink hover:underline dark:text-moss-500 dark:hover:text-linen"
-        >
-          + Ajouter un commentaire
-        </button>
-      )}
-    </div>
-  )
-}
-
-/** Manual creation of a session (running or strength) on a given day. */
 function AddSessionModal({
   day,
   week,
@@ -1351,7 +798,7 @@ function AddSessionModal({
               </label>
               <label className="col-span-2 block text-xs text-moss-500 dark:text-moss-400">
                 Titre *
-                <input name="title" type="text" required placeholder="EF 45′ · Renfo FM-A · …" className={inputCls} />
+                <input name="title" type="text" required placeholder="EF · Renfo FM-A · …" className={inputCls} />
               </label>
               <label className="block text-xs text-moss-500 dark:text-moss-400">
                 Durée (min)
@@ -1385,6 +832,7 @@ function AddSessionModal({
                 </div>
               </div>
             )}
+
             <div className="flex gap-2">
               <button
                 type="submit"
@@ -1405,178 +853,5 @@ function AddSessionModal({
         )}
       </div>
     </div>
-  )
-}
-
-/** Recent not-yet-imported Strava runs — pick one to validate the session. */
-function StravaImportPanel({
-  pending,
-  onPick,
-  onCancel,
-}: {
-  pending: boolean
-  onPick: (stravaActivityId: number) => void
-  onCancel: () => void
-}) {
-  const activities = useQuery({
-    queryKey: ['strava-activities'],
-    queryFn: fetchStravaActivities,
-    staleTime: 60_000,
-    retry: false,
-  })
-
-  const notConnected =
-    activities.error instanceof ApiError && activities.error.status === 409
-
-  return (
-    <div className="mt-5 border-t border-moss-200 pt-4 dark:border-moss-750">
-      <div className="flex items-baseline justify-between">
-        <p className="text-sm font-semibold">Sorties Strava récentes</p>
-        <button
-          onClick={onCancel}
-          className="text-xs font-medium text-moss-500 hover:underline dark:text-moss-400"
-        >
-          Annuler
-        </button>
-      </div>
-
-      {activities.isLoading && (
-        <p className="mt-2 text-sm text-moss-500 dark:text-moss-400">Chargement des sorties…</p>
-      )}
-
-      {notConnected && (
-        <p className="mt-2 text-sm text-moss-500 dark:text-moss-400">
-          Strava n'est pas connecté.{' '}
-          <a href="/settings" className="font-medium text-pine-700 underline dark:text-pine-300">
-            Connecter dans les réglages
-          </a>
-        </p>
-      )}
-      {activities.isError && !notConnected && (
-        <p role="alert" className="mt-2 text-sm text-clay-500 dark:text-clay-300">
-          Impossible de charger les sorties Strava. Réessaie.
-        </p>
-      )}
-
-      {activities.data && activities.data.length === 0 && (
-        <p className="mt-2 text-sm text-moss-500 dark:text-moss-400">
-          Aucune sortie récente à importer — tout est déjà rattaché.
-        </p>
-      )}
-
-      {activities.data && activities.data.length > 0 && (
-        <div className="mt-2 max-h-56 space-y-1.5 overflow-y-auto pr-1">
-          {activities.data.map((a) => (
-            <button
-              key={a.id}
-              onClick={() => onPick(a.id)}
-              disabled={pending}
-              className="w-full rounded-lg border border-moss-200 bg-moss-50 px-3 py-2 text-left transition hover:border-[#fc4c02] disabled:opacity-50 dark:border-moss-750 dark:bg-moss-800 dark:hover:border-[#fc4c02]"
-            >
-              <p className="truncate text-sm font-medium">{a.name}</p>
-              <p className="text-xs text-moss-500 tabular-nums dark:text-moss-400">
-                {format(parseISO(a.date), 'EEE d MMM', { locale: fr })} ·{' '}
-                {[
-                  `${a.distanceKm} km`,
-                  formatDuration(a.durationMin),
-                  formatPace(a.durationMin, a.distanceKm),
-                  a.elevationM != null && a.elevationM > 0 && `${a.elevationM} m D+`,
-                  a.avgHr != null && `${a.avgHr} bpm`,
-                ]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </p>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-/** Manual measures form — time and distance are the price of a ✓. */
-function ValidateForm({
-  session,
-  pending,
-  onSubmit,
-  onCancel,
-}: {
-  session: SessionResponse
-  pending: boolean
-  onSubmit: (body: ValidateSessionRequest) => void
-  onCancel: () => void
-}) {
-  const [error, setError] = useState<string | null>(null)
-
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const data = new FormData(event.currentTarget)
-    const durationMin = Number(data.get('durationMin'))
-    const distanceKm = Number(data.get('distanceKm'))
-    if (!durationMin || durationMin <= 0 || !distanceKm || distanceKm <= 0) {
-      setError('La durée et la distance sont obligatoires.')
-      return
-    }
-    setError(null)
-    const elevationM = data.get('elevationM') ? Number(data.get('elevationM')) : undefined
-    const avgHr = data.get('avgHr') ? Number(data.get('avgHr')) : undefined
-    const comment = String(data.get('comment') ?? '').trim() || undefined
-    onSubmit({ durationMin, distanceKm, elevationM, avgHr, comment })
-  }
-
-  const inputCls =
-    'mt-0.5 w-full rounded-lg border border-moss-200 bg-moss-100 px-2.5 py-1.5 text-sm outline-none focus:border-pine-600 focus:ring-2 focus:ring-pine-600/25 dark:border-moss-750 dark:bg-moss-800 dark:focus:border-pine-350 dark:focus:ring-pine-350/25'
-
-  return (
-    <form onSubmit={handleSubmit} className="mt-5 border-t border-moss-200 pt-4 dark:border-moss-750">
-      <p className="text-sm font-semibold">Mesures de la sortie</p>
-      {error && (
-        <p role="alert" className="mt-1 text-sm text-clay-500 dark:text-clay-300">
-          {error}
-        </p>
-      )}
-      <div className="mt-2 grid grid-cols-2 gap-3">
-        <label className="block text-xs text-moss-500 dark:text-moss-400">
-          Durée (min) *
-          <input name="durationMin" type="number" min="1" required
-            defaultValue={session.activity?.durationMin ?? session.durationMin ?? ''} className={inputCls} />
-        </label>
-        <label className="block text-xs text-moss-500 dark:text-moss-400">
-          Distance (km) *
-          <input name="distanceKm" type="number" min="0.1" step="0.01" required
-            defaultValue={session.activity?.distanceKm ?? ''} className={inputCls} />
-        </label>
-        <label className="block text-xs text-moss-500 dark:text-moss-400">
-          D+ (m)
-          <input name="elevationM" type="number" min="0"
-            defaultValue={session.activity?.elevationM ?? ''} className={inputCls} />
-        </label>
-        <label className="block text-xs text-moss-500 dark:text-moss-400">
-          FC moyenne (bpm)
-          <input name="avgHr" type="number" min="30" max="250"
-            defaultValue={session.activity?.avgHr ?? ''} className={inputCls} />
-        </label>
-        <label className="col-span-2 block text-xs text-moss-500 dark:text-moss-400">
-          Commentaire
-          <textarea name="comment" rows={2} defaultValue={session.activity?.comment ?? ''} className={inputCls} />
-        </label>
-      </div>
-      <div className="mt-3 flex gap-2">
-        <button
-          type="submit"
-          disabled={pending}
-          className="rounded-lg bg-pine-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
-        >
-          {pending ? 'Enregistrement…' : '✓ Valider la séance'}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="rounded-lg px-4 py-2 text-sm font-medium text-moss-500 transition hover:bg-moss-100 dark:text-moss-400 dark:hover:bg-moss-800"
-        >
-          Annuler
-        </button>
-      </div>
-    </form>
   )
 }

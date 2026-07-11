@@ -14,6 +14,7 @@ import { RegisterPage } from './features/auth/RegisterPage'
 import { StravaCallbackPage } from './features/auth/StravaCallbackPage'
 import { useAuth } from './features/auth/session'
 import { CalendarPage } from './features/calendar/CalendarPage'
+import { SessionPage } from './features/calendar/SessionPage'
 import { SettingsPage } from './features/settings/SettingsPage'
 
 /* ── Navigation model ──────────────────────────────────────────────── */
@@ -208,6 +209,16 @@ const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
   component: Home,
+  validateSearch: (search: Record<string, unknown>): { week?: string } =>
+    typeof search.week === 'string' ? { week: search.week } : {},
+})
+
+const sessionRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/session/$sessionId',
+  component: SessionPage,
+  validateSearch: (search: Record<string, unknown>): { from?: string } =>
+    typeof search.from === 'string' ? { from: search.from } : {},
 })
 
 const registerRoute = createRoute({
@@ -236,6 +247,7 @@ const stravaCallbackRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
+  sessionRoute,
   registerRoute,
   loginRoute,
   settingsRoute,

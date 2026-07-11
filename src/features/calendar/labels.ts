@@ -113,7 +113,46 @@ export const KIND_LEGEND: TrainingKind[] = [
   'CROSS',
 ]
 
-import type { Allure, Terrain } from './api'
+import type { Allure, PerceivedEffort, Terrain, WorkoutNode } from './api'
+
+export const EFFORT_LABEL: Record<PerceivedEffort, string> = {
+  TROP_FACILE: 'Trop facile',
+  FACILE: 'Facile',
+  COMME_PREVU: 'Comme prévu',
+  DIFFICILE: 'Difficile',
+  TROP_DIFFICILE: 'Trop difficile',
+}
+
+export const EFFORTS: PerceivedEffort[] = [
+  'TROP_FACILE',
+  'FACILE',
+  'COMME_PREVU',
+  'DIFFICILE',
+  'TROP_DIFFICILE',
+]
+
+/** Total execution time of a workout tree, in seconds. */
+export function totalWorkoutSeconds(nodes: WorkoutNode[]): number {
+  let total = 0
+  for (const node of nodes) {
+    if (node.type === 'repeat') {
+      total += (node.count ?? 1) * totalWorkoutSeconds(node.children ?? [])
+    } else if (node.seconds != null) {
+      total += node.seconds
+    }
+  }
+  return total
+}
+
+/** Strips a trailing duration token from a title ("Footing EF 25–30′" → "Footing EF"). */
+export function cleanTitle(title: string): string {
+  return title
+    .replace(
+      /[\s—·:-]*(?:\d+\s*[-–]\s*)?(?:\d+h\d{0,2}|\d+\s*(?:′|'|min\b)|\d+\s*(?:″|"|sec\b))\s*$/u,
+      '',
+    )
+    .trim()
+}
 
 /** Display names — a block's identity is always its allure. */
 export const ALLURE_LABEL: Record<Allure, string> = {

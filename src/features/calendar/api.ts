@@ -11,13 +11,26 @@ export type WeekType =
   | 'TAPER'
   | 'RACE'
 
+export type PerceivedEffort = 'TROP_FACILE' | 'FACILE' | 'COMME_PREVU' | 'DIFFICILE' | 'TROP_DIFFICILE'
+
 export interface ActivitySummary {
   source: 'MANUAL' | 'STRAVA'
+  name: string | null
   durationMin: number
   distanceKm: number | null
   elevationM: number | null
   avgHr: number | null
+  perceivedEffort: PerceivedEffort | null
   comment: string | null
+  hasStreams: boolean
+}
+
+export interface ActivityStreams {
+  time: number[]
+  distance: number[]
+  hr: number[]
+  alt: number[]
+  vel: number[]
 }
 
 export type Allure = 'LENTE' | 'EF' | 'COURSE' | 'SEUIL60' | 'SEUIL30' | 'VMA' | 'SPRINT'
@@ -111,6 +124,7 @@ export interface ValidateSessionRequest {
   distanceKm: number
   elevationM?: number
   avgHr?: number
+  perceivedEffort?: PerceivedEffort
   comment?: string
 }
 
@@ -118,8 +132,22 @@ export function validateSession(sessionId: string, body: ValidateSessionRequest)
   return api.post<SessionResponse>(`/api/sessions/${sessionId}/validate`, body)
 }
 
-export function validateSessionFromStrava(sessionId: string, stravaActivityId: number): Promise<SessionResponse> {
-  return api.post<SessionResponse>(`/api/sessions/${sessionId}/validate-strava`, { stravaActivityId })
+export interface ImportStravaRequest {
+  stravaActivityId: number
+  perceivedEffort?: PerceivedEffort
+  comment?: string
+}
+
+export function validateSessionFromStrava(sessionId: string, body: ImportStravaRequest): Promise<SessionResponse> {
+  return api.post<SessionResponse>(`/api/sessions/${sessionId}/validate-strava`, body)
+}
+
+export function fetchSession(sessionId: string): Promise<SessionResponse> {
+  return api.get<SessionResponse>(`/api/sessions/${sessionId}`)
+}
+
+export function fetchSessionStreams(sessionId: string): Promise<ActivityStreams> {
+  return api.get<ActivityStreams>(`/api/sessions/${sessionId}/streams`)
 }
 
 export interface CreateSessionRequest {
