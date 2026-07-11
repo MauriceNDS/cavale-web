@@ -42,24 +42,31 @@ import {
   type SessionStatus,
   type ValidateSessionRequest,
   type WeekResponse,
-  type WorkoutBlock,
   type WorkoutNode,
 } from './api'
 import { fetchStravaActivities } from '../strava/api'
 import {
+  ALLURE_LABEL,
   DISCIPLINE_LABEL,
   KIND_DOT,
   KIND_EDGE,
   KIND_LEGEND,
   KIND_LABEL,
-  SECTION_LABEL,
+  TERRAIN_LABEL,
   WEEK_TYPE_BADGE,
   WEEK_TYPE_LABEL,
+  allureStyle,
   formatDuration,
-  formatStepDuration,
+  formatSeconds,
   trainingKind,
-  zoneChip,
 } from './labels'
+import {
+  WorkoutBuilder,
+  draftsError,
+  draftsToNodes,
+  nodesToDrafts,
+  type ItemDraft,
+} from './WorkoutBuilder'
 
 type View = 'week' | 'month'
 
@@ -101,8 +108,16 @@ export function CalendarPage() {
   })
 
   const sessionMutation = useMutation({
-    mutationFn: ({ id, ...body }: { id: string; date?: string; status?: SessionStatus; comment?: string }) =>
-      updateSession(id, body),
+    mutationFn: ({
+      id,
+      ...body
+    }: {
+      id: string
+      date?: string
+      status?: SessionStatus
+      comment?: string
+      workout?: WorkoutNode[]
+    }) => updateSession(id, body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['calendar'] })
       setSelected(null)
@@ -216,6 +231,7 @@ export function CalendarPage() {
           }
           onStatus={(status) => sessionMutation.mutate({ id: selected.id, status })}
           onComment={(comment) => sessionMutation.mutate({ id: selected.id, comment })}
+          onWorkout={(workout) => sessionMutation.mutate({ id: selected.id, workout })}
           onValidate={(body) => validateMutation.mutate({ id: selected.id, body })}
           onStravaImport={(stravaActivityId) =>
             stravaImportMutation.mutate({ id: selected.id, stravaActivityId })
@@ -748,6 +764,7 @@ function SessionModal({
   pending,
   onStatus,
   onComment,
+  onWorkout,
   onValidate,
   onStravaImport,
   onClose,
@@ -756,16 +773,17 @@ function SessionModal({
   pending: boolean
   onStatus: (status: SessionStatus) => void
   onComment: (comment: string) => void
+  onWorkout: (workout: WorkoutNode[]) => void
   onValidate: (body: ValidateSessionRequest) => void
   onStravaImport: (stravaActivityId: number) => void
   onClose: () => void
 }) {
-  const [panel, setPanel] = useState<'none' | 'choose' | 'form' | 'strava'>('none')
+  const [panel, setPanel] = useState<'none' | 'choose' | 'form' | 'strava' | 'structure'>('none')
   const [exporting, setExporting] = useState(false)
   const showForm = panel === 'form'
   // Everything except Repos validates; runs take data, gym & marche a plain ✓
   const validatable = session.discipline !== 'REST'
-  const hasStructure = session.discipline === 'RUN' && session.structure.length > 0
+  const hasStructure = session.discipline === 'RUN' && session.workout.length > 0
 
   async function handleExport() {
     setExporting(true)
@@ -857,14 +875,41 @@ function SessionModal({
           </div>
         )}
 
-        {hasStructure ? (
-          <WorkoutBlocks blocks={session.structure} />
+        {panel === 'structure' ? (
+          <StructureEditor
+            session={session}
+            pending={pending}
+            onSave={onWorkout}
+            onCancel={() => setPanel('none')}
+          />
+        ) : hasStructure ? (
+          <div>
+            <WorkoutTree nodes={session.workout} />
+            {session.discipline === 'RUN' && (
+              <button
+                onClick={() => setPanel('structure')}
+                className="mt-1.5 text-xs font-medium text-moss-400 hover:text-ink hover:underline dark:text-moss-500 dark:hover:text-linen"
+              >
+                Modifier la structure
+              </button>
+            )}
+          </div>
         ) : (
-          session.detail && (
-            <p className="mt-4 border-t border-moss-200 pt-4 text-sm whitespace-pre-line text-moss-500 dark:border-moss-750 dark:text-moss-400">
-              <GlossaryText text={session.detail} />
-            </p>
-          )
+          <div className="mt-4 border-t border-moss-200 pt-4 dark:border-moss-750">
+            {session.detail && (
+              <p className="text-sm whitespace-pre-line text-moss-500 dark:text-moss-400">
+                <GlossaryText text={session.detail} />
+              </p>
+            )}
+            {session.discipline === 'RUN' && (
+              <button
+                onClick={() => setPanel('structure')}
+                className="mt-1.5 text-xs font-medium text-pine-700 hover:underline dark:text-pine-300"
+              >
+                + Créer la structure
+              </button>
+            )}
+          </div>
         )}
 
         {hasStructure && session.structureNotes && (
@@ -991,23 +1036,14 @@ function SessionModal({
 }
 
 /**
- * Structured description: colored step rows and repeat groups with a loop
- * gutter (count + arrows) — mirroring how the .fit export drives the watch.
+ * The workout body — deterministic blocks: allure as title, time (letters),
+ * terrain; loops with the count gutter. Mirrors the .fit export exactly.
  */
-function WorkoutBlocks({ blocks }: { blocks: WorkoutBlock[] }) {
+function WorkoutTree({ nodes }: { nodes: WorkoutNode[] }) {
   return (
-    <div className="mt-4 space-y-3 border-t border-moss-200 pt-4 dark:border-moss-750">
-      {blocks.map((block, blockIndex) => (
-        <div key={blockIndex}>
-          <p className="text-xs font-semibold tracking-wide text-moss-500 uppercase dark:text-moss-400">
-            {SECTION_LABEL[block.section]}
-          </p>
-          <div className="mt-1.5 space-y-1.5">
-            {block.nodes.map((node, nodeIndex) => (
-              <NodeView key={nodeIndex} node={node} />
-            ))}
-          </div>
-        </div>
+    <div className="mt-4 space-y-1.5 border-t border-moss-200 pt-4 dark:border-moss-750">
+      {nodes.map((node, index) => (
+        <NodeView key={index} node={node} />
       ))}
     </div>
   )
@@ -1040,22 +1076,78 @@ function NodeView({ node }: { node: WorkoutNode }) {
     )
   }
 
-  // Strict format: time + zone only — everything else lives in the notes
-  const colors = zoneChip(node.zone)
-  const duration = formatStepDuration(node.durationSec)
+  // A block's identity IS its allure; body = time (+ terrain, + récupération)
+  const style = allureStyle(node.allure)
+  const time = formatSeconds(node.seconds)
+  const body = [
+    time,
+    node.allure === 'LENTE' && time ? 'de récupération' : null,
+    node.terrain && node.terrain !== 'PLAT' ? TERRAIN_LABEL[node.terrain] : null,
+  ]
+    .filter(Boolean)
+    .join(' ')
   return (
     <div
-      className={`rounded-lg border border-l-4 border-moss-200 bg-moss-50 px-3 py-2 dark:border-moss-750 dark:bg-moss-800 ${colors.edge}`}
+      className={`rounded-lg border border-l-4 border-moss-200 bg-moss-50 px-3 py-2 dark:border-moss-750 dark:bg-moss-800 ${style.edge}`}
     >
-      <div className="flex items-center gap-2">
-        <span className="font-display text-base font-semibold tabular-nums">
-          {duration ?? 'libre'}
-        </span>
-        {node.zone && (
-          <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${colors.chip}`}>
-            {node.zone}
-          </span>
-        )}
+      <p className={`text-xs font-semibold ${style.title}`}>
+        {node.allure ? ALLURE_LABEL[node.allure] : 'Étape'}
+      </p>
+      <p className="font-display text-base font-semibold tabular-nums">{body || '—'}</p>
+    </div>
+  )
+}
+
+/** Edit a session's workout structure with the builder. */
+function StructureEditor({
+  session,
+  pending,
+  onSave,
+  onCancel,
+}: {
+  session: SessionResponse
+  pending: boolean
+  onSave: (workout: WorkoutNode[]) => void
+  onCancel: () => void
+}) {
+  const [items, setItems] = useState<ItemDraft[]>(() => nodesToDrafts(session.workout))
+  const [error, setError] = useState<string | null>(null)
+
+  function save() {
+    const problem = draftsError(items)
+    if (problem) {
+      setError(problem)
+      return
+    }
+    setError(null)
+    onSave(draftsToNodes(items))
+  }
+
+  return (
+    <div className="mt-4 border-t border-moss-200 pt-4 dark:border-moss-750">
+      <p className="text-sm font-semibold">Structure de la séance</p>
+      {error && (
+        <p role="alert" className="mt-1 text-sm text-clay-500 dark:text-clay-300">
+          {error}
+        </p>
+      )}
+      <div className="mt-2">
+        <WorkoutBuilder items={items} onChange={setItems} />
+      </div>
+      <div className="mt-3 flex gap-2">
+        <button
+          onClick={save}
+          disabled={pending}
+          className="rounded-lg bg-pine-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
+        >
+          {pending ? 'Enregistrement…' : 'Enregistrer la structure'}
+        </button>
+        <button
+          onClick={onCancel}
+          className="rounded-lg px-4 py-2 text-sm font-medium text-moss-500 transition hover:bg-moss-100 dark:text-moss-400 dark:hover:bg-moss-800"
+        >
+          Annuler
+        </button>
       </div>
     </div>
   )
@@ -1154,6 +1246,8 @@ function AddSessionModal({
   onClose: () => void
 }) {
   const [error, setError] = useState<string | null>(null)
+  const [discipline, setDiscipline] = useState<CreateSessionRequest['discipline']>('RUN')
+  const [structure, setStructure] = useState<ItemDraft[]>([])
 
   const inputCls =
     'mt-0.5 w-full rounded-lg border border-moss-200 bg-moss-100 px-2.5 py-1.5 text-sm outline-none focus:border-pine-600 focus:ring-2 focus:ring-pine-600/25 dark:border-moss-750 dark:bg-moss-800 dark:focus:border-pine-350 dark:focus:ring-pine-350/25'
@@ -1167,12 +1261,19 @@ function AddSessionModal({
       setError('Le titre est requis.')
       return
     }
+    if (discipline === 'RUN' && structure.length > 0) {
+      const problem = draftsError(structure)
+      if (problem) {
+        setError(problem)
+        return
+      }
+    }
     setError(null)
     const num = (name: string) => (data.get(name) ? Number(data.get(name)) : undefined)
     onCreate(week.id, {
       date: iso(day),
       orderInDay,
-      discipline: String(data.get('discipline')) as CreateSessionRequest['discipline'],
+      discipline,
       title,
       zone: String(data.get('zone') ?? '') || undefined,
       durationMin: num('durationMin'),
@@ -1180,6 +1281,7 @@ function AddSessionModal({
       rpeMin: num('rpeMin'),
       rpeMax: num('rpeMax'),
       detail: String(data.get('detail') ?? '').trim() || undefined,
+      workout: discipline === 'RUN' && structure.length > 0 ? draftsToNodes(structure) : undefined,
     })
   }
 
@@ -1225,7 +1327,12 @@ function AddSessionModal({
             <div className="grid grid-cols-2 gap-3">
               <label className="block text-xs text-moss-500 dark:text-moss-400">
                 Discipline
-                <select name="discipline" defaultValue="RUN" className={inputCls}>
+                <select
+                  name="discipline"
+                  value={discipline}
+                  onChange={(e) => setDiscipline(e.target.value as CreateSessionRequest['discipline'])}
+                  className={inputCls}
+                >
                   <option value="RUN">Course</option>
                   <option value="GYM">Renfo</option>
                   <option value="CROSS">Croisé (marche, vélo…)</option>
@@ -1263,10 +1370,21 @@ function AddSessionModal({
                 <input name="rpeMax" type="number" min="0" max="10" className={inputCls} />
               </label>
               <label className="col-span-2 block text-xs text-moss-500 dark:text-moss-400">
-                Description (Échauffement : … Corps : … Retour au calme : …)
-                <textarea name="detail" rows={3} className={inputCls} />
+                Consignes (texte libre)
+                <textarea name="detail" rows={2} className={inputCls} />
               </label>
             </div>
+
+            {discipline === 'RUN' && (
+              <div>
+                <p className="text-xs font-semibold text-moss-500 dark:text-moss-400">
+                  Structure de la séance
+                </p>
+                <div className="mt-1.5">
+                  <WorkoutBuilder items={structure} onChange={setStructure} />
+                </div>
+              </div>
+            )}
             <div className="flex gap-2">
               <button
                 type="submit"

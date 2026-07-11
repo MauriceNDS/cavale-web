@@ -20,18 +20,16 @@ export interface ActivitySummary {
   comment: string | null
 }
 
+export type Allure = 'LENTE' | 'EF' | 'COURSE' | 'SEUIL60' | 'SEUIL30' | 'VMA' | 'SPRINT'
+export type Terrain = 'PLAT' | 'COTE' | 'DESCENTE'
+
 export interface WorkoutNode {
   type: 'step' | 'repeat'
-  label: string | null
-  durationSec: number | null
-  zone: string | null
+  allure: Allure | null
+  seconds: number | null
+  terrain: Terrain | null
   count: number | null
   children: WorkoutNode[] | null
-}
-
-export interface WorkoutBlock {
-  section: 'WARMUP' | 'MAIN' | 'COOLDOWN'
-  nodes: WorkoutNode[]
 }
 
 export interface SessionResponse {
@@ -50,7 +48,7 @@ export interface SessionResponse {
   rpeMax: number | null
   status: SessionStatus
   activity: ActivitySummary | null
-  structure: WorkoutBlock[]
+  workout: WorkoutNode[]
   structureNotes: string | null
 }
 
@@ -97,6 +95,7 @@ export interface UpdateSessionRequest {
   orderInDay?: number
   status?: SessionStatus
   comment?: string
+  workout?: WorkoutNode[]
 }
 
 export function updateSession(sessionId: string, body: UpdateSessionRequest): Promise<SessionResponse> {
@@ -134,6 +133,7 @@ export interface CreateSessionRequest {
   elevationM?: number
   rpeMin?: number
   rpeMax?: number
+  workout?: WorkoutNode[]
 }
 
 export function createSession(weekId: string, body: CreateSessionRequest): Promise<SessionResponse> {
