@@ -15,19 +15,20 @@ import { StravaCallbackPage } from './features/auth/StravaCallbackPage'
 import { useAuth } from './features/auth/session'
 import { CalendarPage } from './features/calendar/CalendarPage'
 import { SessionPage } from './features/calendar/SessionPage'
+import { ObjectivePage } from './features/objective/ObjectivePage'
 import { SettingsPage } from './features/settings/SettingsPage'
 
 /* ── Navigation model ──────────────────────────────────────────────── */
 
 interface NavItem {
   label: string
-  to?: '/' | '/settings'
+  to?: '/' | '/objectif' | '/settings'
   soon?: boolean
 }
 
 const NAV: NavItem[] = [
   { label: 'Calendrier', to: '/' },
-  { label: 'Plan', soon: true },
+  { label: 'Objectif', to: '/objectif' },
   { label: 'Renfo', soon: true },
   { label: 'Théorie', soon: true },
   { label: 'Stats', soon: true },
@@ -221,6 +222,12 @@ const sessionRoute = createRoute({
     typeof search.from === 'string' ? { from: search.from } : {},
 })
 
+const objectiveRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/objectif',
+  component: ObjectivePage,
+})
+
 const registerRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/register',
@@ -248,6 +255,7 @@ const stravaCallbackRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   indexRoute,
   sessionRoute,
+  objectiveRoute,
   registerRoute,
   loginRoute,
   settingsRoute,
