@@ -7,6 +7,7 @@ import {
   useNavigate,
 } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
+import { LogoMark } from './components/LogoMark'
 import { ThemeToggle } from './components/ThemeToggle'
 import { LoginPage } from './features/auth/LoginPage'
 import { RegisterPage } from './features/auth/RegisterPage'
@@ -81,7 +82,11 @@ function Shell({ children }: { children: ReactNode }) {
       <div className="min-h-screen">
         <header className="border-b border-moss-200 bg-moss-25 dark:border-moss-750 dark:bg-moss-850">
           <nav className="mx-auto flex max-w-5xl items-center gap-4 px-4 py-3">
-            <Link to="/" className="font-display text-xl font-semibold text-pine-700 dark:text-pine-300">
+            <Link
+              to="/"
+              className="flex items-center gap-2 font-display text-xl font-semibold text-pine-700 dark:text-pine-300"
+            >
+              <LogoMark className="h-4 w-auto" />
               Cavale
             </Link>
             <div className="ml-auto flex items-center gap-2">
@@ -110,7 +115,11 @@ function Shell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen md:flex">
       <aside className="hidden w-52 shrink-0 flex-col border-r border-moss-200 bg-moss-25 p-4 md:flex dark:border-moss-750 dark:bg-moss-850">
-        <Link to="/" className="mb-6 px-3 font-display text-2xl font-semibold text-pine-700 dark:text-pine-300">
+        <Link
+          to="/"
+          className="mb-6 flex items-center gap-2.5 px-3 font-display text-2xl font-semibold text-pine-700 dark:text-pine-300"
+        >
+          <LogoMark className="h-5 w-auto" />
           Cavale
         </Link>
         <nav className="flex flex-col gap-1">
@@ -132,7 +141,8 @@ function Shell({ children }: { children: ReactNode }) {
 
       <div className="flex min-h-screen flex-1 flex-col">
         <header className="flex items-center gap-3 border-b border-moss-200 bg-moss-25 px-4 py-2.5 dark:border-moss-750 dark:bg-moss-850">
-          <span className="font-display text-lg font-semibold text-pine-700 md:hidden dark:text-pine-300">
+          <span className="flex items-center gap-2 font-display text-lg font-semibold text-pine-700 md:hidden dark:text-pine-300">
+            <LogoMark className="h-4 w-auto" />
             Cavale
           </span>
           <div className="ml-auto flex items-center gap-2">

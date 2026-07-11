@@ -75,9 +75,8 @@ export function draftsToNodes(items: ItemDraft[]): WorkoutNode[] {
   )
 }
 
-/** A loop is valid with ≥ 2 blocks; a step with a positive duration. */
+/** A loop is valid with ≥ 2 blocks; a step with a positive duration. Empty = clears the structure. */
 export function draftsError(items: ItemDraft[]): string | null {
-  if (items.length === 0) return 'Ajoute au moins un bloc.'
   for (const item of items) {
     if (item.kind === 'step' && (!item.value || item.value <= 0)) {
       return 'Chaque bloc doit avoir une durée positive.'
