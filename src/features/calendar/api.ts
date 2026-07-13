@@ -157,6 +157,23 @@ export function fetchSession(sessionId: string): Promise<SessionResponse> {
   return api.get<SessionResponse>(`/api/sessions/${sessionId}`)
 }
 
+export interface SessionProposal {
+  activityId: string
+  stravaActivityId: number
+  name: string | null
+  date: string
+  durationMin: number
+  distanceKm: number | null
+  elevationM: number | null
+  avgHr: number | null
+}
+
+/** Ingested Strava run that likely matches the session — null when none (204). */
+export async function fetchSessionProposal(sessionId: string): Promise<SessionProposal | null> {
+  const proposal = await api.get<SessionProposal | undefined>(`/api/sessions/${sessionId}/proposal`)
+  return proposal ?? null
+}
+
 export function fetchSessionStreams(sessionId: string): Promise<ActivityStreams> {
   return api.get<ActivityStreams>(`/api/sessions/${sessionId}/streams`)
 }

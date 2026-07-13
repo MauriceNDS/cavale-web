@@ -66,8 +66,30 @@
 @layer base {
   html {
     font-family: var(--font-sans);
+    @apply bg-moss-50 dark:bg-moss-900;
   }
   body {
-    @apply bg-moss-50 text-ink dark:bg-moss-900 dark:text-linen;
+    @apply text-ink dark:text-linen;
+  }
+
+  /* Topographic contour texture over the page background. Painted with a
+     theme color and masked by the (seamlessly tiling) contour SVG, so the
+     same asset serves light and dark mode. Page bg lives on <html> because
+     a z-index:-1 layer would be hidden behind a <body> background. */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-color: var(--color-moss-500);
+    opacity: 0.08;
+    mask-image: url('./assets/topo.svg');
+    mask-size: 800px;
+    mask-repeat: repeat;
+  }
+  .dark body::before {
+    background-color: var(--color-moss-400);
+    opacity: 0.07;
   }
 }

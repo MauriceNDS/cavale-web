@@ -8,12 +8,14 @@ import { GlossaryText } from '../../lib/glossary'
 import { fetchStravaActivities } from '../strava/api'
 import {
   fetchSession,
+  fetchSessionProposal,
   fetchSessionStreams,
   updateSession,
   validateSession,
   validateSessionFromStrava,
   type ActivityStreams,
   type PerceivedEffort,
+  type SessionProposal,
   type SessionResponse,
   type ValidateSessionRequest,
   type WorkoutNode,
@@ -79,6 +81,7 @@ export function SessionPage() {
 
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: ['session', sessionId] })
+    queryClient.invalidateQueries({ queryKey: ['session-proposal', sessionId] })
     queryClient.invalidateQueries({ queryKey: ['calendar'] })
   }
 
@@ -280,6 +283,15 @@ function SessionActions({
   onValidated: () => void
 }) {
   const [step, setStep] = useState<WizardStep>({ kind: 'none' })
+  const [proposalDismissed, setProposalDismissed] = useState(false)
+
+  const proposalQuery = useQuery({
+    queryKey: ['session-proposal', session.id],
+    queryFn: () => fetchSessionProposal(session.id),
+    enabled: session.discipline === 'RUN' && session.status === 'PLANNED',
+    staleTime: 60_000,
+    retry: false,
+  })
 
   const validateMutation = useMutation({
     mutationFn: (body: ValidateSessionRequest) => validateSession(session.id, body),
@@ -353,8 +365,20 @@ function SessionActions({
     )
   }
 
+  const proposal = !proposalDismissed ? (proposalQuery.data ?? null) : null
+
   return (
-    <div className="mt-6 flex flex-wrap gap-2 border-t border-moss-200 pt-4 dark:border-moss-750">
+    <div className="mt-6 border-t border-moss-200 pt-4 dark:border-moss-750">
+      {proposal && (
+        <ProposalBanner
+          proposal={proposal}
+          onValidate={() =>
+            setStep({ kind: 'effort', payload: { strava: proposal.stravaActivityId } })
+          }
+          onDismiss={() => setProposalDismissed(true)}
+        />
+      )}
+      <div className="flex flex-wrap gap-2">
       {session.discipline === 'RUN' && (
         <button
           onClick={onExport}
@@ -404,6 +428,54 @@ function SessionActions({
           Remettre à planifiée
         </button>
       )}
+      </div>
+    </div>
+  )
+}
+
+/** "That run looks like this session" — one click from ingestion to validation. */
+function ProposalBanner({
+  proposal,
+  onValidate,
+  onDismiss,
+}: {
+  proposal: SessionProposal
+  onValidate: () => void
+  onDismiss: () => void
+}) {
+  const pace = formatPace(proposal.durationMin, proposal.distanceKm)
+  const facts = [
+    format(parseISO(proposal.date), 'EEEE d MMMM', { locale: fr }),
+    formatDuration(proposal.durationMin),
+    proposal.distanceKm != null ? `${proposal.distanceKm} km` : null,
+    pace,
+    proposal.elevationM ? `${proposal.elevationM} m D+` : null,
+  ].filter(Boolean)
+
+  return (
+    <div className="mb-4 rounded-xl border border-[#fc4c02]/30 bg-[#fc4c02]/5 p-3 dark:bg-[#fc4c02]/10">
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-sm">
+          <span className="font-semibold">Cette sortie Strava semble correspondre :</span>{' '}
+          {proposal.name ?? 'Sortie'}
+          <span className="mt-0.5 block text-xs text-moss-500 dark:text-moss-400">
+            {facts.join(' · ')}
+          </span>
+        </p>
+        <button
+          onClick={onDismiss}
+          aria-label="Ignorer la proposition"
+          className="rounded p-1 text-xs text-moss-500 transition hover:bg-moss-100 dark:text-moss-400 dark:hover:bg-moss-800"
+        >
+          ✕
+        </button>
+      </div>
+      <button
+        onClick={onValidate}
+        className="mt-2 rounded-lg bg-[#fc4c02] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#e04502]"
+      >
+        ✓ Valider cette sortie
+      </button>
     </div>
   )
 }
