@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { ApiError } from '../../lib/api'
-import { updateProfile, updateStatus } from '../athlete/api'
+import { issuePat, updateProfile, updateStatus, type IssuedToken } from '../athlete/api'
 import { fetchMe, type AthleteStatus } from '../auth/api'
 import { disconnectStrava, fetchAuthorizeUrl, fetchStravaStatus } from '../strava/api'
 
@@ -45,7 +45,92 @@ export function SettingsPage() {
       <StatusCard />
       <ProfileCard />
       <StravaCard />
+      <McpCard />
     </div>
+  )
+}
+
+/** MCP credential: connect the owner's Claude as the coach. Token shown once. */
+function McpCard() {
+  const [issued, setIssued] = useState<IssuedToken | null>(null)
+  const [copied, setCopied] = useState<string | null>(null)
+
+  const mutation = useMutation({
+    mutationFn: issuePat,
+    onSuccess: (token) => {
+      setIssued(token)
+      setCopied(null)
+    },
+  })
+
+  const mcpUrl = `${window.location.protocol}//${window.location.hostname}:8080/mcp`
+  const claudeCommand = issued
+    ? `claude mcp add --transport http cavale ${mcpUrl} --header "Authorization: Bearer ${issued.token}"`
+    : ''
+
+  function copy(text: string, what: string) {
+    void navigator.clipboard.writeText(text).then(() => setCopied(what))
+  }
+
+  const copyButton = (text: string, what: string) => (
+    <button
+      type="button"
+      onClick={() => copy(text, what)}
+      className="shrink-0 rounded-lg border border-moss-200 px-3 py-1.5 text-sm font-medium transition hover:bg-moss-100 dark:border-moss-750 dark:hover:bg-moss-800"
+    >
+      {copied === what ? 'Copié ✓' : 'Copier'}
+    </button>
+  )
+
+  return (
+    <section className="mt-6 rounded-xl border border-moss-200 bg-moss-25 p-6 dark:border-moss-750 dark:bg-moss-850">
+      <h2 className="font-display text-lg font-semibold">Coach IA (MCP)</h2>
+      <p className="mt-0.5 text-sm text-moss-500 dark:text-moss-400">
+        Connecte ton Claude (Claude Code ou l'app desktop) à Cavale : il lit ton contexte
+        d'athlète et crée ou adapte tes plans en conversation. Le jeton est affiché une
+        seule fois — génère-en un nouveau s'il expire ou fuit.
+      </p>
+
+      {!issued && (
+        <button
+          onClick={() => mutation.mutate()}
+          disabled={mutation.isPending}
+          className="mt-4 rounded-lg bg-pine-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
+        >
+          {mutation.isPending ? 'Génération…' : 'Générer un jeton MCP'}
+        </button>
+      )}
+      {mutation.error instanceof ApiError && (
+        <p role="alert" className="mt-2 text-sm text-clay-500 dark:text-clay-300">
+          {mutation.error.message}
+        </p>
+      )}
+
+      {issued && (
+        <div className="mt-4 space-y-3">
+          <p className="text-sm text-moss-500 dark:text-moss-400">
+            Valide jusqu'au {format(parseISO(issued.expiresAt), 'd MMMM yyyy', { locale: fr })}.
+          </p>
+          <div className="flex items-start gap-2">
+            <code className="min-w-0 flex-1 rounded-lg bg-moss-100 p-2.5 text-xs break-all dark:bg-moss-800">
+              {issued.token}
+            </code>
+            {copyButton(issued.token, 'token')}
+          </div>
+          <p className="text-sm font-medium">Claude Code — une commande :</p>
+          <div className="flex items-start gap-2">
+            <code className="min-w-0 flex-1 rounded-lg bg-moss-100 p-2.5 text-xs break-all dark:bg-moss-800">
+              {claudeCommand}
+            </code>
+            {copyButton(claudeCommand, 'command')}
+          </div>
+          <p className="text-xs text-moss-500 dark:text-moss-400">
+            App desktop : Paramètres → Connecteurs → ajouter <code>{mcpUrl}</code> avec
+            l'en-tête <code>Authorization: Bearer &lt;jeton&gt;</code>.
+          </p>
+        </div>
+      )}
+    </section>
   )
 }
 

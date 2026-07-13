@@ -104,6 +104,16 @@ export function updateStatus(body: { status: AthleteStatus; note?: string }): Pr
   return api.put<UserResponse>('/api/users/me/status', body)
 }
 
+export interface IssuedToken {
+  token: string
+  expiresAt: string
+}
+
+/** Long-lived personal access token — the MCP client credential. Shown once. */
+export function issuePat(): Promise<IssuedToken> {
+  return api.post<IssuedToken>('/api/users/me/pat', {})
+}
+
 export interface SyncResult {
   imported: number
   updated: number
