@@ -21,6 +21,7 @@ export interface ActivitySummary {
   elevationM: number | null
   avgHr: number | null
   perceivedEffort: PerceivedEffort | null
+  painFlag: boolean
   comment: string | null
   hasStreams: boolean
 }
@@ -136,6 +137,7 @@ export interface ValidateSessionRequest {
   elevationM?: number
   avgHr?: number
   perceivedEffort?: PerceivedEffort
+  painFlag?: boolean
   comment?: string
 }
 
@@ -146,6 +148,7 @@ export function validateSession(sessionId: string, body: ValidateSessionRequest)
 export interface ImportStravaRequest {
   stravaActivityId: number
   perceivedEffort?: PerceivedEffort
+  painFlag?: boolean
   comment?: string
 }
 

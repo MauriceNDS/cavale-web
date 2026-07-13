@@ -4,6 +4,7 @@ import { Link } from '@tanstack/react-router'
 import { differenceInCalendarDays, differenceInYears, format, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { ApiError } from '../../lib/api'
+import { fetchMe } from '../auth/api'
 import { createPlan } from '../calendar/api'
 import { TodayCard } from '../calendar/TodayCard'
 import { OBJECTIVE_TYPE_BADGE, OBJECTIVE_TYPE_LABEL, formatTimeMin } from '../objective/labels'
@@ -52,6 +53,29 @@ function HubContent({ hub }: { hub: AthleteHub }) {
 
 /* ── Profile header + Strava sync ──────────────────────────────────── */
 
+const STATUS_CHIP: Record<string, string> = {
+  INJURED: 'Blessé',
+  RECOVERING: 'Reprise',
+  SICK: 'Malade',
+}
+
+function StatusChip() {
+  const me = useQuery({ queryKey: ['me'], queryFn: fetchMe })
+  const user = me.data
+  if (!user || user.athleteStatus === 'AVAILABLE') return null
+  return (
+    <Link
+      to="/settings"
+      className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-clay-100 px-3 py-1 text-xs font-semibold text-clay-600 transition hover:bg-clay-100/70 dark:bg-clay-900 dark:text-clay-300"
+    >
+      ⚠ {STATUS_CHIP[user.athleteStatus]}
+      {user.statusSince &&
+        ` depuis le ${format(parseISO(user.statusSince), 'd MMMM', { locale: fr })}`}
+      {user.statusNote && ` · ${user.statusNote}`}
+    </Link>
+  )
+}
+
 function ProfileHeader({ hub }: { hub: AthleteHub }) {
   const { profile, totals } = hub
   const age = profile.birthDate ? differenceInYears(new Date(), parseISO(profile.birthDate)) : null
@@ -75,6 +99,7 @@ function ProfileHeader({ hub }: { hub: AthleteHub }) {
               modifier
             </Link>
           </p>
+          <StatusChip />
         </div>
         <div className="flex gap-6 text-right">
           <div>

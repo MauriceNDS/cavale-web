@@ -1,5 +1,5 @@
 import { api } from '../../lib/api'
-import type { UserResponse } from '../auth/api'
+import type { AthleteStatus, UserResponse } from '../auth/api'
 import type { ObjectiveResponse } from '../objective/api'
 
 export type Timeframe = 'PAST' | 'CURRENT' | 'FUTURE'
@@ -98,6 +98,10 @@ export interface UpdateProfileRequest {
 
 export function updateProfile(body: UpdateProfileRequest): Promise<UserResponse> {
   return api.put<UserResponse>('/api/users/me/profile', body)
+}
+
+export function updateStatus(body: { status: AthleteStatus; note?: string }): Promise<UserResponse> {
+  return api.put<UserResponse>('/api/users/me/status', body)
 }
 
 export interface SyncResult {

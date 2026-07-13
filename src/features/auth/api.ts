@@ -11,6 +11,8 @@ export interface LoginRequest {
   password: string
 }
 
+export type AthleteStatus = 'AVAILABLE' | 'INJURED' | 'RECOVERING' | 'SICK'
+
 export interface UserResponse {
   id: string
   email: string
@@ -20,6 +22,9 @@ export interface UserResponse {
   birthDate: string | null
   maxHr: number | null
   restingHr: number | null
+  athleteStatus: AthleteStatus
+  statusNote: string | null
+  statusSince: string | null
   createdAt: string
 }
 

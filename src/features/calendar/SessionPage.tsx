@@ -285,8 +285,12 @@ function SessionActions({
     onSuccess: onValidated,
   })
   const stravaMutation = useMutation({
-    mutationFn: (body: { stravaActivityId: number; perceivedEffort: PerceivedEffort; comment?: string }) =>
-      validateSessionFromStrava(session.id, body),
+    mutationFn: (body: {
+      stravaActivityId: number
+      perceivedEffort: PerceivedEffort
+      painFlag?: boolean
+      comment?: string
+    }) => validateSessionFromStrava(session.id, body),
     onSuccess: onValidated,
   })
 
@@ -340,11 +344,16 @@ function SessionActions({
         <EffortForm
           pending={pending}
           error={validateMutation.isError || stravaMutation.isError}
-          onSubmit={(perceivedEffort, comment) => {
+          onSubmit={(perceivedEffort, painFlag, comment) => {
             if (step.payload.strava != null) {
-              stravaMutation.mutate({ stravaActivityId: step.payload.strava, perceivedEffort, comment })
+              stravaMutation.mutate({
+                stravaActivityId: step.payload.strava,
+                perceivedEffort,
+                painFlag,
+                comment,
+              })
             } else if (step.payload.manual) {
-              validateMutation.mutate({ ...step.payload.manual, perceivedEffort, comment })
+              validateMutation.mutate({ ...step.payload.manual, perceivedEffort, painFlag, comment })
             }
           }}
         />
@@ -624,9 +633,10 @@ function EffortForm({
 }: {
   pending: boolean
   error: boolean
-  onSubmit: (effort: PerceivedEffort, comment?: string) => void
+  onSubmit: (effort: PerceivedEffort, painFlag: boolean, comment?: string) => void
 }) {
   const [effort, setEffort] = useState<PerceivedEffort>('COMME_PREVU')
+  const [pain, setPain] = useState(false)
   const [comment, setComment] = useState('')
 
   return (
@@ -653,6 +663,17 @@ function EffortForm({
           </button>
         ))}
       </div>
+      <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={pain}
+          onChange={(e) => setPain(e.target.checked)}
+          className="h-4 w-4 accent-clay-500"
+        />
+        <span className={pain ? 'font-medium text-clay-500 dark:text-clay-300' : ''}>
+          Douleur ou gêne ressentie pendant la sortie
+        </span>
+      </label>
       <textarea
         value={comment}
         onChange={(e) => setComment(e.target.value)}
@@ -661,7 +682,7 @@ function EffortForm({
         className="mt-3 w-full rounded-lg border border-moss-200 bg-moss-100 p-2.5 text-sm outline-none focus:border-pine-600 focus:ring-2 focus:ring-pine-600/25 dark:border-moss-750 dark:bg-moss-800 dark:focus:border-pine-350 dark:focus:ring-pine-350/25"
       />
       <button
-        onClick={() => onSubmit(effort, comment.trim() || undefined)}
+        onClick={() => onSubmit(effort, pain, comment.trim() || undefined)}
         disabled={pending}
         className="mt-2 rounded-lg bg-pine-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
       >
@@ -787,6 +808,11 @@ function ActivityReport({
         </p>
         <p className="mt-0.5 text-sm font-medium">
           {activity.perceivedEffort ? EFFORT_LABEL[activity.perceivedEffort] : '—'}
+          {activity.painFlag && (
+            <span className="ml-2 rounded-full bg-clay-100 px-2 py-0.5 text-xs font-semibold text-clay-600 dark:bg-clay-900 dark:text-clay-300">
+              ⚠ Douleur signalée
+            </span>
+          )}
         </p>
         {activity.comment && (
           <p className="mt-1 text-sm whitespace-pre-line text-moss-500 dark:text-moss-400">
