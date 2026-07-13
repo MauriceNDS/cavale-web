@@ -5,6 +5,7 @@ import { differenceInCalendarDays, differenceInYears, format, parseISO } from 'd
 import { fr } from 'date-fns/locale'
 import { ApiError } from '../../lib/api'
 import { createPlan } from '../calendar/api'
+import { TodayCard } from '../calendar/TodayCard'
 import { OBJECTIVE_TYPE_BADGE, OBJECTIVE_TYPE_LABEL, formatTimeMin } from '../objective/labels'
 import {
   analyzeStravaRecords,
@@ -40,6 +41,7 @@ export function HomePage() {
 function HubContent({ hub }: { hub: AthleteHub }) {
   return (
     <div className="mx-auto max-w-5xl space-y-4 pt-6">
+      <TodayCard />
       <ProfileHeader hub={hub} />
       <ObjectivesRail seasons={hub.seasons} />
       <RecordsSection hub={hub} />

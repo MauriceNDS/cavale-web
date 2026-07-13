@@ -45,7 +45,7 @@ function Tooltip({ x, children }: { x: number; children: ReactNode }) {
 function Grid({ ticks, y, format: fmt }: { ticks: number[]; y: (v: number) => number; format?: (v: number) => string }) {
   return (
     <>
-      {ticks.map((t) => (
+      {[...new Set(ticks)].map((t) => (
         <g key={t}>
           <line
             x1={PAD.left}
@@ -192,7 +192,7 @@ export function TrendLine({ months, value, formatValue, formatTick, invert, labe
   return (
     <div className="relative">
       <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label={label}>
-        {[lo + (hi - lo) * 0.2, lo + (hi - lo) * 0.5, lo + (hi - lo) * 0.8].map((t) => (
+        {[...new Set([lo + (hi - lo) * 0.2, lo + (hi - lo) * 0.5, lo + (hi - lo) * 0.8])].map((t) => (
           <g key={t}>
             <line
               x1={PAD.left}

@@ -1,4 +1,4 @@
-import { api } from '../../lib/api'
+import { api, getToken } from '../../lib/api'
 
 export type Discipline = 'RUN' | 'GYM' | 'REST' | 'CROSS'
 export type SessionStatus = 'PLANNED' | 'DONE' | 'SKIPPED' | 'MOVED'
@@ -155,6 +155,21 @@ export function validateSessionFromStrava(sessionId: string, body: ImportStravaR
 
 export function fetchSession(sessionId: string): Promise<SessionResponse> {
   return api.get<SessionResponse>(`/api/sessions/${sessionId}`)
+}
+
+/** Downloads the session's Garmin workout as cavale-<date>.fit. */
+export async function downloadSessionFit(session: Pick<SessionResponse, 'id' | 'date'>): Promise<void> {
+  const response = await fetch(`/api/sessions/${session.id}/export.fit`, {
+    headers: { Authorization: `Bearer ${getToken()}` },
+  })
+  if (!response.ok) throw new Error('export failed')
+  const blob = await response.blob()
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `cavale-${session.date}.fit`
+  link.click()
+  URL.revokeObjectURL(url)
 }
 
 export interface SessionProposal {

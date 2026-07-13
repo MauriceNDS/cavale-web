@@ -3,10 +3,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { format, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { ApiError, getToken } from '../../lib/api'
+import { ApiError } from '../../lib/api'
 import { GlossaryText } from '../../lib/glossary'
 import { fetchStravaActivities } from '../strava/api'
 import {
+  downloadSessionFit,
   fetchSession,
   fetchSessionProposal,
   fetchSessionStreams,
@@ -49,20 +50,6 @@ function formatPace(durationMin: number, distanceKm: number | null): string | nu
   if (!distanceKm || distanceKm <= 0) return null
   const secPerKm = Math.round((durationMin * 60) / distanceKm)
   return `${Math.floor(secPerKm / 60)}:${String(secPerKm % 60).padStart(2, '0')} /km`
-}
-
-async function downloadFit(session: SessionResponse) {
-  const response = await fetch(`/api/sessions/${session.id}/export.fit`, {
-    headers: { Authorization: `Bearer ${getToken()}` },
-  })
-  if (!response.ok) throw new Error('export failed')
-  const blob = await response.blob()
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = `cavale-${session.date}.fit`
-  link.click()
-  URL.revokeObjectURL(url)
 }
 
 /* ── Page ──────────────────────────────────────────────────────────── */
@@ -147,7 +134,7 @@ function SessionView({
   async function handleExport() {
     setExporting(true)
     try {
-      await downloadFit(session)
+      await downloadSessionFit(session)
     } finally {
       setExporting(false)
     }
