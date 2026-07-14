@@ -27,7 +27,8 @@ export function RegisterPage() {
       // Auto-login right after registration for a seamless first run
       return login(request.email, request.password)
     },
-    onSuccess: () => navigate({ to: '/' }),
+    // fresh account → onboarding: profile details + what Cavale is used for
+    onSuccess: () => navigate({ to: '/bienvenue' }),
   })
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {

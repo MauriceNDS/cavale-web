@@ -26,6 +26,7 @@ import { WorkoutPage } from './features/gym/WorkoutPage'
 import { ActivitiesPage } from './features/athlete/ActivitiesPage'
 import { StatsPage } from './features/stats/StatsPage'
 import { ObjectivePage } from './features/objective/ObjectivePage'
+import { OnboardingPage } from './features/auth/OnboardingPage'
 import { SettingsPage } from './features/settings/SettingsPage'
 
 /* ── Navigation model ──────────────────────────────────────────────── */
@@ -97,22 +98,30 @@ function IconChart({ className }: IconProps) {
 
 interface NavItem {
   label: string
-  to?: '/' | '/calendrier' | '/objectif' | '/renfo' | '/activites' | '/stats' | '/settings'
+  to?: '/' | '/calendrier' | '/objectif' | '/renfo' | '/activites' | '/stats' | '/profil'
   icon?: (props: IconProps) => ReactNode
   soon?: boolean
-  /** In the mobile bottom bar (4 tabs); the rest lives in the account menu. */
+  /** In the mobile bottom bar; the rest lives in the account menu. */
   mobileTab?: boolean
+  /** Account menu only — not in the desktop sidebar main list. */
+  menuOnly?: boolean
+  /** Hidden entirely when the athlete uses Cavale for running only. */
+  needsGym?: boolean
 }
 
 const NAV: NavItem[] = [
   { label: 'Accueil', to: '/', icon: IconHome, mobileTab: true },
   { label: 'Calendrier', to: '/calendrier', icon: IconCalendar, mobileTab: true },
-  { label: 'Renfo', to: '/renfo', icon: IconDumbbell, mobileTab: true },
+  { label: 'Renfo', to: '/renfo', icon: IconDumbbell, mobileTab: true, needsGym: true },
   { label: 'Activités', to: '/activites', icon: IconPulse, mobileTab: true },
   { label: 'Statistiques', to: '/stats', icon: IconChart },
   { label: 'Objectif', to: '/objectif', icon: IconTarget },
-  { label: 'Réglages', to: '/settings', icon: IconSettings },
+  { label: 'Profil', to: '/profil', icon: IconSettings, menuOnly: true },
 ]
+
+function visibleNav(gymEnabled: boolean): NavItem[] {
+  return NAV.filter((item) => gymEnabled || !item.needsGym)
+}
 
 /** Mobile header title: the shell names the page, pages keep their own h1. */
 function pageTitle(pathname: string): string {
@@ -123,15 +132,16 @@ function pageTitle(pathname: string): string {
   if (pathname.startsWith('/activites')) return 'Activités'
   if (pathname.startsWith('/stats')) return 'Statistiques'
   if (pathname.startsWith('/objectif')) return 'Objectif'
-  if (pathname.startsWith('/settings')) return 'Réglages'
+  if (pathname.startsWith('/profil')) return 'Profil'
+  if (pathname.startsWith('/bienvenue')) return 'Bienvenue'
   return 'Accueil'
 }
 
 /** Desktop sidebar entries — the full map, "bientôt" items included. */
-function SidebarLinks() {
+function SidebarLinks({ gymEnabled }: { gymEnabled: boolean }) {
   return (
     <>
-      {NAV.map((item) =>
+      {visibleNav(gymEnabled).filter((item) => !item.menuOnly).map((item) =>
         item.soon ? (
           <span
             key={item.label}
@@ -159,11 +169,12 @@ function SidebarLinks() {
   )
 }
 
-/** Mobile bottom bar: the 4 daily destinations — the rest sits in the account menu. */
-function TabBar() {
+/** Mobile bottom bar: the daily destinations — the rest sits in the account menu. */
+function TabBar({ gymEnabled }: { gymEnabled: boolean }) {
+  const tabs = visibleNav(gymEnabled).filter((item) => item.to && item.mobileTab)
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-moss-200 bg-moss-25/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden dark:border-moss-750 dark:bg-moss-850/95">
-      {NAV.filter((item) => item.to && item.mobileTab).map((item) => (
+    <nav className={`fixed inset-x-0 bottom-0 z-40 grid ${tabs.length === 3 ? 'grid-cols-3' : 'grid-cols-4'} border-t border-moss-200 bg-moss-25/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden dark:border-moss-750 dark:bg-moss-850/95`}>
+      {tabs.map((item) => (
         <Link
           key={item.label}
           to={item.to!}
@@ -183,6 +194,8 @@ function TabBar() {
 /** Mobile account menu: identity, theme and logout live here — the desktop
  *  sidebar footer doesn't exist below md. */
 function AccountMenu({ user, onLogout }: { user: UserResponse; onLogout: () => void }) {
+  // eslint-disable-next-line react-hooks/rules-of-hooks -- stable component
+
   const [open, setOpen] = useState(false)
   const initial = (user.displayName || user.email).charAt(0).toUpperCase()
 
@@ -208,7 +221,7 @@ function AccountMenu({ user, onLogout }: { user: UserResponse; onLogout: () => v
               <p className="truncate text-sm font-semibold">{user.displayName}</p>
               <p className="truncate text-xs text-moss-500 dark:text-moss-400">{user.email}</p>
             </div>
-            {NAV.filter((item) => item.to && !item.mobileTab).map((item) => (
+            {visibleNav(user.gymEnabled).filter((item) => item.to && !item.mobileTab).map((item) => (
               <Link
                 key={item.label}
                 to={item.to!}
@@ -283,7 +296,8 @@ function Shell({ children }: { children: ReactNode }) {
   // Signed-in chrome: sidebar (desktop) + bottom tabs (mobile)
   return (
     <div className="min-h-screen md:flex">
-      <aside className="hidden w-52 shrink-0 flex-col border-r border-moss-200 bg-moss-25 p-4 md:flex dark:border-moss-750 dark:bg-moss-850">
+      {/* sticky: the footer (profile + logout) stays reachable on long pages */}
+      <aside className="hidden w-52 shrink-0 flex-col border-r border-moss-200 bg-moss-25 p-4 md:sticky md:top-0 md:flex md:h-screen md:overflow-y-auto dark:border-moss-750 dark:bg-moss-850">
         <Link
           to="/"
           className="mb-6 flex items-center gap-2.5 px-3 font-display text-2xl font-semibold text-pine-700 dark:text-pine-300"
@@ -292,16 +306,27 @@ function Shell({ children }: { children: ReactNode }) {
           Cavale
         </Link>
         <nav className="flex flex-col gap-1">
-          <SidebarLinks />
+          <SidebarLinks gymEnabled={user.gymEnabled} />
         </nav>
         <div className="mt-auto border-t border-moss-200 pt-3 dark:border-moss-750">
-          <p className="truncate px-3 text-sm font-medium">{user.displayName}</p>
+          <Link
+            to="/profil"
+            className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition hover:bg-moss-100 dark:hover:bg-moss-800"
+          >
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-pine-600 text-sm font-semibold text-moss-25 dark:bg-pine-350 dark:text-moss-950">
+              {(user.displayName || user.email).charAt(0).toUpperCase()}
+            </span>
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-medium">{user.displayName}</span>
+              <span className="block text-xs text-moss-500 dark:text-moss-400">Voir le profil</span>
+            </span>
+          </Link>
           <button
             onClick={() => {
               logout()
               navigate({ to: '/login' })
             }}
-            className="px-3 py-1 text-sm text-moss-500 transition hover:text-ink dark:text-moss-400 dark:hover:text-linen"
+            className="mt-1 px-2 py-1 text-sm text-moss-500 transition hover:text-ink dark:text-moss-400 dark:hover:text-linen"
           >
             Se déconnecter
           </button>
@@ -330,7 +355,7 @@ function Shell({ children }: { children: ReactNode }) {
           </div>
         </header>
         <main className="flex-1 px-4 pb-24 md:px-8 md:pb-10">{children}</main>
-        <TabBar />
+        <TabBar gymEnabled={user.gymEnabled} />
       </div>
     </div>
   )
@@ -469,7 +494,21 @@ const loginRoute = createRoute({
 const settingsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/settings',
+  beforeLoad: () => {
+    throw redirect({ to: '/profil' })
+  },
+})
+
+const profilRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/profil',
   component: SettingsPage,
+})
+
+const onboardingRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/bienvenue',
+  component: OnboardingPage,
 })
 
 const stravaCallbackRoute = createRoute({
@@ -493,6 +532,8 @@ const routeTree = rootRoute.addChildren([
   registerRoute,
   loginRoute,
   settingsRoute,
+  profilRoute,
+  onboardingRoute,
   stravaCallbackRoute,
 ])
 

@@ -20,6 +20,7 @@ export interface ActivitySummary {
   distanceKm: number | null
   elevationM: number | null
   avgHr: number | null
+  avgCadenceSpm: number | null
   perceivedEffort: PerceivedEffort | null
   painFlag: boolean
   comment: string | null

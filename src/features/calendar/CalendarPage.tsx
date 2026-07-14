@@ -28,6 +28,7 @@ import {
   startOfWeek,
 } from 'date-fns'
 import { fr } from 'date-fns/locale'
+import { useAuth } from '../auth/session'
 import { fetchTemplates } from '../gym/api'
 import {
   createSession,
@@ -700,6 +701,7 @@ function AddSessionModal({
   const [structure, setStructure] = useState<ItemDraft[]>([])
   const [title, setTitle] = useState('')
   const [variantId, setVariantId] = useState('')
+  const gymEnabled = useAuth().user?.gymEnabled ?? true
 
   // GYM sessions follow a strength program — picking a variant prefills the title
   const templates = useQuery({
@@ -797,7 +799,7 @@ function AddSessionModal({
                   className={inputCls}
                 >
                   <option value="RUN">Course</option>
-                  <option value="GYM">Renfo</option>
+                  {gymEnabled && <option value="GYM">Renfo</option>}
                   <option value="CROSS">Croisé (marche, vélo…)</option>
                 </select>
               </label>

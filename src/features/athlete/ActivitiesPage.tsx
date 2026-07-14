@@ -1,17 +1,16 @@
 import { useState } from 'react'
-import { useInfiniteQuery } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { format, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { fetchActivities, type FeedItem, type FeedType } from './api'
+import { useAuth } from '../auth/session'
+import { fetchActivities, type FeedFilters, type FeedItem, type FeedType } from './api'
 
 const muted = 'text-moss-500 dark:text-moss-400'
+const fieldClass =
+  'rounded-lg border border-moss-200 bg-moss-100 px-3 py-1.5 text-sm transition outline-none focus:border-pine-600 focus:ring-2 focus:ring-pine-600/25 dark:border-moss-750 dark:bg-moss-800 dark:focus:border-pine-350 dark:focus:ring-pine-350/25'
 
-const FILTERS: { value: FeedType; label: string }[] = [
-  { value: 'ALL', label: 'Tout' },
-  { value: 'RUN', label: 'Course' },
-  { value: 'GYM', label: 'Renfo' },
-]
+const PAGE_SIZE = 20
 
 function formatPace(sec: number): string {
   return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')} /km`
@@ -24,24 +23,40 @@ function formatDuration(min: number): string {
   return rest === 0 ? `${h}h` : `${h}h${String(rest).padStart(2, '0')}`
 }
 
-/** The whole history in one feed: runs (Strava or manual) and gym workouts. */
+/** The whole history: searchable by name and date range, page by page. */
 export function ActivitiesPage() {
+  const { user } = useAuth()
   const [type, setType] = useState<FeedType>('ALL')
+  const [page, setPage] = useState(0)
+  const [q, setQ] = useState('')
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
 
-  const query = useInfiniteQuery({
-    queryKey: ['activities', type],
-    queryFn: ({ pageParam }) => fetchActivities(type, pageParam),
-    initialPageParam: 0,
-    getNextPageParam: (last) => (last.hasMore ? last.page + 1 : undefined),
+  const filters: FeedFilters = { q, from: from || undefined, to: to || undefined }
+  const query = useQuery({
+    queryKey: ['activities', type, page, q, from, to],
+    queryFn: () => fetchActivities(type, page, filters),
+    placeholderData: (previous) => previous,
   })
 
-  const loading = query.isLoading || query.isFetchingNextPage
-  const error = query.isError
-  const items = (query.data?.pages ?? []).flatMap((p) => p.items)
-  const hasMore = query.hasNextPage
+  const data = query.data
+  const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1
+
+  const filterTypes: { value: FeedType; label: string }[] = [
+    { value: 'ALL', label: 'Tout' },
+    { value: 'RUN', label: 'Course' },
+    ...(user?.gymEnabled ? [{ value: 'GYM' as FeedType, label: 'Renfo' }] : []),
+  ]
+
+  function resetPage<T>(setter: (value: T) => void) {
+    return (value: T) => {
+      setter(value)
+      setPage(0)
+    }
+  }
 
   const byMonth = new Map<string, FeedItem[]>()
-  for (const item of items) {
+  for (const item of data?.items ?? []) {
     const key = format(parseISO(item.date), 'MMMM yyyy', { locale: fr })
     byMonth.set(key, [...(byMonth.get(key) ?? []), item])
   }
@@ -51,10 +66,10 @@ export function ActivitiesPage() {
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="font-display text-2xl font-semibold">Activités</h1>
         <div className="flex gap-1 rounded-lg bg-moss-100 p-0.5 dark:bg-moss-800">
-          {FILTERS.map((filter) => (
+          {filterTypes.map((filter) => (
             <button
               key={filter.value}
-              onClick={() => setType(filter.value)}
+              onClick={() => resetPage(setType)(filter.value)}
               aria-pressed={type === filter.value}
               className={`rounded-md px-3 py-1 text-xs font-medium transition ${
                 type === filter.value
@@ -68,13 +83,52 @@ export function ActivitiesPage() {
         </div>
       </div>
 
-      {error && (
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <input
+          value={q}
+          onChange={(event) => resetPage(setQ)(event.target.value)}
+          placeholder="Rechercher par nom…"
+          aria-label="Rechercher une activité"
+          className={`${fieldClass} w-full sm:w-56`}
+        />
+        <label className={`flex items-center gap-1.5 text-xs ${muted}`}>
+          du
+          <input type="date" value={from} aria-label="Date de début"
+            onChange={(event) => resetPage(setFrom)(event.target.value)} className={fieldClass} />
+        </label>
+        <label className={`flex items-center gap-1.5 text-xs ${muted}`}>
+          au
+          <input type="date" value={to} aria-label="Date de fin"
+            onChange={(event) => resetPage(setTo)(event.target.value)} className={fieldClass} />
+        </label>
+        {(q || from || to) && (
+          <button
+            onClick={() => {
+              setQ('')
+              setFrom('')
+              setTo('')
+              setPage(0)
+            }}
+            className="text-xs font-medium text-pine-700 underline dark:text-pine-300"
+          >
+            effacer
+          </button>
+        )}
+        {data && (
+          <span className={`ml-auto text-xs ${muted}`}>
+            {data.total} activité{data.total > 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
+
+      {query.isError && (
         <p className="mt-8 text-center text-clay-500 dark:text-clay-300">
           Impossible de charger les activités.
         </p>
       )}
-      {!loading && !error && items.length === 0 && (
-        <p className={`mt-8 text-center ${muted}`}>Aucune activité pour ce filtre.</p>
+      {query.isLoading && <p className={`mt-8 text-center ${muted}`}>Chargement…</p>}
+      {data && data.items.length === 0 && (
+        <p className={`mt-8 text-center ${muted}`}>Aucune activité ne correspond.</p>
       )}
 
       {[...byMonth.entries()].map(([month, monthItems]) => (
@@ -88,14 +142,26 @@ export function ActivitiesPage() {
         </section>
       ))}
 
-      {loading && <p className={`mt-6 text-center ${muted}`}>Chargement…</p>}
-      {hasMore && !loading && (
-        <button
-          onClick={() => void query.fetchNextPage()}
-          className="mt-5 w-full rounded-lg border border-moss-200 px-4 py-2.5 text-sm font-medium text-moss-500 transition hover:bg-moss-100 dark:border-moss-750 dark:text-moss-400 dark:hover:bg-moss-800"
-        >
-          Voir plus
-        </button>
+      {data && totalPages > 1 && (
+        <nav className="mt-5 flex items-center justify-center gap-3" aria-label="Pagination">
+          <button
+            onClick={() => setPage(page - 1)}
+            disabled={page === 0}
+            className="rounded-lg border border-moss-200 px-3.5 py-1.5 text-sm font-medium transition hover:bg-moss-100 disabled:opacity-40 dark:border-moss-750 dark:hover:bg-moss-800"
+          >
+            ← Précédent
+          </button>
+          <span className={`text-sm tabular-nums ${muted}`}>
+            page {page + 1} / {totalPages}
+          </span>
+          <button
+            onClick={() => setPage(page + 1)}
+            disabled={!data.hasMore}
+            className="rounded-lg border border-moss-200 px-3.5 py-1.5 text-sm font-medium transition hover:bg-moss-100 disabled:opacity-40 dark:border-moss-750 dark:hover:bg-moss-800"
+          >
+            Suivant →
+          </button>
+        </nav>
       )}
     </div>
   )
@@ -122,9 +188,7 @@ function FeedRow({ item }: { item: FeedItem }) {
       <span
         aria-hidden="true"
         className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-base ${
-          isRun
-            ? 'bg-pine-100 dark:bg-pine-900'
-            : 'bg-copper-600/15 dark:bg-copper-300/15'
+          isRun ? 'bg-pine-100 dark:bg-pine-900' : 'bg-copper-600/15 dark:bg-copper-300/15'
         }`}
       >
         {isRun ? '🏃' : '🏋'}

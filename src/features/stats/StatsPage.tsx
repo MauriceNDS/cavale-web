@@ -14,6 +14,7 @@ import {
   type WeekEffort,
   type WeekVolume,
 } from '../athlete/api'
+import { useAuth } from '../auth/session'
 import { GymStatsSection } from '../gym/GymStatsSection'
 
 const muted = 'text-moss-500 dark:text-moss-400'
@@ -37,14 +38,15 @@ function formatPace(secPerKm: number): string {
 export function StatsPage() {
   const search = useSearch({ strict: false }) as { tab?: string }
   const navigate = useNavigate()
-  const tab: 'course' | 'renfo' = search.tab === 'renfo' ? 'renfo' : 'course'
+  const gymEnabled = useAuth().user?.gymEnabled ?? true
+  const tab: 'course' | 'renfo' = search.tab === 'renfo' && gymEnabled ? 'renfo' : 'course'
 
   return (
     <div className="mx-auto mt-6 max-w-3xl space-y-4 pb-10">
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="font-display text-2xl font-semibold">Statistiques</h1>
         <div className="flex gap-1 rounded-lg bg-moss-100 p-0.5 dark:bg-moss-800">
-          {(['course', 'renfo'] as const).map((value) => (
+          {(gymEnabled ? (['course', 'renfo'] as const) : (['course'] as const)).map((value) => (
             <button
               key={value}
               onClick={() => void navigate({ to: '/stats', search: { tab: value } })}
@@ -238,9 +240,47 @@ function GridY({ ticks, y, format: fmt }: { ticks: number[]; y: (v: number) => n
   )
 }
 
+/** Hover (desktop) / tap (mobile) details: invisible hit strips per index. */
+function HitStrips({ count, onHover }: { count: number; onHover: (i: number | null) => void }) {
+  const stripW = plotW / Math.max(1, count)
+  return (
+    <>
+      {Array.from({ length: count }, (_, i) => (
+        <rect
+          key={i}
+          x={PAD.left + i * stripW}
+          y={0}
+          width={stripW}
+          height={H}
+          fill="transparent"
+          onPointerEnter={() => onHover(i)}
+          onPointerDown={() => onHover(i)}
+        />
+      ))}
+    </>
+  )
+}
+
+function ChartTooltip({ xRatio, lines }: { xRatio: number; lines: string[] }) {
+  const leftHalf = xRatio < 0.5
+  return (
+    <div
+      className="pointer-events-none absolute top-0 z-10 w-max max-w-52 rounded-lg border border-moss-200 bg-moss-25 p-2.5 text-xs shadow-sm dark:border-moss-750 dark:bg-moss-850"
+      style={leftHalf ? { left: `${xRatio * 100 + 3}%` } : { right: `${(1 - xRatio) * 100 + 3}%` }}
+    >
+      {lines.map((line, i) => (
+        <p key={i} className={i === 0 ? 'font-semibold' : 'text-moss-500 dark:text-moss-400'}>
+          {line}
+        </p>
+      ))}
+    </div>
+  )
+}
+
 /* ── Forme & Fitness: three series in one frame ────────────────────── */
 
 function FormChart({ days }: { days: DayForm[] }) {
+  const [hover, setHover] = useState<number | null>(null)
   if (days.length < 2) return <p className={`text-sm ${muted}`}>Pas encore assez de données.</p>
   const values = days.flatMap((d) => [d.fitness, d.fatigue, d.formScore])
   const lo = Math.min(...values, 0)
@@ -250,8 +290,20 @@ function FormChart({ days }: { days: DayForm[] }) {
   const path = (value: (d: DayForm) => number) =>
     days.map((d, i) => `${i === 0 ? 'M' : 'L'} ${x(i)} ${y(value(d))}`).join(' ')
 
+  const hovered = hover != null ? days[hover] : null
   return (
-    <>
+    <div className="relative" onPointerLeave={() => setHover(null)}>
+      {hovered && (
+        <ChartTooltip
+          xRatio={(PAD.left + (hover! * plotW) / (days.length - 1)) / W}
+          lines={[
+            format(parseISO(hovered.date), 'EEEE d MMMM', { locale: fr }),
+            `Fitness ${hovered.fitness}`,
+            `Fatigue ${hovered.fatigue}`,
+            `Forme ${hovered.formScore}`,
+          ]}
+        />
+      )}
       <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="Forme et fitness">
         <GridY ticks={[0, hi * 0.5]} y={y} />
         {/* form area under zero shows accumulated fatigue */}
@@ -269,25 +321,44 @@ function FormChart({ days }: { days: DayForm[] }) {
             {format(parseISO(days[i].date), 'd MMM', { locale: fr })}
           </text>
         ))}
+        {hover != null && (
+          <line x1={x(hover)} x2={x(hover)} y1={PAD.top} y2={H - PAD.bottom}
+            className="stroke-moss-400 dark:stroke-moss-500" strokeWidth={1} strokeDasharray="3 3" />
+        )}
+        <HitStrips count={days.length} onHover={setHover} />
       </svg>
       <div className={`mt-1 flex flex-wrap gap-3 text-xs ${muted}`}>
         <span><span className="mr-1 inline-block h-2 w-4 rounded-sm bg-pine-600 dark:bg-pine-350" />Fitness {days.at(-1)!.fitness}</span>
         <span><span className="mr-1 inline-block h-2 w-4 rounded-sm bg-clay-500 dark:bg-clay-300" />Fatigue {days.at(-1)!.fatigue}</span>
         <span><span className="mr-1 inline-block h-2 w-4 rounded-sm bg-lake-600 dark:bg-lake-300" />Forme {days.at(-1)!.formScore}</span>
       </div>
-    </>
+    </div>
   )
 }
 
 /* ── Weekly effort with the target band ────────────────────────────── */
 
 function EffortBandChart({ weeks }: { weeks: WeekEffort[] }) {
+  const [hover, setHover] = useState<number | null>(null)
   if (weeks.length === 0) return <p className={`text-sm ${muted}`}>Pas encore de données.</p>
   const hi = Math.max(...weeks.flatMap((w) => [w.effort, w.bandHigh ?? 0]), 1) * 1.1
   const y = (v: number) => PAD.top + (1 - v / hi) * plotH
   const barW = plotW / weeks.length
+  const hovered = hover != null ? weeks[hover] : null
 
   return (
+    <div className="relative" onPointerLeave={() => setHover(null)}>
+      {hovered && (
+        <ChartTooltip
+          xRatio={(PAD.left + hover! * barW + barW / 2) / W}
+          lines={[
+            `Semaine du ${format(parseISO(hovered.weekStart), 'd MMMM', { locale: fr })}`,
+            `Effort relatif : ${hovered.effort}`,
+            hovered.bandLow != null ? `Zone cible : ${hovered.bandLow}–${hovered.bandHigh}` : 'Zone cible : —',
+            ...(hovered.partlyEstimated ? ['(sorties sans FC estimées)'] : []),
+          ]}
+        />
+      )}
     <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img"
       aria-label="Effort relatif hebdomadaire et zone cible">
       <GridY ticks={[hi * 0.3, hi * 0.7]} y={y} />
@@ -320,7 +391,9 @@ function EffortBandChart({ weeks }: { weeks: WeekEffort[] }) {
           {format(parseISO(week.weekStart), 'd MMM', { locale: fr })}
         </text>
       ))}
+      <HitStrips count={weeks.length} onHover={setHover} />
     </svg>
+    </div>
   )
 }
 
@@ -344,6 +417,7 @@ function EffortStatus({ weeks }: { weeks: WeekEffort[] }) {
 /* ── Volume: km bars + D+ line, two axes ───────────────────────────── */
 
 function VolumeChart({ weeks }: { weeks: WeekVolume[] }) {
+  const [hover, setHover] = useState<number | null>(null)
   if (weeks.length === 0) return <p className={`text-sm ${muted}`}>Pas encore de données.</p>
   const maxKm = Math.max(...weeks.map((w) => w.distanceKm), 1)
   const maxD = Math.max(...weeks.map((w) => w.elevationM), 1)
@@ -354,7 +428,20 @@ function VolumeChart({ weeks }: { weeks: WeekVolume[] }) {
     .map((w, i) => `${i === 0 ? 'M' : 'L'} ${PAD.left + i * barW + barW / 2} ${yD(w.elevationM)}`)
     .join(' ')
 
+  const hovered = hover != null ? weeks[hover] : null
   return (
+    <div className="relative" onPointerLeave={() => setHover(null)}>
+      {hovered && (
+        <ChartTooltip
+          xRatio={(PAD.left + hover! * barW + barW / 2) / W}
+          lines={[
+            `Semaine du ${format(parseISO(hovered.weekStart), 'd MMMM', { locale: fr })}`,
+            `${hovered.distanceKm} km · ${hovered.elevationM} m D+`,
+            `${hovered.kmEffort} km-effort · ${hovered.runs} sortie${hovered.runs > 1 ? 's' : ''}`,
+            formatChrono(hovered.durationMin * 60),
+          ]}
+        />
+      )}
     <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img"
       aria-label="Volume hebdomadaire : kilomètres et dénivelé">
       <GridY ticks={[maxKm * 0.5, maxKm]} y={yKm} format={(v) => `${Math.round(v)}k`} />
@@ -379,7 +466,9 @@ function VolumeChart({ weeks }: { weeks: WeekVolume[] }) {
           {format(parseISO(week.weekStart), 'd MMM', { locale: fr })}
         </text>
       ))}
+      <HitStrips count={weeks.length} onHover={setHover} />
     </svg>
+    </div>
   )
 }
 
@@ -424,6 +513,7 @@ function CheckpointsTable({ checkpoints }: { checkpoints: DurationCheckpoint[] }
 /* ── Efficiency ────────────────────────────────────────────────────── */
 
 function EfficiencyChart({ months }: { months: MonthEfficiency[] }) {
+  const [hover, setHover] = useState<number | null>(null)
   const points = months.filter((m) => m.metersPerBeat != null)
   if (points.length < 2) return <p className={`text-sm ${muted}`}>Pas encore assez de données FC.</p>
   const values = points.map((m) => m.metersPerBeat!)
@@ -433,7 +523,19 @@ function EfficiencyChart({ months }: { months: MonthEfficiency[] }) {
   const y = (v: number) => PAD.top + (1 - (v - lo) / (hi - lo)) * plotH
   const path = points.map((m, i) => `${i === 0 ? 'M' : 'L'} ${x(i)} ${y(m.metersPerBeat!)}`).join(' ')
 
+  const hovered = hover != null ? points[hover] : null
   return (
+    <div className="relative" onPointerLeave={() => setHover(null)}>
+      {hovered && (
+        <ChartTooltip
+          xRatio={x(hover!) / W}
+          lines={[
+            format(parseISO(`${hovered.month}-01`), 'MMMM yyyy', { locale: fr }),
+            `${hovered.metersPerBeat} m / battement`,
+            `${hovered.runs} sortie${hovered.runs > 1 ? 's' : ''} avec FC`,
+          ]}
+        />
+      )}
     <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="Efficience aérobie">
       <GridY ticks={[lo + (hi - lo) * 0.25, lo + (hi - lo) * 0.75]} y={y}
         format={(v) => v.toFixed(2)} />
@@ -448,7 +550,9 @@ function EfficiencyChart({ months }: { months: MonthEfficiency[] }) {
           </text>
         </g>
       ))}
+      <HitStrips count={points.length} onHover={setHover} />
     </svg>
+    </div>
   )
 }
 

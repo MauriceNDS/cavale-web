@@ -5,6 +5,7 @@ import { fr } from 'date-fns/locale'
 import { ApiError } from '../../lib/api'
 import { issuePat, updateProfile, updateStatus, type IssuedToken } from '../athlete/api'
 import { fetchMe, type AthleteStatus } from '../auth/api'
+import { useAuth } from '../auth/session'
 import { disconnectStrava, fetchAuthorizeUrl, fetchStravaStatus } from '../strava/api'
 
 export const STATUS_LABEL: Record<AthleteStatus, string> = {
@@ -23,13 +24,13 @@ export function SettingsPage() {
     const outcome = params.get('strava')
     if (outcome === 'connected' || outcome === 'error') {
       setBanner(outcome)
-      window.history.replaceState(null, '', '/settings')
+      window.history.replaceState(null, '', '/profil')
     }
   }, [])
 
   return (
     <div className="mx-auto mt-8 max-w-2xl">
-      <h1 className="font-display text-2xl font-semibold">Réglages</h1>
+      <h1 className="font-display text-2xl font-semibold">Profil</h1>
 
       {banner === 'connected' && (
         <div role="status" className="mt-4 rounded-lg bg-pine-100 p-3 text-sm text-pine-700 dark:bg-pine-900 dark:text-pine-300">
@@ -44,6 +45,7 @@ export function SettingsPage() {
 
       <StatusCard />
       <ProfileCard />
+      <UsageCard />
       <StravaCard />
       <McpCard />
     </div>
@@ -405,6 +407,55 @@ function StravaCard() {
           </button>
         </div>
       )}
+    </section>
+  )
+}
+
+/** Running only ⇄ running + strength — pure UI gating, data stays intact. */
+function UsageCard() {
+  const { user, refresh } = useAuth()
+  const mutation = useMutation({
+    mutationFn: (gymEnabled: boolean) =>
+      updateProfile({ displayName: user!.displayName, weightKg: user!.weightKg,
+        heightCm: user!.heightCm, birthDate: user!.birthDate, maxHr: user!.maxHr,
+        restingHr: user!.restingHr, gymEnabled }),
+    onSuccess: () => void refresh(),
+  })
+  if (!user) return null
+
+  return (
+    <section className="mt-6 rounded-xl border border-moss-200 bg-moss-25 p-6 dark:border-moss-750 dark:bg-moss-850">
+      <h2 className="font-display text-lg font-semibold">Utilisation</h2>
+      <p className="mt-0.5 text-sm text-moss-500 dark:text-moss-400">
+        Course uniquement, ou course + renfo. Désactiver le renfo le masque de
+        l'interface — tes programmes et séances restent conservés.
+      </p>
+      <div className="mt-3 flex gap-2">
+        <button
+          onClick={() => mutation.mutate(false)}
+          disabled={mutation.isPending}
+          aria-pressed={!user.gymEnabled}
+          className={`rounded-lg px-4 py-2 text-sm font-semibold transition disabled:opacity-50 ${
+            !user.gymEnabled
+              ? 'bg-pine-600 text-moss-25 dark:bg-pine-350 dark:text-moss-950'
+              : 'border border-moss-200 text-moss-500 hover:bg-moss-100 dark:border-moss-750 dark:text-moss-400 dark:hover:bg-moss-800'
+          }`}
+        >
+          🏃 Course uniquement
+        </button>
+        <button
+          onClick={() => mutation.mutate(true)}
+          disabled={mutation.isPending}
+          aria-pressed={user.gymEnabled}
+          className={`rounded-lg px-4 py-2 text-sm font-semibold transition disabled:opacity-50 ${
+            user.gymEnabled
+              ? 'bg-pine-600 text-moss-25 dark:bg-pine-350 dark:text-moss-950'
+              : 'border border-moss-200 text-moss-500 hover:bg-moss-100 dark:border-moss-750 dark:text-moss-400 dark:hover:bg-moss-800'
+          }`}
+        >
+          🏔 Course + renfo
+        </button>
+      </div>
     </section>
   )
 }

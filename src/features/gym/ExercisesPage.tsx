@@ -7,16 +7,20 @@ import {
   deleteExercise,
   fetchExercises,
   updateExercise,
+  type Equipment,
   type ExerciseCategory,
   type ExerciseResponse,
+  type Muscle,
 } from './api'
 import {
   CATEGORIES,
   CATEGORY_BADGE,
   CATEGORY_EDGE,
   CATEGORY_LABEL,
+  EQUIPMENTS,
   EQUIPMENT_LABEL,
   MEASURE_LABEL,
+  MUSCLES,
   MUSCLE_LABEL,
 } from './labels'
 
@@ -32,6 +36,8 @@ type FormState =
 export function ExercisesPage() {
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState<ExerciseCategory | null>(null)
+  const [muscle, setMuscle] = useState<Muscle | ''>('')
+  const [equipment, setEquipment] = useState<Equipment | ''>('')
   const [form, setForm] = useState<FormState>({ kind: 'closed' })
   const [expanded, setExpanded] = useState<string | null>(null)
 
@@ -40,6 +46,8 @@ export function ExercisesPage() {
   const exercises = (query.data ?? [])
     .filter((e) => !e.archived)
     .filter((e) => category == null || e.category === category)
+    .filter((e) => muscle === '' || e.muscles.includes(muscle))
+    .filter((e) => equipment === '' || e.equipment === equipment)
     .filter((e) => e.name.toLowerCase().includes(search.trim().toLowerCase()))
 
   return (
@@ -76,6 +84,46 @@ export function ExercisesPage() {
         >
           + Nouvel exercice
         </button>
+      </div>
+
+      <div className="mt-2 flex flex-wrap gap-2">
+        <select
+          value={muscle}
+          onChange={(event) => setMuscle(event.target.value as Muscle | '')}
+          aria-label="Filtrer par muscle"
+          className="rounded-lg border border-moss-200 bg-moss-100 px-2.5 py-1.5 text-sm outline-none dark:border-moss-750 dark:bg-moss-800"
+        >
+          <option value="">Tous les muscles</option>
+          {MUSCLES.map((m) => (
+            <option key={m} value={m}>
+              {MUSCLE_LABEL[m]}
+            </option>
+          ))}
+        </select>
+        <select
+          value={equipment}
+          onChange={(event) => setEquipment(event.target.value as Equipment | '')}
+          aria-label="Filtrer par matériel"
+          className="rounded-lg border border-moss-200 bg-moss-100 px-2.5 py-1.5 text-sm outline-none dark:border-moss-750 dark:bg-moss-800"
+        >
+          <option value="">Tout le matériel</option>
+          {EQUIPMENTS.map((e) => (
+            <option key={e} value={e}>
+              {EQUIPMENT_LABEL[e]}
+            </option>
+          ))}
+        </select>
+        {(muscle || equipment) && (
+          <button
+            onClick={() => {
+              setMuscle('')
+              setEquipment('')
+            }}
+            className="text-xs font-medium text-pine-700 underline dark:text-pine-300"
+          >
+            effacer les filtres
+          </button>
+        )}
       </div>
 
       {form.kind !== 'closed' && (

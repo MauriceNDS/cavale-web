@@ -15,6 +15,8 @@ interface AuthState {
   user: UserResponse | null | undefined
   login: (email: string, password: string) => Promise<UserResponse>
   logout: () => void
+  /** Re-fetch /me after a profile change so the shell reflects it. */
+  refresh: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthState | undefined>(undefined)
@@ -67,7 +69,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null)
   }, [])
 
-  const value = useMemo(() => ({ user, login, logout }), [user, login, logout])
+  const refresh = useCallback(async () => {
+    if (!getToken()) return
+    setUser(await fetchMe())
+  }, [])
+
+  const value = useMemo(() => ({ user, login, logout, refresh }), [user, login, logout, refresh])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

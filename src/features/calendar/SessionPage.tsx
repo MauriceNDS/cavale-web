@@ -852,6 +852,10 @@ function ActivityReport({
     },
     activity.elevationM != null && { label: 'D+', value: `${activity.elevationM} m` },
     activity.avgHr != null && { label: 'FC moy.', value: `${activity.avgHr} bpm` },
+    activity.avgCadenceSpm != null && {
+      label: 'Cadence',
+      value: `${Math.round(activity.avgCadenceSpm)} spm`,
+    },
   ].filter(Boolean) as { label: string; value: string }[]
 
   return (

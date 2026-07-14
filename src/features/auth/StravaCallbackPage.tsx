@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { setToken } from '../../lib/api'
+import { fetchMe } from './api'
 
 /** Landing point of the Strava login redirect: #token=… or #error. */
 export function StravaCallbackPage() {
@@ -11,8 +12,11 @@ export function StravaCallbackPage() {
     const token = fragment.get('token')
     if (token) {
       setToken(token)
-      // Full reload so the session restores through /users/me
-      window.location.replace('/')
+      // Full reload so the session restores through /users/me;
+      // a blank profile means a first Strava-born visit → onboarding
+      fetchMe()
+        .then((me) => window.location.replace(me.weightKg == null ? '/bienvenue' : '/'))
+        .catch(() => window.location.replace('/'))
     } else {
       setFailed(true)
     }

@@ -88,6 +88,7 @@ export function fetchHub(): Promise<AthleteHub> {
 }
 
 export interface UpdateProfileRequest {
+  gymEnabled?: boolean
   displayName: string
   weightKg?: number | null
   heightCm?: number | null
@@ -141,10 +142,25 @@ export interface ActivityFeedResponse {
   items: FeedItem[]
   page: number
   hasMore: boolean
+  total: number
 }
 
-export function fetchActivities(type: FeedType, page: number): Promise<ActivityFeedResponse> {
-  return api.get<ActivityFeedResponse>(`/api/athlete/activities?type=${type}&page=${page}&size=20`)
+export interface FeedFilters {
+  q?: string
+  from?: string
+  to?: string
+}
+
+export function fetchActivities(
+  type: FeedType,
+  page: number,
+  filters: FeedFilters = {},
+): Promise<ActivityFeedResponse> {
+  const params = new URLSearchParams({ type, page: String(page), size: '20' })
+  if (filters.q?.trim()) params.set('q', filters.q.trim())
+  if (filters.from) params.set('from', filters.from)
+  if (filters.to) params.set('to', filters.to)
+  return api.get<ActivityFeedResponse>(`/api/athlete/activities?${params}`)
 }
 
 /* ── Deep running statistics ───────────────────────────────────────── */
