@@ -2,18 +2,20 @@ import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { format, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
+import { useMeasuredWidth } from '../../lib/useMeasuredWidth'
 import type { WeekProgress } from './api'
 
 /*
  * Hand-rolled SVG charts for the objective page. Identity is carried by
  * geometry, not color alone: actuals are filled bars / a solid accent line,
  * targets are tick caps / a muted context line with direct labels.
+ * The viewBox width is measured from the container (1:1 with CSS pixels)
+ * so tick text stays readable on narrow screens.
  */
 
-const W = 720
+const FALLBACK_W = 720
 const H = 200
 const PAD = { top: 16, right: 12, bottom: 24, left: 40 }
-const PLOT_W = W - PAD.left - PAD.right
 const PLOT_H = H - PAD.top - PAD.bottom
 
 /** Clean axis ticks: 0 → a rounded max in 3 steps. */
@@ -23,6 +25,11 @@ function niceTicks(max: number): number[] {
   const magnitude = 10 ** Math.floor(Math.log10(raw))
   const step = [1, 2, 2.5, 5, 10].map((m) => m * magnitude).find((s) => s * 3 >= max) ?? raw
   return [0, 1, 2, 3].map((i) => Math.round(i * step))
+}
+
+/** Week labels every Nth column, denser when the chart has room. */
+function weekLabelStep(band: number): number {
+  return Math.max(1, Math.ceil(36 / band))
 }
 
 /** Bar with a 4px rounded data-end and a square baseline. */
@@ -37,16 +44,16 @@ interface TooltipState {
   x: number
 }
 
-function Tooltip({ x, children }: { x: number; children: ReactNode }) {
+function Tooltip({ x, width, children }: { x: number; width: number; children: ReactNode }) {
   // Flip sides at the middle so the tooltip never overflows the card
-  const leftHalf = x < W / 2
+  const leftHalf = x < width / 2
   return (
     <div
       className="pointer-events-none absolute top-0 z-10 w-44 rounded-lg border border-moss-200 bg-moss-25 p-2.5 text-xs shadow-sm dark:border-moss-750 dark:bg-moss-850"
       style={
         leftHalf
-          ? { left: `${((x + 14) / W) * 100}%` }
-          : { right: `${(1 - (x - 14) / W) * 100}%` }
+          ? { left: `${((x + 14) / width) * 100}%` }
+          : { right: `${(1 - (x - 14) / width) * 100}%` }
       }
     >
       {children}
@@ -93,22 +100,25 @@ interface WeeklyChartProps {
 
 /** Weekly bars: actual filled in pine, the week's target as a muted tick cap. */
 export function WeeklyChart({ weeks, metric, races }: WeeklyChartProps) {
+  const { ref, width } = useMeasuredWidth<HTMLDivElement>(FALLBACK_W)
   const [hover, setHover] = useState<TooltipState | null>(null)
   const m = METRIC[metric]
+  const plotW = width - PAD.left - PAD.right
 
   const max = Math.max(...weeks.map((w) => Math.max(m.target(w), m.actual(w))), 1)
   const ticks = niceTicks(max)
   const top = ticks[ticks.length - 1] || 1
   const y = (v: number) => PAD.top + PLOT_H - (v / top) * PLOT_H
 
-  const band = PLOT_W / weeks.length
+  const band = plotW / weeks.length
   const barWidth = Math.min(24, band * 0.6)
   const barX = (i: number) => PAD.left + i * band + (band - barWidth) / 2
+  const step = weekLabelStep(band)
 
   const raceByWeek = new Map(races.map((r) => [r.weekIndex, r]))
 
   return (
-    <div className="relative">
+    <div ref={ref} className="relative">
       <div className="mb-2 flex items-center gap-4">
         <LegendSwatch
           className="h-2.5 w-2.5 rounded-[3px] bg-pine-600 dark:bg-pine-350"
@@ -122,12 +132,12 @@ export function WeeklyChart({ weeks, metric, races }: WeeklyChartProps) {
           />
         )}
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="Progression hebdomadaire">
+      <svg viewBox={`0 0 ${width} ${H}`} className="h-auto w-full" role="img" aria-label="Progression hebdomadaire">
         {ticks.map((t) => (
           <g key={t}>
             <line
               x1={PAD.left}
-              x2={W - PAD.right}
+              x2={width - PAD.right}
               y1={y(t)}
               y2={y(t)}
               className="stroke-moss-200 dark:stroke-moss-750"
@@ -185,7 +195,7 @@ export function WeeklyChart({ weeks, metric, races }: WeeklyChartProps) {
                   className="fill-copper-600 dark:fill-copper-300"
                 />
               )}
-              {(i === 0 || (i + 1) % 5 === 0 || week.current) && (
+              {(i === 0 || (i + 1) % step === 0 || week.current) && (
                 <text
                   x={PAD.left + i * band + band / 2}
                   y={H - 8}
@@ -214,7 +224,7 @@ export function WeeklyChart({ weeks, metric, races }: WeeklyChartProps) {
       </svg>
 
       {hover && (
-        <Tooltip x={hover.x}>
+        <Tooltip x={hover.x} width={width}>
           {(() => {
             const week = weeks[hover.index]
             const race = raceByWeek.get(hover.index)
@@ -264,8 +274,10 @@ interface CumulativeChartProps {
  * stops at the current week) — "where I am vs where the plan says".
  */
 export function CumulativeChart({ weeks, metric }: CumulativeChartProps) {
+  const { ref, width } = useMeasuredWidth<HTMLDivElement>(FALLBACK_W)
   const [hover, setHover] = useState<TooltipState | null>(null)
   const m = METRIC[metric]
+  const plotW = width - PAD.left - PAD.right
 
   const { targetCum, actualCum, actualEnd } = useMemo(() => {
     const target: number[] = []
@@ -287,7 +299,8 @@ export function CumulativeChart({ weeks, metric }: CumulativeChartProps) {
   const ticks = niceTicks(max)
   const top = ticks[ticks.length - 1] || 1
   const y = (v: number) => PAD.top + PLOT_H - (v / top) * PLOT_H
-  const x = (i: number) => PAD.left + (weeks.length === 1 ? PLOT_W / 2 : (i / (weeks.length - 1)) * PLOT_W)
+  const x = (i: number) => PAD.left + (weeks.length === 1 ? plotW / 2 : (i / (weeks.length - 1)) * plotW)
+  const step = weekLabelStep(plotW / Math.max(weeks.length, 1))
 
   const path = (values: number[], end: number) =>
     values
@@ -296,17 +309,17 @@ export function CumulativeChart({ weeks, metric }: CumulativeChartProps) {
       .join(' ')
 
   return (
-    <div className="relative">
+    <div ref={ref} className="relative">
       <div className="mb-2 flex items-center gap-4">
         <LegendSwatch className="h-[2px] w-4 rounded bg-pine-600 dark:bg-pine-350" label="Réalisé" />
         <LegendSwatch className="h-[2px] w-4 rounded bg-moss-400 dark:bg-moss-500" label="Prévu" />
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="Cumul sur la saison">
+      <svg viewBox={`0 0 ${width} ${H}`} className="h-auto w-full" role="img" aria-label="Cumul sur la saison">
         {ticks.map((t) => (
           <g key={t}>
             <line
               x1={PAD.left}
-              x2={W - PAD.right}
+              x2={width - PAD.right}
               y1={y(t)}
               y2={y(t)}
               className="stroke-moss-200 dark:stroke-moss-750"
@@ -364,7 +377,7 @@ export function CumulativeChart({ weeks, metric }: CumulativeChartProps) {
 
         {weeks.map((week, i) => (
           <g key={week.weekId}>
-            {(i === 0 || (i + 1) % 5 === 0 || week.current) && (
+            {(i === 0 || (i + 1) % step === 0 || week.current) && (
               <text
                 x={x(i)}
                 y={H - 8}
@@ -379,9 +392,9 @@ export function CumulativeChart({ weeks, metric }: CumulativeChartProps) {
               </text>
             )}
             <rect
-              x={PAD.left + (i - 0.5) * (PLOT_W / Math.max(weeks.length - 1, 1))}
+              x={PAD.left + (i - 0.5) * (plotW / Math.max(weeks.length - 1, 1))}
               y={PAD.top}
-              width={PLOT_W / Math.max(weeks.length - 1, 1)}
+              width={plotW / Math.max(weeks.length - 1, 1)}
               height={PLOT_H}
               fill="transparent"
               onMouseEnter={() => setHover({ index: i, x: x(i) })}
@@ -392,7 +405,7 @@ export function CumulativeChart({ weeks, metric }: CumulativeChartProps) {
       </svg>
 
       {hover && (
-        <Tooltip x={hover.x}>
+        <Tooltip x={hover.x} width={width}>
           {(() => {
             const week = weeks[hover.index]
             return (
