@@ -64,6 +64,9 @@ export interface SessionResponse {
   activity: ActivitySummary | null
   workout: WorkoutNode[]
   structureNotes: string | null
+  templateVariantId: string | null
+  templateName: string | null
+  variantLabel: string | null
 }
 
 export interface PlanResponse {
@@ -121,6 +124,7 @@ export interface UpdateSessionRequest {
   status?: SessionStatus
   comment?: string
   workout?: WorkoutNode[]
+  templateVariantId?: string
 }
 
 export function updateSession(sessionId: string, body: UpdateSessionRequest): Promise<SessionResponse> {
@@ -208,6 +212,7 @@ export interface CreateSessionRequest {
   rpeMin?: number
   rpeMax?: number
   workout?: WorkoutNode[]
+  templateVariantId?: string
 }
 
 export function createSession(weekId: string, body: CreateSessionRequest): Promise<SessionResponse> {

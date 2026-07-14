@@ -196,3 +196,93 @@ export function addAlternative(
 export function removeAlternative(alternativeId: string): Promise<void> {
   return api.delete(`/api/gym/alternatives/${alternativeId}`)
 }
+
+/* ── Live workouts ─────────────────────────────────────────────────── */
+
+export type WorkoutStatus = 'IN_PROGRESS' | 'FINISHED'
+export type PerceivedEffort = 'TROP_FACILE' | 'FACILE' | 'COMME_PREVU' | 'DIFFICILE' | 'TROP_DIFFICILE'
+
+export interface SetLogResponse {
+  id: string
+  exerciseId: string
+  exerciseName: string
+  position: number
+  setNumber: number
+  reps: number | null
+  weightKg: number | null
+  seconds: number | null
+}
+
+export interface WorkoutLogResponse {
+  id: string
+  status: WorkoutStatus
+  startedAt: string
+  durationMin: number | null
+  templateName: string | null
+  sessionId: string | null
+  templateVariantId: string | null
+  perceivedEffort: PerceivedEffort | null
+  painFlag: boolean
+  comment: string | null
+  sets: SetLogResponse[]
+}
+
+export interface WorkoutBlockResponse {
+  templateExerciseId: string
+  exercise: ExerciseResponse
+  alternatives: ExerciseResponse[]
+  sets: number
+  targetReps: number | null
+  targetSeconds: number | null
+  restSec: number | null
+  intensityPct: number | null
+  note: string | null
+  lastSets: SetLogResponse[]
+  recordWeightKg: number | null
+}
+
+export interface WorkoutDetailResponse {
+  log: WorkoutLogResponse
+  blocks: WorkoutBlockResponse[]
+}
+
+export function startWorkout(body: {
+  sessionId?: string
+  templateVariantId?: string
+}): Promise<WorkoutDetailResponse> {
+  return api.post<WorkoutDetailResponse>('/api/workouts', body)
+}
+
+/** The workout in progress — null when none (204). */
+export async function fetchActiveWorkout(): Promise<WorkoutDetailResponse | null> {
+  const detail = await api.get<WorkoutDetailResponse | undefined>('/api/workouts/active')
+  return detail ?? null
+}
+
+export function fetchWorkout(workoutLogId: string): Promise<WorkoutDetailResponse> {
+  return api.get<WorkoutDetailResponse>(`/api/workouts/${workoutLogId}`)
+}
+
+export interface LogSetRequest {
+  exerciseId: string
+  position: number
+  setNumber: number
+  reps?: number
+  weightKg?: number
+  seconds?: number
+}
+
+export function logSet(workoutLogId: string, body: LogSetRequest): Promise<SetLogResponse> {
+  return api.put<SetLogResponse>(`/api/workouts/${workoutLogId}/sets`, body)
+}
+
+export function finishWorkout(
+  workoutLogId: string,
+  body: { durationMin?: number; perceivedEffort?: PerceivedEffort; painFlag?: boolean; comment?: string },
+): Promise<WorkoutLogResponse> {
+  return api.post<WorkoutLogResponse>(`/api/workouts/${workoutLogId}/finish`, body)
+}
+
+export function abandonWorkout(workoutLogId: string): Promise<void> {
+  return api.delete(`/api/workouts/${workoutLogId}`)
+}

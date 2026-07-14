@@ -21,6 +21,7 @@ import { SessionPage } from './features/calendar/SessionPage'
 import { ExercisesPage } from './features/gym/ExercisesPage'
 import { TemplateEditorPage } from './features/gym/TemplateEditorPage'
 import { TemplatesPage } from './features/gym/TemplatesPage'
+import { WorkoutPage } from './features/gym/WorkoutPage'
 import { ObjectivePage } from './features/objective/ObjectivePage'
 import { SettingsPage } from './features/settings/SettingsPage'
 
@@ -95,6 +96,7 @@ function pageTitle(pathname: string): string {
   if (pathname.startsWith('/calendrier')) return 'Calendrier'
   if (pathname.startsWith('/session')) return 'Séance'
   if (pathname.startsWith('/renfo')) return 'Renfo'
+  if (pathname.startsWith('/entrainement')) return 'Entraînement'
   if (pathname.startsWith('/objectif')) return 'Objectif'
   if (pathname.startsWith('/settings')) return 'Réglages'
   return 'Accueil'
@@ -386,6 +388,12 @@ const templateEditorRoute = createRoute({
   component: TemplateEditorPage,
 })
 
+const workoutRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/entrainement/$workoutId',
+  component: WorkoutPage,
+})
+
 const registerRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/register',
@@ -418,6 +426,7 @@ const routeTree = rootRoute.addChildren([
   renfoRoute,
   exercisesRoute,
   templateEditorRoute,
+  workoutRoute,
   registerRoute,
   loginRoute,
   settingsRoute,

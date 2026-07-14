@@ -6,6 +6,7 @@ import { fr } from 'date-fns/locale'
 import { ApiError } from '../../lib/api'
 import { GlossaryText } from '../../lib/glossary'
 import { useMeasuredWidth } from '../../lib/useMeasuredWidth'
+import { startWorkout } from '../gym/api'
 import { fetchStravaActivities } from '../strava/api'
 import {
   downloadSessionFit,
@@ -174,6 +175,11 @@ function SessionView({
           />
         )}
         {session.zone && <HeaderChip label="Zone" value={session.zone} />}
+        {session.templateName && (
+          <span className="rounded-lg border border-copper-600/40 bg-copper-600/10 px-2.5 py-1 text-xs font-semibold text-copper-600 dark:border-copper-300/40 dark:bg-copper-300/10 dark:text-copper-300">
+            {session.templateName} · {session.variantLabel}
+          </span>
+        )}
       </div>
 
       {isValidated ? (
@@ -424,6 +430,9 @@ function SessionActions({
           {exporting ? 'Export…' : '⌚ Exporter .fit'}
         </button>
       )}
+      {session.discipline === 'GYM' && session.status === 'PLANNED' && session.templateVariantId && (
+        <StartWorkoutButton sessionId={session.id} />
+      )}
       {session.status !== 'DONE' && session.status !== 'SKIPPED' && (
         <>
           <button
@@ -474,6 +483,26 @@ function SessionActions({
       </div>
       </div>
     </>
+  )
+}
+
+/** GYM: one tap opens the live workout — finishing it validates the session. */
+function StartWorkoutButton({ sessionId }: { sessionId: string }) {
+  const navigate = useNavigate()
+  const mutation = useMutation({
+    mutationFn: () => startWorkout({ sessionId }),
+    onSuccess: (detail) =>
+      void navigate({ to: '/entrainement/$workoutId', params: { workoutId: detail.log.id } }),
+  })
+
+  return (
+    <button
+      onClick={() => mutation.mutate()}
+      disabled={mutation.isPending}
+      className="rounded-lg bg-copper-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:opacity-90 disabled:opacity-50 dark:bg-copper-300 dark:text-moss-950"
+    >
+      {mutation.isPending ? 'Démarrage…' : '🏋 Démarrer la séance'}
+    </button>
   )
 }
 

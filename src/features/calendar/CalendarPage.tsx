@@ -28,6 +28,7 @@ import {
   startOfWeek,
 } from 'date-fns'
 import { fr } from 'date-fns/locale'
+import { fetchTemplates } from '../gym/api'
 import {
   createSession,
   fetchCalendar,
@@ -697,6 +698,18 @@ function AddSessionModal({
   const [error, setError] = useState<string | null>(null)
   const [discipline, setDiscipline] = useState<CreateSessionRequest['discipline']>('RUN')
   const [structure, setStructure] = useState<ItemDraft[]>([])
+  const [title, setTitle] = useState('')
+  const [variantId, setVariantId] = useState('')
+
+  // GYM sessions follow a strength program — picking a variant prefills the title
+  const templates = useQuery({
+    queryKey: ['gym-templates'],
+    queryFn: fetchTemplates,
+    enabled: discipline === 'GYM',
+  })
+  const variantOptions = (templates.data ?? [])
+    .filter((t) => !t.archived)
+    .flatMap((t) => t.variants.map((v) => ({ id: v.id, label: `${t.name} · ${v.label}` })))
 
   const inputCls =
     'mt-0.5 w-full rounded-lg border border-moss-200 bg-moss-100 px-2.5 py-1.5 text-sm outline-none focus:border-pine-600 focus:ring-2 focus:ring-pine-600/25 dark:border-moss-750 dark:bg-moss-800 dark:focus:border-pine-350 dark:focus:ring-pine-350/25'
@@ -731,6 +744,7 @@ function AddSessionModal({
       rpeMax: num('rpeMax'),
       detail: String(data.get('detail') ?? '').trim() || undefined,
       workout: discipline === 'RUN' && structure.length > 0 ? draftsToNodes(structure) : undefined,
+      templateVariantId: discipline === 'GYM' && variantId ? variantId : undefined,
     })
   }
 
@@ -798,9 +812,38 @@ function AddSessionModal({
                   ))}
                 </select>
               </label>
+              {discipline === 'GYM' && (
+                <label className="col-span-2 block text-xs text-moss-500 dark:text-moss-400">
+                  Programme
+                  <select
+                    value={variantId}
+                    onChange={(e) => {
+                      setVariantId(e.target.value)
+                      const option = variantOptions.find((o) => o.id === e.target.value)
+                      if (option && !title) setTitle(option.label)
+                    }}
+                    className={inputCls}
+                  >
+                    <option value="">— séance libre —</option>
+                    {variantOptions.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
               <label className="col-span-2 block text-xs text-moss-500 dark:text-moss-400">
                 Titre *
-                <input name="title" type="text" required placeholder="EF · Renfo FM-A · …" className={inputCls} />
+                <input
+                  name="title"
+                  type="text"
+                  required
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="EF · Renfo FM-A · …"
+                  className={inputCls}
+                />
               </label>
               <label className="block text-xs text-moss-500 dark:text-moss-400">
                 Durée (min)

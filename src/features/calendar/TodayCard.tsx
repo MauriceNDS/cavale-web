@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
+import { useMutation, useQuery } from '@tanstack/react-query'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { addDays, format, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
+import { fetchActiveWorkout, startWorkout } from '../gym/api'
 import {
   downloadSessionFit,
   fetchCalendar,
@@ -35,6 +36,11 @@ export function TodayCard() {
     queryKey: ['calendar', 'today', today],
     queryFn: () => fetchCalendar(today, horizon),
   })
+  const activeWorkout = useQuery({
+    queryKey: ['workout-active'],
+    queryFn: fetchActiveWorkout,
+    retry: false,
+  })
 
   if (query.isLoading || query.isError) return null
 
@@ -46,6 +52,16 @@ export function TodayCard() {
 
   return (
     <section className="rounded-xl border border-moss-200 bg-moss-25 p-5 dark:border-moss-750 dark:bg-moss-850">
+      {activeWorkout.data && (
+        <Link
+          to="/entrainement/$workoutId"
+          params={{ workoutId: activeWorkout.data.log.id }}
+          className="mb-3 flex items-center justify-between gap-2 rounded-lg border border-copper-600/40 bg-copper-600/10 px-3 py-2.5 text-sm font-semibold text-copper-600 transition hover:bg-copper-600/20 dark:border-copper-300/40 dark:bg-copper-300/10 dark:text-copper-300"
+        >
+          <span>🏋 Séance en cours : {activeWorkout.data.log.templateName ?? 'Renfo'}</span>
+          <span>Reprendre →</span>
+        </Link>
+      )}
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="font-display text-lg font-semibold">
           {showingNext ? 'Prochaine séance' : 'Aujourd’hui'}
@@ -75,9 +91,16 @@ export function TodayCard() {
 
 function SessionRow({ session }: { session: SessionResponse }) {
   const [exporting, setExporting] = useState(false)
+  const navigate = useNavigate()
   const kind = trainingKind(session)
   const badge = STATUS_BADGE[session.status]
   const isRest = session.discipline === 'REST'
+
+  const startMutation = useMutation({
+    mutationFn: () => startWorkout({ sessionId: session.id }),
+    onSuccess: (detail) =>
+      void navigate({ to: '/entrainement/$workoutId', params: { workoutId: detail.log.id } }),
+  })
 
   const proposalQuery = useQuery({
     queryKey: ['session-proposal', session.id],
@@ -126,6 +149,15 @@ function SessionRow({ session }: { session: SessionResponse }) {
             className="rounded-lg border border-moss-200 px-3 py-1.5 text-sm font-medium transition hover:bg-moss-100 disabled:opacity-50 dark:border-moss-750 dark:hover:bg-moss-800"
           >
             {exporting ? 'Export…' : '⌚ .fit'}
+          </button>
+        )}
+        {session.discipline === 'GYM' && session.status === 'PLANNED' && session.templateVariantId && (
+          <button
+            onClick={() => startMutation.mutate()}
+            disabled={startMutation.isPending}
+            className="rounded-lg bg-copper-600 px-3 py-1.5 text-sm font-semibold text-moss-25 transition hover:opacity-90 disabled:opacity-50 dark:bg-copper-300 dark:text-moss-950"
+          >
+            {startMutation.isPending ? 'Démarrage…' : '🏋 Démarrer'}
           </button>
         )}
       </div>
