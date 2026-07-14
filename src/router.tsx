@@ -18,6 +18,9 @@ import { useAuth } from './features/auth/session'
 import { HomePage } from './features/athlete/HomePage'
 import { CalendarPage } from './features/calendar/CalendarPage'
 import { SessionPage } from './features/calendar/SessionPage'
+import { ExercisesPage } from './features/gym/ExercisesPage'
+import { TemplateEditorPage } from './features/gym/TemplateEditorPage'
+import { TemplatesPage } from './features/gym/TemplatesPage'
 import { ObjectivePage } from './features/objective/ObjectivePage'
 import { SettingsPage } from './features/settings/SettingsPage'
 
@@ -64,9 +67,17 @@ function IconSettings({ className }: IconProps) {
   )
 }
 
+function IconDumbbell({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M8.5 12h7M5 9v6M8.5 7.5v9M15.5 7.5v9M19 9v6M2.5 10.5v3M21.5 10.5v3" />
+    </svg>
+  )
+}
+
 interface NavItem {
   label: string
-  to?: '/' | '/calendrier' | '/objectif' | '/settings'
+  to?: '/' | '/calendrier' | '/objectif' | '/renfo' | '/settings'
   icon?: (props: IconProps) => ReactNode
   soon?: boolean
 }
@@ -74,9 +85,8 @@ interface NavItem {
 const NAV: NavItem[] = [
   { label: 'Accueil', to: '/', icon: IconHome },
   { label: 'Calendrier', to: '/calendrier', icon: IconCalendar },
+  { label: 'Renfo', to: '/renfo', icon: IconDumbbell },
   { label: 'Objectif', to: '/objectif', icon: IconTarget },
-  { label: 'Renfo', soon: true },
-  { label: 'Théorie', soon: true },
   { label: 'Réglages', to: '/settings', icon: IconSettings },
 ]
 
@@ -84,6 +94,7 @@ const NAV: NavItem[] = [
 function pageTitle(pathname: string): string {
   if (pathname.startsWith('/calendrier')) return 'Calendrier'
   if (pathname.startsWith('/session')) return 'Séance'
+  if (pathname.startsWith('/renfo')) return 'Renfo'
   if (pathname.startsWith('/objectif')) return 'Objectif'
   if (pathname.startsWith('/settings')) return 'Réglages'
   return 'Accueil'
@@ -124,7 +135,7 @@ function SidebarLinks() {
 /** Mobile bottom bar: only real destinations, icon-first, thumb-sized. */
 function TabBar() {
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-moss-200 bg-moss-25/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden dark:border-moss-750 dark:bg-moss-850/95">
+    <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-moss-200 bg-moss-25/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden dark:border-moss-750 dark:bg-moss-850/95">
       {NAV.filter((item) => item.to).map((item) => (
         <Link
           key={item.label}
@@ -357,6 +368,24 @@ const objectiveRoute = createRoute({
   component: ObjectivePage,
 })
 
+const renfoRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/renfo',
+  component: TemplatesPage,
+})
+
+const exercisesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/renfo/exercices',
+  component: ExercisesPage,
+})
+
+const templateEditorRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/renfo/programmes/$templateId',
+  component: TemplateEditorPage,
+})
+
 const registerRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/register',
@@ -386,6 +415,9 @@ const routeTree = rootRoute.addChildren([
   calendarRoute,
   sessionRoute,
   objectiveRoute,
+  renfoRoute,
+  exercisesRoute,
+  templateEditorRoute,
   registerRoute,
   loginRoute,
   settingsRoute,
