@@ -21,7 +21,9 @@ import { SessionPage } from './features/calendar/SessionPage'
 import { ExercisesPage } from './features/gym/ExercisesPage'
 import { TemplateEditorPage } from './features/gym/TemplateEditorPage'
 import { TemplatesPage } from './features/gym/TemplatesPage'
+import { StatsPage } from './features/gym/StatsPage'
 import { WorkoutPage } from './features/gym/WorkoutPage'
+import { ActivitiesPage } from './features/athlete/ActivitiesPage'
 import { ObjectivePage } from './features/objective/ObjectivePage'
 import { SettingsPage } from './features/settings/SettingsPage'
 
@@ -76,17 +78,28 @@ function IconDumbbell({ className }: IconProps) {
   )
 }
 
+function IconPulse({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 12h4l2.5-6 4 12 2.5-6h5" />
+    </svg>
+  )
+}
+
 interface NavItem {
   label: string
-  to?: '/' | '/calendrier' | '/objectif' | '/renfo' | '/settings'
+  to?: '/' | '/calendrier' | '/objectif' | '/renfo' | '/activites' | '/settings'
   icon?: (props: IconProps) => ReactNode
   soon?: boolean
+  /** In the mobile bottom bar (4 tabs); the rest lives in the account menu. */
+  mobileTab?: boolean
 }
 
 const NAV: NavItem[] = [
-  { label: 'Accueil', to: '/', icon: IconHome },
-  { label: 'Calendrier', to: '/calendrier', icon: IconCalendar },
-  { label: 'Renfo', to: '/renfo', icon: IconDumbbell },
+  { label: 'Accueil', to: '/', icon: IconHome, mobileTab: true },
+  { label: 'Calendrier', to: '/calendrier', icon: IconCalendar, mobileTab: true },
+  { label: 'Renfo', to: '/renfo', icon: IconDumbbell, mobileTab: true },
+  { label: 'Activités', to: '/activites', icon: IconPulse, mobileTab: true },
   { label: 'Objectif', to: '/objectif', icon: IconTarget },
   { label: 'Réglages', to: '/settings', icon: IconSettings },
 ]
@@ -97,6 +110,7 @@ function pageTitle(pathname: string): string {
   if (pathname.startsWith('/session')) return 'Séance'
   if (pathname.startsWith('/renfo')) return 'Renfo'
   if (pathname.startsWith('/entrainement')) return 'Entraînement'
+  if (pathname.startsWith('/activites')) return 'Activités'
   if (pathname.startsWith('/objectif')) return 'Objectif'
   if (pathname.startsWith('/settings')) return 'Réglages'
   return 'Accueil'
@@ -134,11 +148,11 @@ function SidebarLinks() {
   )
 }
 
-/** Mobile bottom bar: only real destinations, icon-first, thumb-sized. */
+/** Mobile bottom bar: the 4 daily destinations — the rest sits in the account menu. */
 function TabBar() {
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-moss-200 bg-moss-25/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden dark:border-moss-750 dark:bg-moss-850/95">
-      {NAV.filter((item) => item.to).map((item) => (
+    <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-moss-200 bg-moss-25/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden dark:border-moss-750 dark:bg-moss-850/95">
+      {NAV.filter((item) => item.to && item.mobileTab).map((item) => (
         <Link
           key={item.label}
           to={item.to!}
@@ -183,6 +197,18 @@ function AccountMenu({ user, onLogout }: { user: UserResponse; onLogout: () => v
               <p className="truncate text-sm font-semibold">{user.displayName}</p>
               <p className="truncate text-xs text-moss-500 dark:text-moss-400">{user.email}</p>
             </div>
+            {NAV.filter((item) => item.to && !item.mobileTab).map((item) => (
+              <Link
+                key={item.label}
+                to={item.to!}
+                role="menuitem"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-ink transition hover:bg-moss-100 dark:text-linen dark:hover:bg-moss-800"
+              >
+                {item.icon && <item.icon className="h-4.5 w-4.5 text-moss-500 dark:text-moss-400" />}
+                {item.label}
+              </Link>
+            ))}
             <div className="flex items-center justify-between px-3 py-1.5 text-sm">
               Thème
               <ThemeToggle />
@@ -394,6 +420,18 @@ const workoutRoute = createRoute({
   component: WorkoutPage,
 })
 
+const gymStatsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/renfo/stats',
+  component: StatsPage,
+})
+
+const activitiesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/activites',
+  component: ActivitiesPage,
+})
+
 const registerRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/register',
@@ -427,6 +465,8 @@ const routeTree = rootRoute.addChildren([
   exercisesRoute,
   templateEditorRoute,
   workoutRoute,
+  gymStatsRoute,
+  activitiesRoute,
   registerRoute,
   loginRoute,
   settingsRoute,

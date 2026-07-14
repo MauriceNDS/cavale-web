@@ -286,3 +286,58 @@ export function finishWorkout(
 export function abandonWorkout(workoutLogId: string): Promise<void> {
   return api.delete(`/api/workouts/${workoutLogId}`)
 }
+
+/* ── Stats ─────────────────────────────────────────────────────────── */
+
+export interface TrendPoint {
+  date: string
+  bestWeightKg: number
+  estOneRmKg: number
+}
+
+export interface ExerciseTrend {
+  exerciseId: string
+  name: string
+  category: ExerciseCategory
+  points: TrendPoint[]
+}
+
+export interface WeekTonnage {
+  weekStart: string
+  tonnageKg: number
+  sets: number
+  workouts: number
+}
+
+export interface MuscleVolume {
+  muscle: Muscle
+  sets: number
+  tonnageKg: number
+}
+
+export interface PrEntry {
+  exerciseId: string
+  exerciseName: string
+  reps: number
+  weightKg: number
+  previousKg: number | null
+  date: string
+}
+
+export interface WeekAdherence {
+  weekStart: string
+  plannedGym: number
+  doneGym: number
+}
+
+export interface GymStatsResponse {
+  oneRmTrends: ExerciseTrend[]
+  weeklyTonnage: WeekTonnage[]
+  muscleVolume: MuscleVolume[]
+  prWall: PrEntry[]
+  adherence: WeekAdherence[]
+}
+
+export function fetchGymStats(): Promise<GymStatsResponse> {
+  return api.get<GymStatsResponse>('/api/gym/stats')
+}

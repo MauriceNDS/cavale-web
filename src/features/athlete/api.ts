@@ -114,6 +114,39 @@ export function issuePat(): Promise<IssuedToken> {
   return api.post<IssuedToken>('/api/users/me/pat', {})
 }
 
+/* ── Unified activities feed ───────────────────────────────────────── */
+
+export type FeedType = 'ALL' | 'RUN' | 'GYM'
+
+export interface FeedItem {
+  id: string
+  type: 'RUN' | 'GYM'
+  date: string
+  title: string | null
+  durationMin: number | null
+  perceivedEffort: string | null
+  painFlag: boolean
+  distanceKm: number | null
+  elevationM: number | null
+  avgHr: number | null
+  paceSecPerKm: number | null
+  source: 'MANUAL' | 'STRAVA' | null
+  sessionId: string | null
+  templateName: string | null
+  tonnageKg: number | null
+  sets: number | null
+}
+
+export interface ActivityFeedResponse {
+  items: FeedItem[]
+  page: number
+  hasMore: boolean
+}
+
+export function fetchActivities(type: FeedType, page: number): Promise<ActivityFeedResponse> {
+  return api.get<ActivityFeedResponse>(`/api/athlete/activities?type=${type}&page=${page}&size=20`)
+}
+
 export interface SyncResult {
   imported: number
   updated: number
