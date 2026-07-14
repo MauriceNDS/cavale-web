@@ -14,8 +14,9 @@ export function formatPace(secPerKm: number): string {
   return `${m}′${String(s).padStart(2, '0')}″/km`
 }
 
-/** Durations in hours for totals: "42 h". */
+/** Durations in hours for totals: "42 h" — sub-hour values stay in minutes. */
 export function formatHours(min: number): string {
+  if (min < 60) return `${Math.round(min)} min`
   return `${Math.round(min / 60)} h`
 }
 

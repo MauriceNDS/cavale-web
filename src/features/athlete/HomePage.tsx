@@ -168,7 +168,7 @@ function SyncCard({ sync }: { sync: AthleteHub['sync'] }) {
         Strava : {sync.syncedActivities.toLocaleString('fr-FR')} activités synchronisées
         {sync.recordsPending > 0 && ` · ${sync.recordsPending} à analyser`}
       </p>
-      <div className="ml-auto flex gap-2">
+      <div className="flex w-full flex-wrap gap-2 sm:ml-auto sm:w-auto">
         <button
           onClick={() => syncMutation.mutate()}
           disabled={busy}
@@ -202,34 +202,50 @@ function ObjectivesRail({ seasons }: { seasons: Season[] }) {
   const past = seasons.filter((s) => s.timeframe === 'PAST')
   const current = seasons.find((s) => s.timeframe === 'CURRENT')
   const future = seasons.filter((s) => s.timeframe === 'FUTURE')
+  // On mobile only the current season shows by default — past/future columns
+  // (often empty states) otherwise eat the first screen.
+  const [showAll, setShowAll] = useState(false)
+  const hiddenColumn = showAll ? '' : 'hidden md:block'
 
   return (
     <section className={card}>
       <h2 className="font-display text-lg font-semibold">Objectifs</h2>
       <div className="mt-3 grid gap-3 md:grid-cols-3">
-        <ObjectiveColumn title="Passés">
-          {past.length === 0 && <EmptyNote>Aucune saison terminée.</EmptyNote>}
-          {past
-            .slice()
-            .reverse()
-            .map((season) => (
+        <div className={hiddenColumn}>
+          <ObjectiveColumn title="Passés">
+            {past.length === 0 && <EmptyNote>Aucune saison terminée.</EmptyNote>}
+            {past
+              .slice()
+              .reverse()
+              .map((season) => (
+                <SeasonCard key={season.planId} season={season} />
+              ))}
+          </ObjectiveColumn>
+        </div>
+        <div className="order-first md:order-none">
+          <ObjectiveColumn title="En cours" highlight>
+            {current ? (
+              <SeasonCard season={current} showLink />
+            ) : (
+              <EmptyNote>Aucun plan actif — importe ou crée ton plan.</EmptyNote>
+            )}
+          </ObjectiveColumn>
+        </div>
+        <div className={hiddenColumn}>
+          <ObjectiveColumn title="À venir">
+            {future.map((season) => (
               <SeasonCard key={season.planId} season={season} />
             ))}
-        </ObjectiveColumn>
-        <ObjectiveColumn title="En cours" highlight>
-          {current ? (
-            <SeasonCard season={current} showLink />
-          ) : (
-            <EmptyNote>Aucun plan actif — importe ou crée ton plan.</EmptyNote>
-          )}
-        </ObjectiveColumn>
-        <ObjectiveColumn title="À venir">
-          {future.map((season) => (
-            <SeasonCard key={season.planId} season={season} />
-          ))}
-          <NextObjectiveForm hasFuture={future.length > 0} />
-        </ObjectiveColumn>
+            <NextObjectiveForm hasFuture={future.length > 0} />
+          </ObjectiveColumn>
+        </div>
       </div>
+      <button
+        onClick={() => setShowAll(!showAll)}
+        className="mt-3 text-sm font-medium text-pine-700 hover:underline md:hidden dark:text-pine-300"
+      >
+        {showAll ? 'Masquer passés & à venir' : 'Voir passés & à venir'}
+      </button>
     </section>
   )
 }
@@ -237,7 +253,7 @@ function ObjectivesRail({ seasons }: { seasons: Season[] }) {
 function ObjectiveColumn({ title, highlight, children }: { title: string; highlight?: boolean; children: React.ReactNode }) {
   return (
     <div
-      className={`rounded-lg border p-3 ${
+      className={`h-full rounded-lg border p-3 ${
         highlight
           ? 'border-pine-600/40 bg-pine-100/40 dark:border-pine-350/40 dark:bg-pine-900/30'
           : 'border-moss-200 bg-moss-50 dark:border-moss-750 dark:bg-moss-900'
