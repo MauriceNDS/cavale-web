@@ -147,6 +147,93 @@ export function fetchActivities(type: FeedType, page: number): Promise<ActivityF
   return api.get<ActivityFeedResponse>(`/api/athlete/activities?type=${type}&page=${page}&size=20`)
 }
 
+/* ── Deep running statistics ───────────────────────────────────────── */
+
+export interface DayForm {
+  date: string
+  fitness: number
+  fatigue: number
+  formScore: number
+}
+
+export interface WeekEffort {
+  weekStart: string
+  effort: number
+  bandLow: number | null
+  bandHigh: number | null
+  partlyEstimated: boolean
+}
+
+export type AcwrZone = 'UNDER' | 'OPTIMAL' | 'CAUTION' | 'DANGER'
+
+export interface Acwr {
+  ratio: number
+  acute7d: number
+  chronicWeeklyAvg: number
+  zone: AcwrZone
+}
+
+export interface WeekVolume {
+  weekStart: string
+  distanceKm: number
+  elevationM: number
+  durationMin: number
+  kmEffort: number
+  runs: number
+}
+
+export interface MonthEfficiency {
+  month: string
+  metersPerBeat: number | null
+  runs: number
+}
+
+export interface DurationCheckpoint {
+  minutes: number
+  samples: number
+  medianDistanceKm: number
+  medianElevationM: number | null
+  medianPaceSecPerKm: number | null
+}
+
+export interface RoadPrediction {
+  label: string
+  distanceM: number
+  baseLabel: string
+  baseSec: number
+  riegelSec: number | null
+  cameronSec: number | null
+  vickersSec: number | null
+  recordSec: number | null
+}
+
+export interface TrailEstimate {
+  objectiveName: string
+  date: string
+  distanceKm: number
+  elevationM: number | null
+  kmEffort: number
+  lowSec: number
+  midSec: number
+  highSec: number
+  sampleRuns: number
+}
+
+export interface RunningStatsResponse {
+  form: DayForm[]
+  weeklyEffort: WeekEffort[]
+  acwr: Acwr
+  weeklyVolume: WeekVolume[]
+  efficiency: MonthEfficiency[]
+  checkpoints: DurationCheckpoint[]
+  roadPredictions: RoadPrediction[]
+  trailEstimates: TrailEstimate[]
+}
+
+export function fetchRunningStats(): Promise<RunningStatsResponse> {
+  return api.get<RunningStatsResponse>('/api/athlete/running-stats')
+}
+
 export interface SyncResult {
   imported: number
   updated: number

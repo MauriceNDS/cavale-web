@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { format, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { RenfoTabs } from './RenfoTabs'
 import {
   fetchGymStats,
   type ExerciseTrend,
@@ -15,35 +14,25 @@ const muted = 'text-moss-500 dark:text-moss-400'
 const card = 'rounded-xl border border-moss-200 bg-moss-25 p-5 dark:border-moss-750 dark:bg-moss-850'
 
 /** Gym progression: 1RM trends, tonnage, balance, fresh PRs, adherence. */
-export function StatsPage() {
+export function GymStatsSection() {
   const query = useQuery({ queryKey: ['gym-stats'], queryFn: fetchGymStats })
 
   if (query.isLoading) {
-    return (
-      <div className="mx-auto mt-6 max-w-3xl">
-        <RenfoTabs active="stats" />
-        <p className={`mt-10 text-center ${muted}`}>Chargement…</p>
-      </div>
-    )
+    return <p className={`mt-10 text-center ${muted}`}>Chargement…</p>
   }
   const stats = query.data
   if (!stats) {
     return (
-      <div className="mx-auto mt-6 max-w-3xl">
-        <RenfoTabs active="stats" />
-        <p className="mt-10 text-center text-clay-500 dark:text-clay-300">
-          Impossible de charger les statistiques.
-        </p>
-      </div>
+      <p className="mt-10 text-center text-clay-500 dark:text-clay-300">
+        Impossible de charger les statistiques.
+      </p>
     )
   }
 
   const hasData = stats.weeklyTonnage.some((w) => w.sets > 0)
 
   return (
-    <div className="mx-auto mt-6 max-w-3xl space-y-4 pb-10">
-      <RenfoTabs active="stats" />
-
+    <div className="space-y-4">
       {!hasData && (
         <p className={`mt-10 text-center ${muted}`}>
           Termine ta première séance de renfo pour voir ta progression ici.

@@ -4,6 +4,7 @@ import {
   createRouter,
   Link,
   Outlet,
+  redirect,
   useNavigate,
   useRouterState,
 } from '@tanstack/react-router'
@@ -21,9 +22,9 @@ import { SessionPage } from './features/calendar/SessionPage'
 import { ExercisesPage } from './features/gym/ExercisesPage'
 import { TemplateEditorPage } from './features/gym/TemplateEditorPage'
 import { TemplatesPage } from './features/gym/TemplatesPage'
-import { StatsPage } from './features/gym/StatsPage'
 import { WorkoutPage } from './features/gym/WorkoutPage'
 import { ActivitiesPage } from './features/athlete/ActivitiesPage'
+import { StatsPage } from './features/stats/StatsPage'
 import { ObjectivePage } from './features/objective/ObjectivePage'
 import { SettingsPage } from './features/settings/SettingsPage'
 
@@ -86,9 +87,17 @@ function IconPulse({ className }: IconProps) {
   )
 }
 
+function IconChart({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 20V10M10 20V4M16 20v-8M21 20H3" />
+    </svg>
+  )
+}
+
 interface NavItem {
   label: string
-  to?: '/' | '/calendrier' | '/objectif' | '/renfo' | '/activites' | '/settings'
+  to?: '/' | '/calendrier' | '/objectif' | '/renfo' | '/activites' | '/stats' | '/settings'
   icon?: (props: IconProps) => ReactNode
   soon?: boolean
   /** In the mobile bottom bar (4 tabs); the rest lives in the account menu. */
@@ -100,6 +109,7 @@ const NAV: NavItem[] = [
   { label: 'Calendrier', to: '/calendrier', icon: IconCalendar, mobileTab: true },
   { label: 'Renfo', to: '/renfo', icon: IconDumbbell, mobileTab: true },
   { label: 'Activités', to: '/activites', icon: IconPulse, mobileTab: true },
+  { label: 'Statistiques', to: '/stats', icon: IconChart },
   { label: 'Objectif', to: '/objectif', icon: IconTarget },
   { label: 'Réglages', to: '/settings', icon: IconSettings },
 ]
@@ -111,6 +121,7 @@ function pageTitle(pathname: string): string {
   if (pathname.startsWith('/renfo')) return 'Renfo'
   if (pathname.startsWith('/entrainement')) return 'Entraînement'
   if (pathname.startsWith('/activites')) return 'Activités'
+  if (pathname.startsWith('/stats')) return 'Statistiques'
   if (pathname.startsWith('/objectif')) return 'Objectif'
   if (pathname.startsWith('/settings')) return 'Réglages'
   return 'Accueil'
@@ -420,10 +431,21 @@ const workoutRoute = createRoute({
   component: WorkoutPage,
 })
 
+// the old gym-stats URL now lives inside the unified statistics page
 const gymStatsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/renfo/stats',
+  beforeLoad: () => {
+    throw redirect({ to: '/stats', search: { tab: 'renfo' } })
+  },
+})
+
+const statsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/stats',
   component: StatsPage,
+  validateSearch: (search: Record<string, unknown>): { tab?: string } =>
+    typeof search.tab === 'string' ? { tab: search.tab } : {},
 })
 
 const activitiesRoute = createRoute({
@@ -466,6 +488,7 @@ const routeTree = rootRoute.addChildren([
   templateEditorRoute,
   workoutRoute,
   gymStatsRoute,
+  statsRoute,
   activitiesRoute,
   registerRoute,
   loginRoute,
