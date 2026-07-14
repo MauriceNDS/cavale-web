@@ -212,7 +212,7 @@ function CalendarHeader({ view, range, anchor, week, weekSessions, onShift, onTo
       : format(anchor, 'MMMM yyyy', { locale: fr })
 
   return (
-    <div className="flex flex-wrap items-center gap-3">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
       <div className="flex items-center gap-1">
         <NavButton label="Période précédente" onClick={() => onShift(-1)}>
           ‹
@@ -228,7 +228,7 @@ function CalendarHeader({ view, range, anchor, week, weekSessions, onShift, onTo
         </NavButton>
       </div>
 
-      <h1 className="font-display text-xl font-semibold capitalize">
+      <h1 className="font-display text-lg font-semibold capitalize md:text-xl">
         {week ? `S${week.weekNumber} · ${title}` : title}
       </h1>
 
@@ -307,13 +307,15 @@ function WeekMetrics({ week, sessions }: { week: WeekResponse; sessions: Session
   ]
 
   return (
-    <div className="flex w-full flex-wrap gap-2">
+    // Single scrollable row on mobile — glanceable context must not stack up
+    // and push the week below the fold.
+    <div className="flex w-full gap-2 overflow-x-auto [scrollbar-width:none] md:flex-wrap md:overflow-visible">
       {metrics
         .filter((m) => m.target != null)
         .map((m) => (
           <span
             key={m.label}
-            className="rounded-lg border border-moss-200 bg-moss-25 px-2.5 py-1 text-xs tabular-nums dark:border-moss-750 dark:bg-moss-850"
+            className="shrink-0 rounded-lg border border-moss-200 bg-moss-25 px-2.5 py-1 text-xs whitespace-nowrap tabular-nums dark:border-moss-750 dark:bg-moss-850"
           >
             <span className="text-moss-500 dark:text-moss-400">{m.label} </span>
             <span className="font-semibold">{m.actual ?? '—'}</span>
@@ -462,7 +464,7 @@ function WeekView({
 
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-      <div className="mt-5 space-y-2">
+      <div className="mt-4 space-y-2 md:mt-5">
         {days.map((day) => (
           <DayRow
             key={day.toISOString()}
@@ -510,7 +512,7 @@ function DayRow({
           onClick={() => onAdd(day)}
           aria-label={`Ajouter une séance le ${format(day, 'd MMMM', { locale: fr })}`}
           title="Ajouter une séance"
-          className="grid h-6 w-6 place-items-center rounded-md text-moss-400 opacity-0 transition group-hover/day:opacity-100 hover:bg-moss-100 hover:text-ink focus-visible:opacity-100 dark:text-moss-500 dark:hover:bg-moss-800 dark:hover:text-linen"
+          className="-my-1 grid h-8 w-8 place-items-center rounded-md text-moss-400 transition hover:bg-moss-100 hover:text-ink focus-visible:opacity-100 md:my-0 md:h-6 md:w-6 md:opacity-0 md:group-hover/day:opacity-100 dark:text-moss-500 dark:hover:bg-moss-800 dark:hover:text-linen"
         >
           +
         </button>

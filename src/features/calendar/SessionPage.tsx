@@ -5,6 +5,7 @@ import { format, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { ApiError } from '../../lib/api'
 import { GlossaryText } from '../../lib/glossary'
+import { useMeasuredWidth } from '../../lib/useMeasuredWidth'
 import { fetchStravaActivities } from '../strava/api'
 import {
   downloadSessionFit,
@@ -73,7 +74,7 @@ export function SessionPage() {
   }
 
   const statusMutation = useMutation({
-    mutationFn: (body: { status?: SessionResponse['status']; workout?: WorkoutNode[] }) =>
+    mutationFn: (body: { status?: SessionResponse['status']; workout?: WorkoutNode[]; date?: string }) =>
       updateSession(sessionId, body),
     onSuccess: invalidate,
   })
@@ -118,7 +119,7 @@ function SessionView({
   onDone,
 }: {
   session: SessionResponse
-  statusMutation: { mutate: (b: { status?: SessionResponse['status']; workout?: WorkoutNode[] }) => void; isPending: boolean }
+  statusMutation: { mutate: (b: { status?: SessionResponse['status']; workout?: WorkoutNode[]; date?: string }) => void; isPending: boolean }
   onDone: () => void
 }) {
   const [editingStructure, setEditingStructure] = useState(false)
@@ -254,6 +255,7 @@ type WizardStep =
   | { kind: 'choose' }
   | { kind: 'strava' }
   | { kind: 'manual' }
+  | { kind: 'move' }
   | { kind: 'effort'; payload: { strava?: number; manual?: Omit<ValidateSessionRequest, 'perceivedEffort' | 'comment'> } }
 
 function SessionActions({
@@ -266,7 +268,7 @@ function SessionActions({
   session: SessionResponse
   exporting: boolean
   onExport: () => void
-  statusMutation: { mutate: (b: { status?: SessionResponse['status'] }) => void; isPending: boolean }
+  statusMutation: { mutate: (b: { status?: SessionResponse['status']; date?: string }) => void; isPending: boolean }
   onValidated: () => void
 }) {
   const [step, setStep] = useState<WizardStep>({ kind: 'none' })
@@ -338,6 +340,40 @@ function SessionActions({
     )
   }
 
+  if (step.kind === 'move') {
+    return (
+      <WizardShell title="Déplacer la séance" onCancel={() => setStep({ kind: 'none' })}>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
+            const date = new FormData(event.currentTarget).get('date') as string
+            if (date && date !== session.date) statusMutation.mutate({ date })
+            setStep({ kind: 'none' })
+          }}
+          className="flex flex-wrap items-end gap-2"
+        >
+          <label className="block text-xs text-moss-500 dark:text-moss-400">
+            Nouvelle date
+            <input
+              name="date"
+              type="date"
+              required
+              defaultValue={session.date}
+              className="mt-0.5 block rounded-lg border border-moss-200 bg-moss-100 px-2.5 py-1.5 text-sm text-ink outline-none focus:border-pine-600 focus:ring-2 focus:ring-pine-600/25 dark:border-moss-750 dark:bg-moss-800 dark:text-linen dark:focus:border-pine-350 dark:focus:ring-pine-350/25"
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={pending}
+            className="rounded-lg bg-pine-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
+          >
+            Déplacer
+          </button>
+        </form>
+      </WizardShell>
+    )
+  }
+
   if (step.kind === 'effort') {
     return (
       <WizardShell title="Comment c'était ?" onCancel={() => setStep({ kind: 'none' })}>
@@ -364,16 +400,20 @@ function SessionActions({
   const proposal = !proposalDismissed ? (proposalQuery.data ?? null) : null
 
   return (
-    <div className="mt-6 border-t border-moss-200 pt-4 dark:border-moss-750">
+    <>
       {proposal && (
-        <ProposalBanner
-          proposal={proposal}
-          onValidate={() =>
-            setStep({ kind: 'effort', payload: { strava: proposal.stravaActivityId } })
-          }
-          onDismiss={() => setProposalDismissed(true)}
-        />
+        <div className="mt-6">
+          <ProposalBanner
+            proposal={proposal}
+            onValidate={() =>
+              setStep({ kind: 'effort', payload: { strava: proposal.stravaActivityId } })
+            }
+            onDismiss={() => setProposalDismissed(true)}
+          />
+        </div>
       )}
+      {/* Sticky on mobile: mid-workout, « Valider » stays one thumb away. */}
+      <div className="sticky bottom-[calc(3.75rem+env(safe-area-inset-bottom))] z-30 -mx-4 mt-6 border-t border-moss-200 bg-moss-50/95 px-4 py-3 backdrop-blur md:static md:z-auto md:mx-0 md:bg-transparent md:px-0 md:pt-4 md:pb-0 md:backdrop-blur-none dark:border-moss-750 dark:bg-moss-900/95 dark:md:bg-transparent">
       <div className="flex flex-wrap gap-2">
       {session.discipline === 'RUN' && (
         <button
@@ -404,6 +444,13 @@ function SessionActions({
           >
             Passer
           </button>
+          <button
+            onClick={() => setStep({ kind: 'move' })}
+            disabled={pending}
+            className="rounded-lg border border-moss-200 px-4 py-2 text-sm font-medium text-moss-500 transition hover:bg-moss-100 disabled:opacity-50 dark:border-moss-750 dark:text-moss-400 dark:hover:bg-moss-800"
+          >
+            Déplacer
+          </button>
         </>
       )}
       {session.status === 'SKIPPED' && (
@@ -425,7 +472,8 @@ function SessionActions({
         </button>
       )}
       </div>
-    </div>
+      </div>
+    </>
   )
 }
 
@@ -899,7 +947,7 @@ function StreamCharts({ streams }: { streams: ActivityStreams }) {
   )
 }
 
-const W = 600
+const FALLBACK_W = 600
 const H = 150
 const PAD = { left: 8, right: 8, top: 10, bottom: 18 }
 
@@ -918,6 +966,7 @@ function StreamChart({
   area?: boolean
   invertY?: boolean
 }) {
+  const { ref, width: W } = useMeasuredWidth<HTMLDivElement>(FALLBACK_W)
   const [hover, setHover] = useState<number | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
 
@@ -941,7 +990,8 @@ function StreamChart({
   const baseline = invertY ? PAD.top : H - PAD.bottom
   const areaPath = `${line}L${sx(xMax).toFixed(1)},${baseline}L${sx(xMin).toFixed(1)},${baseline}Z`
 
-  function handleMove(event: React.MouseEvent<SVGSVGElement>) {
+  // Pointer events cover mouse AND touch: a finger drag scrubs the crosshair.
+  function handleMove(event: React.PointerEvent<SVGSVGElement>) {
     const rect = svgRef.current!.getBoundingClientRect()
     const x = ((event.clientX - rect.left) / rect.width) * W
     let best = 0
@@ -968,13 +1018,14 @@ function StreamChart({
           {hovered ? `${hovered.x.toFixed(1)} km · ${yFormat(hovered.y)}` : ' '}
         </span>
       </figcaption>
-      <div className={colorClass}>
+      <div ref={ref} className={colorClass}>
         <svg
           ref={svgRef}
           viewBox={`0 0 ${W} ${H}`}
-          className="mt-1 w-full"
-          onMouseMove={handleMove}
-          onMouseLeave={() => setHover(null)}
+          className="mt-1 w-full touch-pan-y"
+          onPointerMove={handleMove}
+          onPointerDown={handleMove}
+          onPointerLeave={() => setHover(null)}
           role="img"
           aria-label={title}
         >
