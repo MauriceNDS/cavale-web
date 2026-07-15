@@ -1,0 +1,27 @@
+/** Strings shared across features — reference from any component as `common:key`. */
+export default {
+  save: 'Save',
+  saving: 'Saving…',
+  cancel: 'Cancel',
+  delete: 'Delete',
+  edit: 'Edit',
+  add: 'Add',
+  create: 'Create',
+  creating: 'Creating…',
+  loading: 'Loading…',
+  retry: 'Try again.',
+  close: 'Close',
+  seeMore: 'See more',
+  collapse: 'Collapse',
+  copy: 'Copy',
+  copied: 'Copied ✓',
+  today: 'Today',
+  theme: {
+    label: 'Theme',
+    light: 'Light',
+    auto: 'Auto',
+    dark: 'Dark',
+    toDark: 'Switch to dark mode',
+    toLight: 'Switch to light mode',
+  },
+}

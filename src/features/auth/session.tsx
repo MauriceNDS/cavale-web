@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
+import { applyLanguage } from '../../i18n'
 import { ApiError, clearToken, getToken, setToken } from '../../lib/api'
 import { fetchMe, loginUser, type UserResponse } from './api'
 
@@ -73,6 +74,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!getToken()) return
     setUser(await fetchMe())
   }, [])
+
+  // The profile owns the language; mirror it into i18n whenever it changes.
+  const preferredLanguage = user?.preferredLanguage
+  useEffect(() => {
+    if (preferredLanguage) applyLanguage(preferredLanguage)
+  }, [preferredLanguage])
 
   const value = useMemo(() => ({ user, login, logout, refresh }), [user, login, logout, refresh])
 

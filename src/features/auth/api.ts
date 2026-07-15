@@ -23,6 +23,7 @@ export interface UserResponse {
   maxHr: number | null
   restingHr: number | null
   gymEnabled: boolean
+  preferredLanguage: 'fr' | 'en'
   athleteStatus: AthleteStatus
   statusNote: string | null
   statusSince: string | null

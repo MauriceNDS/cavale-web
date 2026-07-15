@@ -89,6 +89,7 @@ export function fetchHub(): Promise<AthleteHub> {
 
 export interface UpdateProfileRequest {
   gymEnabled?: boolean
+  preferredLanguage?: 'fr' | 'en'
   displayName: string
   weightKg?: number | null
   heightCm?: number | null
