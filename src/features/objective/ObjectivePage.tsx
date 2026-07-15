@@ -17,6 +17,7 @@ import {
   type WeekProgress,
 } from './api'
 import { ObjectiveForm } from './ObjectiveForm'
+import { CourseSection } from './CourseSection'
 import { CumulativeChart, WeeklyChart, type Metric } from './charts'
 import {
   OBJECTIVE_INTENSITY_BADGE,
@@ -118,6 +119,10 @@ function ObjectiveContent({ progress }: { progress: PlanProgressResponse }) {
       />
 
       <StatTiles progress={progress} />
+
+      {mainObjective && mainObjective.kind === 'TRAIL' && (
+        <CourseSection objectiveId={mainObjective.id} />
+      )}
 
       {weeks.length > 0 ? (
         <section className={card}>
