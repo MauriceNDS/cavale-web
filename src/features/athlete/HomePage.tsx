@@ -12,9 +12,11 @@ import { OBJECTIVE_TYPE_BADGE, formatTimeMin, objectiveTypeLabel } from '../obje
 import {
   analyzeStravaRecords,
   fetchHub,
+  fetchRunningStats,
   syncStravaHistory,
   type AthleteHub,
   type Season,
+  type TrainingStatusLabel,
 } from './api'
 import { EffortChart, MonthlyBars, TrendLine } from './charts'
 import { formatChrono, formatHours, formatPace } from './labels'
@@ -63,7 +65,7 @@ function StatusChip() {
   return (
     <Link
       to="/profil"
-      className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-clay-100 px-3 py-1 text-xs font-semibold text-clay-600 transition hover:bg-clay-100/70 dark:bg-clay-900 dark:text-clay-300"
+      className="inline-flex items-center gap-1.5 rounded-full bg-clay-100 px-3 py-1 text-xs font-semibold text-clay-600 transition hover:bg-clay-100/70 dark:bg-clay-900 dark:text-clay-300"
     >
       ⚠ {t(`home.status.${user.athleteStatus}`)}
       {user.statusSince &&
@@ -71,6 +73,33 @@ function StatusChip() {
           date: format(parseISO(user.statusSince), 'd MMMM', { locale: dateLocale() }),
         })}`}
       {user.statusNote && ` · ${user.statusNote}`}
+    </Link>
+  )
+}
+
+const TRAINING_STATUS_STYLE: Record<TrainingStatusLabel, string> = {
+  PRODUCTIVE: 'bg-pine-100 text-pine-700 dark:bg-pine-900 dark:text-pine-300',
+  MAINTAINING: 'bg-lake-600/15 text-lake-600 dark:bg-lake-300/15 dark:text-lake-300',
+  RECOVERY: 'bg-lake-600/15 text-lake-600 dark:bg-lake-300/15 dark:text-lake-300',
+  OVERREACHING: 'bg-clay-100 text-clay-600 dark:bg-clay-900 dark:text-clay-300',
+  DETRAINING: 'bg-gold-600/15 text-gold-600 dark:bg-gold-300/15 dark:text-gold-300',
+}
+
+/** The single fused training-status verdict, glanceable over the metric wall. */
+function TrainingStatusPill() {
+  const { t } = useTranslation('athlete')
+  const stats = useQuery({ queryKey: ['running-stats'], queryFn: fetchRunningStats })
+  const status = stats.data?.trainingStatus
+  if (!status) return null
+  const trend = `${status.fitnessTrendPct > 0 ? '+' : ''}${status.fitnessTrendPct}%`
+  return (
+    <Link
+      to="/stats"
+      title={t(`home.trainingStatus.hint.${status.label}`)}
+      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition hover:opacity-80 ${TRAINING_STATUS_STYLE[status.label]}`}
+    >
+      {t(`home.trainingStatus.label.${status.label}`)}
+      <span className="font-normal opacity-80">· {t('home.trainingStatus.trend', { value: trend })}</span>
     </Link>
   )
 }
@@ -99,7 +128,10 @@ function ProfileHeader({ hub }: { hub: AthleteHub }) {
               {t('home.profile.edit')}
             </Link>
           </p>
-          <StatusChip />
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <TrainingStatusPill />
+            <StatusChip />
+          </div>
         </div>
         <div className="flex gap-6 text-right">
           <div>

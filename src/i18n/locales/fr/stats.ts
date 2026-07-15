@@ -41,6 +41,17 @@ export default {
     statusIn: 'dans la zone — progression saine',
     statusUnder: "vise {{low}}–{{high}} d'ici dimanche",
   },
+  monotony: {
+    title: "Monotonie d'entraînement",
+    hint: "Monotonie de Foster = moyenne ÷ écart-type de la charge quotidienne sur la semaine. Au-dessus de 2,0 — tous les jours pareils — le risque de maladie et de surentraînement monte ; alterne jours durs et faciles.",
+    tooltip: 'Monotonie hebdo : charge quotidienne moyenne sur son écart-type. Saine sous 2,0.',
+    aria: "Monotonie d'entraînement hebdomadaire",
+    chip: 'Monotonie {{value}}',
+    value: 'Monotonie : {{value}}',
+    strain: 'Contrainte : {{value}}',
+    flagged: '⚠ Au-dessus de 2,0 — varie tes journées',
+    notEnough: 'Pas encore assez de données.',
+  },
   volume: {
     title: 'Volume',
     hint: 'Barres : km — ligne : D+. Le total km-effort (km + D+/100) est la vraie monnaie du trail.',

@@ -236,6 +236,27 @@ export interface TrailEstimate {
   sampleRuns: number
 }
 
+export interface WeekMonotony {
+  weekStart: string
+  monotony: number | null
+  strain: number | null
+  flagged: boolean
+}
+
+export type TrainingStatusLabel =
+  | 'PRODUCTIVE'
+  | 'MAINTAINING'
+  | 'OVERREACHING'
+  | 'RECOVERY'
+  | 'DETRAINING'
+
+export interface TrainingStatus {
+  label: TrainingStatusLabel
+  fitnessTrendPct: number
+  form: number
+  acwr: number
+}
+
 export interface RunningStatsResponse {
   form: DayForm[]
   weeklyEffort: WeekEffort[]
@@ -245,6 +266,8 @@ export interface RunningStatsResponse {
   checkpoints: DurationCheckpoint[]
   roadPredictions: RoadPrediction[]
   trailEstimates: TrailEstimate[]
+  monotony: WeekMonotony[]
+  trainingStatus: TrainingStatus | null
 }
 
 export function fetchRunningStats(): Promise<RunningStatsResponse> {

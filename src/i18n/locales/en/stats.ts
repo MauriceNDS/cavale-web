@@ -40,6 +40,17 @@ export default {
     statusIn: 'in the zone — healthy progression',
     statusUnder: 'aim for {{low}}–{{high}} by Sunday',
   },
+  monotony: {
+    title: 'Training monotony',
+    hint: 'Foster monotony = mean ÷ SD of daily load over the week. Above 2.0 — every day alike — raises illness and overtraining risk; vary hard and easy days.',
+    tooltip: 'Weekly monotony: mean daily load over its standard deviation. Healthy below 2.0.',
+    aria: 'Weekly training monotony',
+    chip: 'Monotony {{value}}',
+    value: 'Monotony: {{value}}',
+    strain: 'Strain: {{value}}',
+    flagged: '⚠ Above 2.0 — vary your days',
+    notEnough: 'Not enough data yet.',
+  },
   volume: {
     title: 'Volume',
     hint: 'Bars: km — line: D+. The km-effort total (km + D+/100) is the true currency of trail running.',

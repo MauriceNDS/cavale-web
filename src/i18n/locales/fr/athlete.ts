@@ -7,6 +7,23 @@ export default {
       SICK: 'Malade',
       since: 'depuis le {{date}}',
     },
+    trainingStatus: {
+      label: {
+        PRODUCTIVE: 'Productif',
+        MAINTAINING: 'Maintien',
+        OVERREACHING: 'Surcharge',
+        RECOVERY: 'Récupération',
+        DETRAINING: 'Désentraînement',
+      },
+      hint: {
+        PRODUCTIVE: 'Le fitness monte et la charge est maîtrisée — continue de construire.',
+        MAINTAINING: 'Le fitness se maintient à ta charge actuelle.',
+        OVERREACHING: 'La charge aiguë dépasse ta base — lève le pied avant que ça coûte.',
+        RECOVERY: 'Une phase plus légère et fraîche — récupération ou affûtage voulus.',
+        DETRAINING: "La charge a chuté et le fitness s'effrite — il faut réattaquer.",
+      },
+      trend: 'fitness {{value}} / 28 j',
+    },
     profile: {
       age_one: '{{count}} an',
       age_other: '{{count}} ans',

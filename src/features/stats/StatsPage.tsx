@@ -13,6 +13,7 @@ import {
   type RoadPrediction,
   type TrailEstimate,
   type WeekEffort,
+  type WeekMonotony,
   type WeekVolume,
 } from '../athlete/api'
 import { useAuth } from '../auth/session'
@@ -95,6 +96,7 @@ function RunningStats() {
   const form = stats.form.filter((d) => inRange(d.date))
   const effort = stats.weeklyEffort.filter((w) => inRange(w.weekStart))
   const volume = stats.weeklyVolume.filter((w) => inRange(w.weekStart))
+  const monotony = stats.monotony.filter((w) => inRange(w.weekStart))
   const efficiency = stats.efficiency.slice(-months)
 
   return (
@@ -142,6 +144,19 @@ function RunningStats() {
         </div>
         <EffortStatus weeks={stats.weeklyEffort} />
       </section>
+
+      {stats.monotony.some((w) => w.monotony != null) && (
+        <section className={card}>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="font-display text-lg font-semibold">{t('monotony.title')}</h2>
+            <MonotonyChip monotony={stats.monotony} />
+          </div>
+          <p className={`mt-0.5 text-xs ${muted}`}>{t('monotony.hint')}</p>
+          <div className="mt-3">
+            <MonotonyChart weeks={monotony} />
+          </div>
+        </section>
+      )}
 
       <section className={card}>
         <h2 className="font-display text-lg font-semibold">{t('volume.title')}</h2>
@@ -417,6 +432,83 @@ function EffortStatus({ weeks }: { weeks: WeekEffort[] }) {
       · {status}
       {current.partlyEstimated && ` · ${t('effort.estimatedNote')}`}
     </p>
+  )
+}
+
+/* ── Monotony & strain (Foster) ────────────────────────────────────── */
+
+/** The current week's monotony as a chip — clay once it crosses 2.0. */
+function MonotonyChip({ monotony }: { monotony: WeekMonotony[] }) {
+  const { t } = useTranslation('stats')
+  const current = [...monotony].reverse().find((w) => w.monotony != null)
+  if (!current || current.monotony == null) return null
+  const style = current.flagged
+    ? 'bg-clay-100 text-clay-600 dark:bg-clay-900 dark:text-clay-300'
+    : 'bg-pine-100 text-pine-700 dark:bg-pine-900 dark:text-pine-300'
+  return (
+    <span title={t('monotony.tooltip')} className={`rounded-full px-2.5 py-1 text-xs font-semibold ${style}`}>
+      {t('monotony.chip', { value: current.monotony.toFixed(2) })}
+    </span>
+  )
+}
+
+/** Monotony per week as a line, with the 2.0 warning threshold; flagged weeks in clay. */
+function MonotonyChart({ weeks }: { weeks: WeekMonotony[] }) {
+  const { t } = useTranslation('stats')
+  const [hover, setHover] = useState<number | null>(null)
+  const points = weeks.filter((w) => w.monotony != null)
+  if (points.length < 2) return <p className={`text-sm ${muted}`}>{t('monotony.notEnough')}</p>
+  const maxM = Math.max(...points.map((w) => w.monotony!), 2.2)
+  const x = xScale(weeks.length)
+  const y = (v: number) => PAD.top + (1 - v / (maxM * 1.05)) * plotH
+
+  let path = ''
+  weeks.forEach((week, i) => {
+    if (week.monotony == null) return
+    const cmd = path === '' || weeks[i - 1]?.monotony == null ? 'M' : 'L'
+    path += `${cmd} ${x(i)} ${y(week.monotony)} `
+  })
+
+  const hovered = hover != null ? weeks[hover] : null
+  return (
+    <div className="relative" onPointerLeave={() => setHover(null)}>
+      {hovered && hovered.monotony != null && (
+        <ChartTooltip
+          xRatio={x(hover!) / W}
+          lines={[
+            t('effort.weekOf', { date: format(parseISO(hovered.weekStart), 'd MMMM', { locale: dateLocale() }) }),
+            t('monotony.value', { value: hovered.monotony.toFixed(2) }),
+            t('monotony.strain', { value: hovered.strain ?? 0 }),
+            ...(hovered.flagged ? [t('monotony.flagged')] : []),
+          ]}
+        />
+      )}
+      <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label={t('monotony.aria')}>
+        <GridY ticks={[maxM * 0.5]} y={y} format={(v) => v.toFixed(1)} />
+        {/* the 2.0 overtraining threshold */}
+        <line x1={PAD.left} x2={W - PAD.right} y1={y(2)} y2={y(2)} strokeWidth={1} strokeDasharray="4 3"
+          className="stroke-clay-500/70 dark:stroke-clay-300/70" />
+        <text x={W - PAD.right + 4} y={y(2) + 3} textAnchor="start"
+          className="fill-clay-500 text-[10px] dark:fill-clay-300">2.0</text>
+        <path d={path} fill="none" strokeWidth={2} className="stroke-pine-600 dark:stroke-pine-350" />
+        {weeks.map((week, i) =>
+          week.monotony == null ? null : (
+            <circle key={week.weekStart} cx={x(i)} cy={y(week.monotony)} r={week.flagged ? 3.5 : 2.5}
+              className={week.flagged
+                ? 'fill-clay-500 dark:fill-clay-300'
+                : 'fill-pine-600 dark:fill-pine-350'} />
+          ),
+        )}
+        {weeks.filter((_, i) => i % Math.ceil(weeks.length / 6) === 0).map((week) => (
+          <text key={week.weekStart}
+            x={x(weeks.indexOf(week))} y={H - 6} textAnchor="middle"
+            className="fill-moss-500 text-[10px] dark:fill-moss-400">
+            {format(parseISO(week.weekStart), 'd MMM', { locale: dateLocale() })}
+          </text>
+        ))}
+        <HitStrips count={weeks.length} onHover={setHover} />
+      </svg>
+    </div>
   )
 }
 

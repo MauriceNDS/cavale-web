@@ -7,6 +7,23 @@ export default {
       SICK: 'Sick',
       since: 'since {{date}}',
     },
+    trainingStatus: {
+      label: {
+        PRODUCTIVE: 'Productive',
+        MAINTAINING: 'Maintaining',
+        OVERREACHING: 'Overreaching',
+        RECOVERY: 'Recovery',
+        DETRAINING: 'Detraining',
+      },
+      hint: {
+        PRODUCTIVE: 'Fitness is rising and load is under control — keep building.',
+        MAINTAINING: 'Fitness is holding steady at your current load.',
+        OVERREACHING: 'Acute load is outrunning your base — ease off before it costs you.',
+        RECOVERY: 'A lighter, fresher stretch — deliberate recovery or taper.',
+        DETRAINING: 'Load has dropped and fitness is slipping — time to train more.',
+      },
+      trend: 'fitness {{value}} / 28 d',
+    },
     profile: {
       age_one: '{{count}} year old',
       age_other: '{{count}} years old',
