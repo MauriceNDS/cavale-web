@@ -151,6 +151,7 @@ export default {
     painTitle: 'Pain reported',
     pain: '⚠ pain',
     runFallback: 'Run',
+    bikeFallback: 'Bike',
     gymFallback: 'Strength',
   },
 }

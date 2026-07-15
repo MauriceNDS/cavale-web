@@ -131,7 +131,7 @@ export type FeedType = 'ALL' | 'RUN' | 'GYM'
 
 export interface FeedItem {
   id: string
-  type: 'RUN' | 'GYM'
+  type: 'RUN' | 'BIKE' | 'GYM'
   date: string
   title: string | null
   durationMin: number | null

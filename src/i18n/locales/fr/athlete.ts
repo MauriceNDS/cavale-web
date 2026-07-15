@@ -151,6 +151,7 @@ export default {
     painTitle: 'Douleur signalée',
     pain: '⚠ douleur',
     runFallback: 'Sortie',
+    bikeFallback: 'Vélo',
     gymFallback: 'Renfo',
   },
 }

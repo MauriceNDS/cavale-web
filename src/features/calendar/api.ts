@@ -143,6 +143,7 @@ export interface ValidateSessionRequest {
   avgHr?: number
   perceivedEffort?: PerceivedEffort
   painFlag?: boolean
+  shoeId?: string | null
   comment?: string
 }
 
@@ -154,6 +155,7 @@ export interface ImportStravaRequest {
   stravaActivityId: number
   perceivedEffort?: PerceivedEffort
   painFlag?: boolean
+  shoeId?: string | null
   comment?: string
 }
 

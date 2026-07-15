@@ -8,6 +8,7 @@ import { ApiError } from '../../lib/api'
 import { GlossaryText } from '../../lib/glossary'
 import { useMeasuredWidth } from '../../lib/useMeasuredWidth'
 import { startWorkout } from '../gym/api'
+import { fetchShoes } from '../shoes/api'
 import { fetchStravaActivities } from '../strava/api'
 import {
   downloadSessionFit,
@@ -257,6 +258,7 @@ type WizardStep =
   | { kind: 'choose' }
   | { kind: 'strava' }
   | { kind: 'manual' }
+  | { kind: 'bike' }
   | { kind: 'move' }
   | { kind: 'effort'; payload: { strava?: number; manual?: Omit<ValidateSessionRequest, 'perceivedEffort' | 'comment'> } }
 
@@ -338,6 +340,21 @@ function SessionActions({
         <ManualForm
           session={session}
           onSubmit={(measures) => setStep({ kind: 'effort', payload: { manual: measures } })}
+        />
+      </WizardShell>
+    )
+  }
+
+  if (step.kind === 'bike') {
+    return (
+      <WizardShell title={t('wizard.bikeTitle')} onCancel={() => setStep({ kind: 'none' })}>
+        <BikeForm
+          session={session}
+          pending={pending}
+          error={validateMutation.isError}
+          onSubmit={(durationMin, distanceKm) =>
+            validateMutation.mutate({ durationMin, distanceKm })
+          }
         />
       </WizardShell>
     )
@@ -436,7 +453,9 @@ function SessionActions({
             onClick={() =>
               session.discipline === 'RUN'
                 ? setStep({ kind: 'choose' })
-                : statusMutation.mutate({ status: 'DONE' })
+                : session.discipline === 'CROSS'
+                  ? setStep({ kind: 'bike' })
+                  : statusMutation.mutate({ status: 'DONE' })
             }
             disabled={pending}
             className="rounded-lg bg-pine-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
@@ -646,6 +665,8 @@ function ManualForm({
 }) {
   const { t } = useTranslation('calendar')
   const [error, setError] = useState<string | null>(null)
+  const shoes = useQuery({ queryKey: ['shoes'], queryFn: fetchShoes, staleTime: 60_000, retry: false })
+  const activeShoes = (shoes.data ?? []).filter((s) => !s.retired)
   const inputCls =
     'mt-0.5 w-full rounded-lg border border-moss-200 bg-moss-100 px-2.5 py-1.5 text-sm outline-none focus:border-pine-600 focus:ring-2 focus:ring-pine-600/25 dark:border-moss-750 dark:bg-moss-800 dark:focus:border-pine-350 dark:focus:ring-pine-350/25'
 
@@ -664,6 +685,7 @@ function ManualForm({
       distanceKm,
       elevationM: data.get('elevationM') ? Number(data.get('elevationM')) : undefined,
       avgHr: data.get('avgHr') ? Number(data.get('avgHr')) : undefined,
+      shoeId: (data.get('shoeId') as string) || undefined,
     })
   }
 
@@ -692,12 +714,85 @@ function ManualForm({
           {t('wizard.avgHrLabel')}
           <input name="avgHr" type="number" min="30" max="250" className={inputCls} />
         </label>
+        {activeShoes.length > 0 && (
+          <label className="col-span-2 block text-xs text-moss-500 dark:text-moss-400">
+            {t('wizard.shoeLabel')}
+            <select name="shoeId" className={inputCls} defaultValue="">
+              <option value="">{t('wizard.shoeNone')}</option>
+              {activeShoes.map((shoe) => (
+                <option key={shoe.id} value={shoe.id}>
+                  {shoe.name}
+                  {shoe.brand ? ` · ${shoe.brand}` : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
       </div>
       <button
         type="submit"
         className="mt-3 rounded-lg bg-pine-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
       >
         {t('wizard.continue')}
+      </button>
+    </form>
+  )
+}
+
+/** Cross-training bike: one form, time + distance, straight to validation. */
+function BikeForm({
+  session,
+  pending,
+  error,
+  onSubmit,
+}: {
+  session: SessionResponse
+  pending: boolean
+  error: boolean
+  onSubmit: (durationMin: number, distanceKm: number) => void
+}) {
+  const { t } = useTranslation('calendar')
+  const [formError, setFormError] = useState<string | null>(null)
+  const inputCls =
+    'mt-0.5 w-full rounded-lg border border-moss-200 bg-moss-100 px-2.5 py-1.5 text-sm outline-none focus:border-pine-600 focus:ring-2 focus:ring-pine-600/25 dark:border-moss-750 dark:bg-moss-800 dark:focus:border-pine-350 dark:focus:ring-pine-350/25'
+
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const data = new FormData(event.currentTarget)
+    const durationMin = Number(data.get('durationMin'))
+    const distanceKm = Number(data.get('distanceKm'))
+    if (!durationMin || durationMin <= 0 || !distanceKm || distanceKm <= 0) {
+      setFormError(t('wizard.measuresRequired'))
+      return
+    }
+    setFormError(null)
+    onSubmit(durationMin, distanceKm)
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      {(formError || error) && (
+        <p role="alert" className="mb-2 text-sm text-clay-500 dark:text-clay-300">
+          {formError ?? t('wizard.validateFailed')}
+        </p>
+      )}
+      <div className="grid grid-cols-2 gap-3">
+        <label className="block text-xs text-moss-500 dark:text-moss-400">
+          {t('wizard.durationLabel')}
+          <input name="durationMin" type="number" min="1" required
+            defaultValue={session.durationMin ?? ''} className={inputCls} />
+        </label>
+        <label className="block text-xs text-moss-500 dark:text-moss-400">
+          {t('wizard.distanceLabel')}
+          <input name="distanceKm" type="number" min="0.1" step="0.01" required className={inputCls} />
+        </label>
+      </div>
+      <button
+        type="submit"
+        disabled={pending}
+        className="mt-3 rounded-lg bg-pine-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
+      >
+        {pending ? t('wizard.validating') : t('wizard.validateSession')}
       </button>
     </form>
   )

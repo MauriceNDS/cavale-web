@@ -172,33 +172,51 @@ export function ActivitiesPage() {
 function FeedRow({ item }: { item: FeedItem }) {
   const { t } = useTranslation('athlete')
   const isRun = item.type === 'RUN'
-  const facts = isRun
+  const isBike = item.type === 'BIKE'
+  const isGym = item.type === 'GYM'
+
+  const facts = isGym
     ? [
-        item.distanceKm != null ? `${item.distanceKm} km` : null,
-        item.durationMin != null ? formatDuration(item.durationMin) : null,
-        item.paceSecPerKm != null ? formatPace(item.paceSecPerKm) : null,
-        item.elevationM ? `${item.elevationM} m D+` : null,
-        item.avgHr ? `${item.avgHr} bpm` : null,
-      ]
-    : [
         item.durationMin != null ? formatDuration(item.durationMin) : null,
         item.tonnageKg != null && item.tonnageKg > 0 ? t('activities.lifted', { count: item.tonnageKg }) : null,
         item.sets ? t('activities.sets', { count: item.sets }) : null,
       ]
+    : isBike
+      ? [
+          item.distanceKm != null ? `${item.distanceKm} km` : null,
+          item.durationMin != null ? formatDuration(item.durationMin) : null,
+        ]
+      : [
+          item.distanceKm != null ? `${item.distanceKm} km` : null,
+          item.durationMin != null ? formatDuration(item.durationMin) : null,
+          item.paceSecPerKm != null ? formatPace(item.paceSecPerKm) : null,
+          item.elevationM ? `${item.elevationM} m D+` : null,
+          item.avgHr ? `${item.avgHr} bpm` : null,
+        ]
+
+  const fallback = isRun
+    ? t('activities.runFallback')
+    : isBike
+      ? t('activities.bikeFallback')
+      : t('activities.gymFallback')
 
   const content = (
     <>
       <span
         aria-hidden="true"
         className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-base ${
-          isRun ? 'bg-pine-100 dark:bg-pine-900' : 'bg-copper-600/15 dark:bg-copper-300/15'
+          isRun
+            ? 'bg-pine-100 dark:bg-pine-900'
+            : isBike
+              ? 'bg-lake-600/15 dark:bg-lake-300/15'
+              : 'bg-copper-600/15 dark:bg-copper-300/15'
         }`}
       >
-        {isRun ? '🏃' : '🏋'}
+        {isRun ? '🏃' : isBike ? '🚴' : '🏋'}
       </span>
       <div className="min-w-0 flex-1">
         <p className="truncate font-medium">
-          {item.title ?? (isRun ? t('activities.runFallback') : t('activities.gymFallback'))}
+          {item.title ?? fallback}
           {item.painFlag && (
             <span className="ml-1.5 text-xs text-clay-500 dark:text-clay-300" title={t('activities.painTitle')}>
               {t('activities.pain')}
@@ -217,14 +235,14 @@ function FeedRow({ item }: { item: FeedItem }) {
   const className =
     'flex items-center gap-3 rounded-lg border border-moss-200 bg-moss-25 p-2.5 transition hover:border-pine-600/40 dark:border-moss-750 dark:bg-moss-850 dark:hover:border-pine-350/40'
 
-  if (isRun && item.sessionId) {
+  if ((isRun || isBike) && item.sessionId) {
     return (
       <Link to="/session/$sessionId" params={{ sessionId: item.sessionId }} className={className}>
         {content}
       </Link>
     )
   }
-  if (!isRun) {
+  if (isGym) {
     return (
       <Link to="/entrainement/$workoutId" params={{ workoutId: item.id }} className={className}>
         {content}
