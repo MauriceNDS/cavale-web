@@ -5,6 +5,14 @@ export default {
     FITNESS: 'Remise en forme',
     GENERAL: 'Entraînement général',
   },
+  kinds: {
+    ROAD: 'Route',
+    TRAIL: 'Trail',
+  },
+  intensities: {
+    BALANCE: 'Équilibre',
+    PERFORMANCE: 'Performance',
+  },
   page: {
     title: 'Objectif',
     noPlan: "Aucun plan actif. Crée ou importe un plan d'entraînement pour définir ton objectif de saison.",
@@ -13,6 +21,8 @@ export default {
   main: {
     badge: 'Objectif principal',
     targetChip: 'objectif {{time}}',
+    paceChip: 'objectif {{pace}}',
+    kmEffortChip: '{{value}} km-effort',
     doneChip: 'réalisé {{time}}',
     weekOfTotal: 'Semaine {{current}} sur {{total}}',
     seasonUpcoming: 'Saison à venir',
@@ -71,6 +81,9 @@ export default {
   form: {
     name: 'Nom',
     type: 'Type',
+    kind: 'Terrain',
+    intensity: 'Approche',
+    intensityHint: 'Équilibre = progression plus douce et sûre · Performance = la montée la plus agressive dans les garde-fous',
     date: 'Date',
     location: 'Lieu',
     locationPlaceholder: 'Saint-Étienne → Lyon',

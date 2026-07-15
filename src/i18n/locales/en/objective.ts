@@ -5,6 +5,14 @@ export default {
     FITNESS: 'Getting back in shape',
     GENERAL: 'General training',
   },
+  kinds: {
+    ROAD: 'Road',
+    TRAIL: 'Trail',
+  },
+  intensities: {
+    BALANCE: 'Balance',
+    PERFORMANCE: 'Performance',
+  },
   page: {
     title: 'Goal',
     noPlan: 'No active plan. Create or import a training plan to set your season goal.',
@@ -13,6 +21,8 @@ export default {
   main: {
     badge: 'Main goal',
     targetChip: 'target {{time}}',
+    paceChip: 'target {{pace}}',
+    kmEffortChip: '{{value}} km-effort',
     doneChip: 'done {{time}}',
     weekOfTotal: 'Week {{current}} of {{total}}',
     seasonUpcoming: 'Season ahead',
@@ -70,6 +80,9 @@ export default {
   form: {
     name: 'Name',
     type: 'Type',
+    kind: 'Terrain',
+    intensity: 'Approach',
+    intensityHint: 'Balance = smoother, safer ramp · Performance = the most aggressive ramp within the guardrails',
     date: 'Date',
     location: 'Location',
     locationPlaceholder: 'Saint-Étienne → Lyon',

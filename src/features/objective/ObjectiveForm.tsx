@@ -2,13 +2,28 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { z } from 'zod'
 import { ErrorAlert } from '../../components/form'
-import type { ObjectiveResponse, ObjectiveType, UpdateObjectivePayload } from './api'
-import { OBJECTIVE_TYPES, objectiveTypeLabel } from './labels'
+import type {
+  ObjectiveIntensity,
+  ObjectiveKind,
+  ObjectiveResponse,
+  ObjectiveType,
+  UpdateObjectivePayload,
+} from './api'
+import {
+  OBJECTIVE_INTENSITIES,
+  OBJECTIVE_KINDS,
+  OBJECTIVE_TYPES,
+  objectiveIntensityLabel,
+  objectiveKindLabel,
+  objectiveTypeLabel,
+} from './labels'
 
 // Built per render so validation messages follow the active language.
 const buildSchema = (t: (key: string) => string) =>
   z.object({
     type: z.enum(['RACE', 'RECOVERY', 'FITNESS', 'GENERAL']),
+    kind: z.enum(['ROAD', 'TRAIL']),
+    intensity: z.enum(['BALANCE', 'PERFORMANCE']),
     name: z.string().trim().min(1, t('form.errors.nameRequired')).max(150, t('form.errors.max150')),
     date: z.string().nullable(),
     location: z.string().trim().max(150, t('form.errors.max150')).nullable(),
@@ -63,6 +78,8 @@ export function ObjectiveForm({ objective, pending, error, onSubmit, onCancel }:
 
     const candidate = {
       type: data.get('type') as ObjectiveType,
+      kind: data.get('kind') as ObjectiveKind,
+      intensity: data.get('intensity') as ObjectiveIntensity,
       name: (data.get('name') as string) ?? '',
       date: text('date'),
       location: text('location'),
@@ -104,6 +121,31 @@ export function ObjectiveForm({ objective, pending, error, onSubmit, onCancel }:
               </option>
             ))}
           </select>
+        </label>
+
+        <label className="block">
+          <span className="text-sm font-medium">{t('form.kind')}</span>
+          <select name="kind" defaultValue={objective?.kind ?? 'TRAIL'} className={fieldClass}>
+            {OBJECTIVE_KINDS.map((kind) => (
+              <option key={kind} value={kind}>
+                {objectiveKindLabel(kind)}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="block">
+          <span className="text-sm font-medium">{t('form.intensity')}</span>
+          <select name="intensity" defaultValue={objective?.intensity ?? 'BALANCE'} className={fieldClass}>
+            {OBJECTIVE_INTENSITIES.map((intensity) => (
+              <option key={intensity} value={intensity}>
+                {objectiveIntensityLabel(intensity)}
+              </option>
+            ))}
+          </select>
+          <span className={`mt-1 block text-xs text-moss-500 dark:text-moss-400`}>
+            {t('form.intensityHint')}
+          </span>
         </label>
 
         <label className="block">

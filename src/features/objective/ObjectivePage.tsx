@@ -18,7 +18,19 @@ import {
 } from './api'
 import { ObjectiveForm } from './ObjectiveForm'
 import { CumulativeChart, WeeklyChart, type Metric } from './charts'
-import { OBJECTIVE_TYPE_BADGE, formatHours, formatTimeMin, objectiveTypeLabel } from './labels'
+import {
+  OBJECTIVE_INTENSITY_BADGE,
+  OBJECTIVE_KIND_BADGE,
+  OBJECTIVE_TYPE_BADGE,
+  formatHours,
+  formatPaceSecPerKm,
+  formatTimeMin,
+  objectiveIntensityLabel,
+  objectiveKindLabel,
+  objectiveKmEffort,
+  objectivePaceSecPerKm,
+  objectiveTypeLabel,
+} from './labels'
 
 const card = 'rounded-xl border border-moss-200 bg-moss-25 p-5 dark:border-moss-750 dark:bg-moss-850'
 const muted = 'text-moss-500 dark:text-moss-400'
@@ -175,10 +187,17 @@ function MainObjectiveCard({ progress, editing, onEdit, onCancel, onSubmit, pend
   const { plan, mainObjective, currentWeekNumber, totalWeeks, daysToObjective, secondaryObjectives } = progress
   if (!mainObjective) return null
 
+  const pace = objectivePaceSecPerKm(mainObjective)
+  const kmEffort = objectiveKmEffort(mainObjective)
   const chips = [
     mainObjective.distanceKm != null && `${mainObjective.distanceKm} km`,
     mainObjective.elevationGainM != null &&
       `${mainObjective.elevationGainM.toLocaleString(numberLocale())} m D+`,
+    // The target the runner's way: pace on the road, km-effort on the trail.
+    mainObjective.kind === 'TRAIL' &&
+      kmEffort != null &&
+      t('main.kmEffortChip', { value: kmEffort }),
+    mainObjective.kind === 'ROAD' && pace != null && t('main.paceChip', { pace: formatPaceSecPerKm(pace) }),
     mainObjective.targetTimeMin != null &&
       t('main.targetChip', { time: formatTimeMin(mainObjective.targetTimeMin) }),
     mainObjective.resultTimeMin != null &&
@@ -203,6 +222,12 @@ function MainObjectiveCard({ progress, editing, onEdit, onCancel, onSubmit, pend
             </span>
             <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${OBJECTIVE_TYPE_BADGE[mainObjective.type]}`}>
               {objectiveTypeLabel(mainObjective.type)}
+            </span>
+            <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${OBJECTIVE_KIND_BADGE[mainObjective.kind]}`}>
+              {objectiveKindLabel(mainObjective.kind)}
+            </span>
+            <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${OBJECTIVE_INTENSITY_BADGE[mainObjective.intensity]}`}>
+              {objectiveIntensityLabel(mainObjective.intensity)}
             </span>
           </div>
           <h1 className="mt-2 font-display text-3xl font-semibold text-balance">{mainObjective.name}</h1>
@@ -506,6 +531,9 @@ function SecondaryObjectives({
                     <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${OBJECTIVE_TYPE_BADGE[objective.type]}`}>
                       {objectiveTypeLabel(objective.type)}
                     </span>
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${OBJECTIVE_KIND_BADGE[objective.kind]}`}>
+                      {objectiveKindLabel(objective.kind)}
+                    </span>
                   </div>
                   <p className={`mt-0.5 text-sm ${muted}`}>
                     {[
@@ -513,6 +541,12 @@ function SecondaryObjectives({
                         format(parseISO(objective.date), 'EEEE d MMMM', { locale: dateLocale() }),
                       objective.distanceKm != null && `${objective.distanceKm} km`,
                       objective.elevationGainM != null && `${objective.elevationGainM} m D+`,
+                      objective.kind === 'TRAIL' &&
+                        objectiveKmEffort(objective) != null &&
+                        t('main.kmEffortChip', { value: objectiveKmEffort(objective) }),
+                      objective.kind === 'ROAD' &&
+                        objectivePaceSecPerKm(objective) != null &&
+                        t('main.paceChip', { pace: formatPaceSecPerKm(objectivePaceSecPerKm(objective)!) }),
                       objective.targetTimeMin != null &&
                         t('main.targetChip', { time: formatTimeMin(objective.targetTimeMin) }),
                       objective.resultTimeMin != null &&

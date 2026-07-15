@@ -3,12 +3,16 @@ import type { PlanResponse, WeekType } from '../calendar/api'
 
 export type ObjectiveRole = 'MAIN' | 'SECONDARY'
 export type ObjectiveType = 'RACE' | 'RECOVERY' | 'FITNESS' | 'GENERAL'
+export type ObjectiveKind = 'ROAD' | 'TRAIL'
+export type ObjectiveIntensity = 'BALANCE' | 'PERFORMANCE'
 
 export interface ObjectiveResponse {
   id: string
   planId: string
   role: ObjectiveRole
   type: ObjectiveType
+  kind: ObjectiveKind
+  intensity: ObjectiveIntensity
   name: string
   date: string | null
   distanceKm: number | null
@@ -65,6 +69,8 @@ export interface PlanProgressResponse {
 
 export interface ObjectivePayload {
   type: ObjectiveType
+  kind: ObjectiveKind
+  intensity: ObjectiveIntensity
   name: string
   date?: string | null
   distanceKm?: number | null
