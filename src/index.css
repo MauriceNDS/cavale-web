@@ -72,6 +72,12 @@
     @apply text-ink dark:text-linen;
   }
 
+  /* When a button label must wrap on a narrow screen, wrap it evenly —
+     balanced lines instead of an orphan word dangling under the first. */
+  button {
+    text-wrap: balance;
+  }
+
   /* Topographic contour texture over the page background. Painted with a
      theme color and masked by the (seamlessly tiling) contour SVG, so the
      same asset serves light and dark mode. Page bg lives on <html> because
