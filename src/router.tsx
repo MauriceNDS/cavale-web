@@ -27,7 +27,8 @@ import { ActivitiesPage } from './features/athlete/ActivitiesPage'
 import { StatsPage } from './features/stats/StatsPage'
 import { ObjectivePage } from './features/objective/ObjectivePage'
 import { OnboardingPage } from './features/auth/OnboardingPage'
-import { SettingsPage } from './features/settings/SettingsPage'
+import { ParametersPage } from './features/settings/ParametersPage'
+import { ProfilePage } from './features/settings/ProfilePage'
 
 /* ── Navigation model ──────────────────────────────────────────────── */
 
@@ -96,15 +97,22 @@ function IconChart({ className }: IconProps) {
   )
 }
 
+function IconUser({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 21c1.5-3.5 4.5-5 8-5s6.5 1.5 8 5" />
+    </svg>
+  )
+}
+
 interface NavItem {
   label: string
-  to?: '/' | '/calendrier' | '/objectif' | '/renfo' | '/activites' | '/stats' | '/profil'
+  to?: '/' | '/calendrier' | '/objectif' | '/renfo' | '/activites' | '/stats'
   icon?: (props: IconProps) => ReactNode
   soon?: boolean
   /** In the mobile bottom bar; the rest lives in the account menu. */
   mobileTab?: boolean
-  /** Account menu only — not in the desktop sidebar main list. */
-  menuOnly?: boolean
   /** Hidden entirely when the athlete uses Cavale for running only. */
   needsGym?: boolean
 }
@@ -116,32 +124,17 @@ const NAV: NavItem[] = [
   { label: 'Activités', to: '/activites', icon: IconPulse, mobileTab: true },
   { label: 'Statistiques', to: '/stats', icon: IconChart },
   { label: 'Objectif', to: '/objectif', icon: IconTarget },
-  { label: 'Profil', to: '/profil', icon: IconSettings, menuOnly: true },
 ]
 
 function visibleNav(gymEnabled: boolean): NavItem[] {
   return NAV.filter((item) => gymEnabled || !item.needsGym)
 }
 
-/** Mobile header title: the shell names the page, pages keep their own h1. */
-function pageTitle(pathname: string): string {
-  if (pathname.startsWith('/calendrier')) return 'Calendrier'
-  if (pathname.startsWith('/session')) return 'Séance'
-  if (pathname.startsWith('/renfo')) return 'Renfo'
-  if (pathname.startsWith('/entrainement')) return 'Entraînement'
-  if (pathname.startsWith('/activites')) return 'Activités'
-  if (pathname.startsWith('/stats')) return 'Statistiques'
-  if (pathname.startsWith('/objectif')) return 'Objectif'
-  if (pathname.startsWith('/profil')) return 'Profil'
-  if (pathname.startsWith('/bienvenue')) return 'Bienvenue'
-  return 'Accueil'
-}
-
 /** Desktop sidebar entries — the full map, "bientôt" items included. */
 function SidebarLinks({ gymEnabled }: { gymEnabled: boolean }) {
   return (
     <>
-      {visibleNav(gymEnabled).filter((item) => !item.menuOnly).map((item) =>
+      {visibleNav(gymEnabled).map((item) =>
         item.soon ? (
           <span
             key={item.label}
@@ -169,85 +162,155 @@ function SidebarLinks({ gymEnabled }: { gymEnabled: boolean }) {
   )
 }
 
-/** Mobile bottom bar: the daily destinations — the rest sits in the account menu. */
-function TabBar({ gymEnabled }: { gymEnabled: boolean }) {
-  const tabs = visibleNav(gymEnabled).filter((item) => item.to && item.mobileTab)
+/** Shared body of the account menus: profile, parameters, theme mode, logout. */
+function AccountMenuItems({
+  extraNav,
+  onNavigate,
+  onLogout,
+}: {
+  /** Destinations that have no tab of their own (mobile sheet only). */
+  extraNav?: NavItem[]
+  onNavigate: () => void
+  onLogout: () => void
+}) {
+  const itemCls =
+    'flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-ink transition hover:bg-moss-100 dark:text-linen dark:hover:bg-moss-800'
+  const iconCls = 'h-4.5 w-4.5 text-moss-500 dark:text-moss-400'
+
   return (
-    <nav className={`fixed inset-x-0 bottom-0 z-40 grid ${tabs.length === 3 ? 'grid-cols-3' : 'grid-cols-4'} border-t border-moss-200 bg-moss-25/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden dark:border-moss-750 dark:bg-moss-850/95`}>
-      {tabs.map((item) => (
-        <Link
-          key={item.label}
-          to={item.to!}
-          activeOptions={{ exact: item.to === '/' }}
-          className="flex flex-col items-center gap-0.5 pt-1.5 pb-2 text-[10px] font-medium text-moss-500 transition dark:text-moss-400 [&.active]:text-pine-700 dark:[&.active]:text-pine-300 [&.active_.tab-pill]:bg-pine-100 dark:[&.active_.tab-pill]:bg-pine-900"
-        >
-          <span className="tab-pill grid h-7 w-12 place-items-center rounded-full transition">
-            {item.icon && <item.icon className="h-5.5 w-5.5" />}
-          </span>
+    <>
+      {extraNav?.map((item) => (
+        <Link key={item.label} to={item.to!} role="menuitem" onClick={onNavigate} className={itemCls}>
+          {item.icon && <item.icon className={iconCls} />}
           {item.label}
         </Link>
       ))}
-    </nav>
+      <Link to="/profil" role="menuitem" onClick={onNavigate} className={itemCls}>
+        <IconUser className={iconCls} />
+        Voir le profil
+      </Link>
+      <Link to="/parametres" role="menuitem" onClick={onNavigate} className={itemCls}>
+        <IconSettings className={iconCls} />
+        Paramètres
+      </Link>
+      <button
+        role="menuitem"
+        onClick={onLogout}
+        className="w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-clay-500 transition hover:bg-moss-100 dark:text-clay-300 dark:hover:bg-moss-800"
+      >
+        Se déconnecter
+      </button>
+    </>
   )
 }
 
-/** Mobile account menu: identity, theme and logout live here — the desktop
- *  sidebar footer doesn't exist below md. */
-function AccountMenu({ user, onLogout }: { user: UserResponse; onLogout: () => void }) {
-  // eslint-disable-next-line react-hooks/rules-of-hooks -- stable component
-
+/** Desktop sidebar footer: identity button opening the account menu. */
+function SidebarAccount({ user, onLogout }: { user: UserResponse; onLogout: () => void }) {
   const [open, setOpen] = useState(false)
-  const initial = (user.displayName || user.email).charAt(0).toUpperCase()
 
   return (
-    <div className="relative md:hidden">
+    <div className="relative mt-auto border-t border-moss-200 pt-3 dark:border-moss-750">
       <button
         onClick={() => setOpen(!open)}
         aria-expanded={open}
         aria-haspopup="menu"
-        aria-label="Compte"
-        className="grid h-8 w-8 place-items-center rounded-full bg-pine-600 text-sm font-semibold text-moss-25 dark:bg-pine-350 dark:text-moss-950"
+        className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition hover:bg-moss-100 dark:hover:bg-moss-800"
       >
-        {initial}
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-pine-600 text-sm font-semibold text-moss-25 dark:bg-pine-350 dark:text-moss-950">
+          {(user.displayName || user.email).charAt(0).toUpperCase()}
+        </span>
+        <span className="min-w-0">
+          <span className="block truncate text-sm font-medium">{user.displayName}</span>
+          <span className="block truncate text-xs text-moss-500 dark:text-moss-400">{user.email}</span>
+        </span>
       </button>
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} aria-hidden="true" />
           <div
             role="menu"
-            className="absolute top-10 right-0 z-50 w-60 rounded-xl border border-moss-200 bg-moss-25 p-2 shadow-lg dark:border-moss-750 dark:bg-moss-850"
+            className="absolute inset-x-0 bottom-full z-50 mb-2 rounded-xl border border-moss-200 bg-moss-25 p-2 shadow-lg dark:border-moss-750 dark:bg-moss-850"
+          >
+            <AccountMenuItems onNavigate={() => setOpen(false)} onLogout={onLogout} />
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+/** Mobile bottom bar: the daily destinations, plus a Profil tab that opens
+ *  the account sheet — identity, remaining destinations, theme and logout. */
+function TabBar({ user, onLogout }: { user: UserResponse; onLogout: () => void }) {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const pathname = useRouterState({ select: (state) => state.location.pathname })
+  const tabs = visibleNav(user.gymEnabled).filter((item) => item.to && item.mobileTab)
+  const extraNav = visibleNav(user.gymEnabled).filter((item) => item.to && !item.mobileTab)
+  const accountActive =
+    menuOpen || pathname.startsWith('/profil') || pathname.startsWith('/parametres')
+
+  return (
+    <>
+      <nav className={`fixed inset-x-0 bottom-0 z-40 grid ${tabs.length === 3 ? 'grid-cols-4' : 'grid-cols-5'} border-t border-moss-200 bg-moss-25/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden dark:border-moss-750 dark:bg-moss-850/95`}>
+        {tabs.map((item) => (
+          <Link
+            key={item.label}
+            to={item.to!}
+            activeOptions={{ exact: item.to === '/' }}
+            className="flex flex-col items-center gap-0.5 pt-1.5 pb-2 text-[10px] font-medium text-moss-500 transition dark:text-moss-400 [&.active]:text-pine-700 dark:[&.active]:text-pine-300 [&.active_.tab-pill]:bg-pine-100 dark:[&.active_.tab-pill]:bg-pine-900"
+          >
+            <span className="tab-pill grid h-7 w-12 place-items-center rounded-full transition">
+              {item.icon && <item.icon className="h-5.5 w-5.5" />}
+            </span>
+            {item.label}
+          </Link>
+        ))}
+        <button
+          onClick={() => setMenuOpen(true)}
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          className={`flex flex-col items-center gap-0.5 pt-1.5 pb-2 text-[10px] font-medium transition ${
+            accountActive ? 'text-pine-700 dark:text-pine-300' : 'text-moss-500 dark:text-moss-400'
+          }`}
+        >
+          <span
+            className={`tab-pill grid h-7 w-12 place-items-center rounded-full transition ${
+              accountActive ? 'bg-pine-100 dark:bg-pine-900' : ''
+            }`}
+          >
+            <span className="grid h-5.5 w-5.5 place-items-center rounded-full bg-pine-600 text-[10px] font-semibold text-moss-25 dark:bg-pine-350 dark:text-moss-950">
+              {(user.displayName || user.email).charAt(0).toUpperCase()}
+            </span>
+          </span>
+          Profil
+        </button>
+      </nav>
+      {menuOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-40 bg-moss-950/50 md:hidden"
+            onClick={() => setMenuOpen(false)}
+            aria-hidden="true"
+          />
+          <div
+            role="menu"
+            className="fixed inset-x-0 bottom-0 z-50 rounded-t-2xl border-t border-moss-200 bg-moss-25 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:hidden dark:border-moss-750 dark:bg-moss-850"
           >
             <div className="border-b border-moss-200 px-3 pt-1 pb-2.5 dark:border-moss-750">
               <p className="truncate text-sm font-semibold">{user.displayName}</p>
               <p className="truncate text-xs text-moss-500 dark:text-moss-400">{user.email}</p>
             </div>
-            {visibleNav(user.gymEnabled).filter((item) => item.to && !item.mobileTab).map((item) => (
-              <Link
-                key={item.label}
-                to={item.to!}
-                role="menuitem"
-                onClick={() => setOpen(false)}
-                className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-ink transition hover:bg-moss-100 dark:text-linen dark:hover:bg-moss-800"
-              >
-                {item.icon && <item.icon className="h-4.5 w-4.5 text-moss-500 dark:text-moss-400" />}
-                {item.label}
-              </Link>
-            ))}
-            <div className="flex items-center justify-between px-3 py-1.5 text-sm">
-              Thème
-              <ThemeToggle />
+            <div className="mt-1">
+              <AccountMenuItems
+                extraNav={extraNav}
+                onNavigate={() => setMenuOpen(false)}
+                onLogout={onLogout}
+              />
             </div>
-            <button
-              role="menuitem"
-              onClick={onLogout}
-              className="w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-clay-500 transition hover:bg-moss-100 dark:text-clay-300 dark:hover:bg-moss-800"
-            >
-              Se déconnecter
-            </button>
           </div>
         </>
       )}
-    </div>
+    </>
   )
 }
 
@@ -256,7 +319,13 @@ function AccountMenu({ user, onLogout }: { user: UserResponse; onLogout: () => v
 function Shell({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
-  const pathname = useRouterState({ select: (state) => state.location.pathname })
+
+  // Session still restoring: render neither chrome. Mounting pages now and
+  // remounting them once the user arrives would run mount effects twice —
+  // the Strava OAuth banner consumes its ?strava=… query on first mount.
+  if (user === undefined) {
+    return <p className="mt-16 text-center text-moss-500 dark:text-moss-400">Chargement…</p>
+  }
 
   if (!user) {
     // Signed-out chrome: slim public header
@@ -293,10 +362,16 @@ function Shell({ children }: { children: ReactNode }) {
     )
   }
 
-  // Signed-in chrome: sidebar (desktop) + bottom tabs (mobile)
+  const handleLogout = () => {
+    logout()
+    navigate({ to: '/login' })
+  }
+
+  // Signed-in chrome: sidebar (desktop) + bottom tabs (mobile) — no header;
+  // identity, theme and logout live in the account menu.
   return (
     <div className="min-h-screen md:flex">
-      {/* sticky: the footer (profile + logout) stays reachable on long pages */}
+      {/* sticky: the account footer stays reachable on long pages */}
       <aside className="hidden w-52 shrink-0 flex-col border-r border-moss-200 bg-moss-25 p-4 md:sticky md:top-0 md:flex md:h-screen md:overflow-y-auto dark:border-moss-750 dark:bg-moss-850">
         <Link
           to="/"
@@ -308,54 +383,12 @@ function Shell({ children }: { children: ReactNode }) {
         <nav className="flex flex-col gap-1">
           <SidebarLinks gymEnabled={user.gymEnabled} />
         </nav>
-        <div className="mt-auto border-t border-moss-200 pt-3 dark:border-moss-750">
-          <Link
-            to="/profil"
-            className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition hover:bg-moss-100 dark:hover:bg-moss-800"
-          >
-            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-pine-600 text-sm font-semibold text-moss-25 dark:bg-pine-350 dark:text-moss-950">
-              {(user.displayName || user.email).charAt(0).toUpperCase()}
-            </span>
-            <span className="min-w-0">
-              <span className="block truncate text-sm font-medium">{user.displayName}</span>
-              <span className="block text-xs text-moss-500 dark:text-moss-400">Voir le profil</span>
-            </span>
-          </Link>
-          <button
-            onClick={() => {
-              logout()
-              navigate({ to: '/login' })
-            }}
-            className="mt-1 px-2 py-1 text-sm text-moss-500 transition hover:text-ink dark:text-moss-400 dark:hover:text-linen"
-          >
-            Se déconnecter
-          </button>
-        </div>
+        <SidebarAccount user={user} onLogout={handleLogout} />
       </aside>
 
       <div className="flex min-h-screen flex-1 flex-col">
-        <header className="flex items-center gap-3 border-b border-moss-200 bg-moss-25 px-4 py-2 md:py-2.5 dark:border-moss-750 dark:bg-moss-850">
-          <span className="font-display text-lg font-semibold md:hidden">
-            {pageTitle(pathname)}
-          </span>
-          <div className="ml-auto flex items-center gap-2">
-            <div className="hidden md:block">
-              <ThemeToggle />
-            </div>
-            <span className="hidden text-sm text-moss-500 md:block dark:text-moss-400">
-              {user.email}
-            </span>
-            <AccountMenu
-              user={user}
-              onLogout={() => {
-                logout()
-                navigate({ to: '/login' })
-              }}
-            />
-          </div>
-        </header>
         <main className="flex-1 px-4 pb-24 md:px-8 md:pb-10">{children}</main>
-        <TabBar gymEnabled={user.gymEnabled} />
+        <TabBar user={user} onLogout={handleLogout} />
       </div>
     </div>
   )
@@ -491,18 +524,29 @@ const loginRoute = createRoute({
   component: LoginPage,
 })
 
+// Legacy URL — Strava/MCP live in Paramètres now; keep the OAuth query intact.
 const settingsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/settings',
-  beforeLoad: () => {
-    throw redirect({ to: '/profil' })
+  validateSearch: (search: Record<string, unknown>): { strava?: string } =>
+    typeof search.strava === 'string' ? { strava: search.strava } : {},
+  beforeLoad: ({ search }) => {
+    throw redirect({ to: '/parametres', search })
   },
 })
 
 const profilRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/profil',
-  component: SettingsPage,
+  component: ProfilePage,
+})
+
+const parametresRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/parametres',
+  component: ParametersPage,
+  validateSearch: (search: Record<string, unknown>): { strava?: string } =>
+    typeof search.strava === 'string' ? { strava: search.strava } : {},
 })
 
 const onboardingRoute = createRoute({
@@ -533,6 +577,7 @@ const routeTree = rootRoute.addChildren([
   loginRoute,
   settingsRoute,
   profilRoute,
+  parametresRoute,
   onboardingRoute,
   stravaCallbackRoute,
 ])

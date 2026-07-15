@@ -593,8 +593,8 @@ function StravaPicker({ onPick }: { onPick: (id: number) => void }) {
     return (
       <p className="text-sm text-moss-500 dark:text-moss-400">
         Strava n'est pas connecté.{' '}
-        <Link to="/settings" className="font-medium text-pine-700 underline dark:text-pine-300">
-          Connecter dans les réglages
+        <Link to="/parametres" className="font-medium text-pine-700 underline dark:text-pine-300">
+          Connecter dans les paramètres
         </Link>
       </p>
     )

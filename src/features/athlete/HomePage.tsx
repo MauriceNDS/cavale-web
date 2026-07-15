@@ -65,7 +65,7 @@ function StatusChip() {
   if (!user || user.athleteStatus === 'AVAILABLE') return null
   return (
     <Link
-      to="/settings"
+      to="/profil"
       className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-clay-100 px-3 py-1 text-xs font-semibold text-clay-600 transition hover:bg-clay-100/70 dark:bg-clay-900 dark:text-clay-300"
     >
       ⚠ {STATUS_CHIP[user.athleteStatus]}
@@ -93,9 +93,9 @@ function ProfileHeader({ hub }: { hub: AthleteHub }) {
         <div>
           <h1 className="font-display text-3xl font-semibold">{profile.displayName}</h1>
           <p className={`mt-1 text-sm ${muted}`}>
-            {details.length > 0 ? details.join(' · ') : 'Complète ton profil dans les réglages'}
+            {details.length > 0 ? details.join(' · ') : 'Complète ton profil'}
             {' · '}
-            <Link to="/settings" className="text-pine-700 underline dark:text-pine-300">
+            <Link to="/profil" className="text-pine-700 underline dark:text-pine-300">
               modifier
             </Link>
           </p>
@@ -151,8 +151,8 @@ function SyncCard({ sync }: { sync: AthleteHub['sync'] }) {
     return (
       <p className={`mt-4 border-t border-moss-200 pt-3 text-sm dark:border-moss-750 ${muted}`}>
         Connecte Strava dans les{' '}
-        <Link to="/settings" className="text-pine-700 underline dark:text-pine-300">
-          réglages
+        <Link to="/parametres" className="text-pine-700 underline dark:text-pine-300">
+          paramètres
         </Link>{' '}
         pour importer ton historique, tes records et ton effort relatif.
       </p>

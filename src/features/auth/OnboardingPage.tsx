@@ -101,7 +101,7 @@ export function OnboardingPage() {
               onSelect={() => setGym(false)}
               emoji="🏃"
               title="La course uniquement"
-              description="Plans, calendrier, Strava et statistiques. Le renfo reste activable plus tard dans le profil."
+              description="Plans, calendrier, Strava et statistiques. Le renfo reste activable plus tard dans les paramètres."
             />
             <UsageCard
               selected={gym}
