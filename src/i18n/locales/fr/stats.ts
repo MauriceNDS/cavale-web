@@ -75,6 +75,26 @@ export default {
     runsWithHr_one: '{{count}} sortie avec FC',
     runsWithHr_other: '{{count}} sorties avec FC',
   },
+  vo2max: {
+    title: 'VO2max & allure critique',
+    hint: "VO2max effective estimée d'après tes sorties route (allure vs fréquence cardiaque), et allure critique — l'allure la plus haute tenable — ajustée sur tes meilleurs efforts.",
+    aria: 'Tendance VO2max effective',
+    notEnough: 'Pas encore assez de données FC.',
+    value: 'VO2max ≈ {{value}}',
+    runs_one: '{{count}} sortie',
+    runs_other: '{{count}} sorties',
+    criticalPace: 'Allure critique',
+    criticalSpeed: 'Vitesse critique',
+    anaerobic: "Réserve anaérobie D'",
+    criticalBasis: 'Ajustée sur {{count}} meilleurs efforts · R² {{r2}}',
+  },
+  durability: {
+    title: 'Endurance aérobie',
+    hint: "Découplage FC/allure sur tes sorties longues — de combien l'efficience chute en seconde moitié. Sous 5 %, tu tiens ; au-dessus, tu craques en fin de course.",
+    aria: 'Découplage aérobie sur les sorties longues',
+    notEnough: 'Pas encore assez de sorties longues avec FC.',
+    decoupling: 'Découplage : {{value}} %',
+  },
   predictions: {
     title: 'Prédictions',
     trailBasis:

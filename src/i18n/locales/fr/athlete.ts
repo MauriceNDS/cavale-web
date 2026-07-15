@@ -24,6 +24,13 @@ export default {
       },
       trend: 'fitness {{value}} / 28 j',
     },
+    trailIndex: {
+      title: 'Indice de performance trail',
+      best: 'meilleur effort : {{km}} km-effort',
+      bestNamed: 'meilleur : {{name}} ({{km}} km-effort)',
+      basis_one: 'sur {{count}} effort',
+      basis_other: 'sur tes {{count}} meilleurs efforts',
+    },
     profile: {
       age_one: '{{count}} an',
       age_other: '{{count}} ans',

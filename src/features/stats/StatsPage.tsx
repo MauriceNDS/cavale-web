@@ -7,11 +7,14 @@ import { dateLocale, numberLocale } from '../../i18n'
 import {
   fetchRunningStats,
   type Acwr,
+  type CriticalPace,
   type DayForm,
+  type DurabilityPoint,
   type DurationCheckpoint,
   type MonthEfficiency,
   type RoadPrediction,
   type TrailEstimate,
+  type Vo2maxPoint,
   type WeekEffort,
   type WeekMonotony,
   type WeekVolume,
@@ -98,6 +101,8 @@ function RunningStats() {
   const volume = stats.weeklyVolume.filter((w) => inRange(w.weekStart))
   const monotony = stats.monotony.filter((w) => inRange(w.weekStart))
   const efficiency = stats.efficiency.slice(-months)
+  const vo2max = stats.vo2maxTrend.slice(-months)
+  const durability = stats.durability.filter((p) => inRange(p.date))
 
   return (
     <>
@@ -187,6 +192,29 @@ function RunningStats() {
           </p>
           <div className="mt-3">
             <EfficiencyChart months={efficiency} />
+          </div>
+        </section>
+      )}
+
+      {(stats.vo2maxTrend.some((m) => m.vo2max != null) || stats.criticalPace) && (
+        <section className={card}>
+          <h2 className="font-display text-lg font-semibold">{t('vo2max.title')}</h2>
+          <p className={`mt-0.5 text-xs ${muted}`}>{t('vo2max.hint')}</p>
+          {stats.vo2maxTrend.some((m) => m.vo2max != null) && (
+            <div className="mt-3">
+              <Vo2maxChart months={vo2max} />
+            </div>
+          )}
+          {stats.criticalPace && <CriticalPaceStat cp={stats.criticalPace} />}
+        </section>
+      )}
+
+      {stats.durability.length > 0 && (
+        <section className={card}>
+          <h2 className="font-display text-lg font-semibold">{t('durability.title')}</h2>
+          <p className={`mt-0.5 text-xs ${muted}`}>{t('durability.hint')}</p>
+          <div className="mt-3">
+            <DurabilityChart points={durability} />
           </div>
         </section>
       )}
@@ -654,6 +682,131 @@ function EfficiencyChart({ months }: { months: MonthEfficiency[] }) {
       ))}
       <HitStrips count={points.length} onHover={setHover} />
     </svg>
+    </div>
+  )
+}
+
+/* ── VO2max trend & critical pace ──────────────────────────────────── */
+
+function Vo2maxChart({ months }: { months: Vo2maxPoint[] }) {
+  const { t } = useTranslation('stats')
+  const [hover, setHover] = useState<number | null>(null)
+  const points = months.filter((m) => m.vo2max != null)
+  if (points.length < 2) return <p className={`text-sm ${muted}`}>{t('vo2max.notEnough')}</p>
+  const values = points.map((m) => m.vo2max!)
+  const lo = Math.min(...values) - 2
+  const hi = Math.max(...values) + 2
+  const x = xScale(points.length)
+  const y = (v: number) => PAD.top + (1 - (v - lo) / (hi - lo)) * plotH
+  const path = points.map((m, i) => `${i === 0 ? 'M' : 'L'} ${x(i)} ${y(m.vo2max!)}`).join(' ')
+
+  const hovered = hover != null ? points[hover] : null
+  return (
+    <div className="relative" onPointerLeave={() => setHover(null)}>
+      {hovered && (
+        <ChartTooltip
+          xRatio={x(hover!) / W}
+          lines={[
+            format(parseISO(`${hovered.month}-01`), 'MMMM yyyy', { locale: dateLocale() }),
+            t('vo2max.value', { value: hovered.vo2max }),
+            t('vo2max.runs', { count: hovered.runs }),
+          ]}
+        />
+      )}
+      <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label={t('vo2max.aria')}>
+        <GridY ticks={[lo + (hi - lo) * 0.25, lo + (hi - lo) * 0.75]} y={y} format={(v) => v.toFixed(0)} />
+        <path d={path} fill="none" strokeWidth={2} className="stroke-pine-600 dark:stroke-pine-350" />
+        {points.map((m, i) => (
+          <g key={m.month}>
+            <circle cx={x(i)} cy={y(m.vo2max!)} r={3} className="fill-pine-600 dark:fill-pine-350" />
+            <text x={x(i)} y={H - 6} textAnchor="middle"
+              className="fill-moss-500 text-[10px] dark:fill-moss-400">
+              {format(parseISO(`${m.month}-01`), 'MMM', { locale: dateLocale() })}
+            </text>
+          </g>
+        ))}
+        <HitStrips count={points.length} onHover={setHover} />
+      </svg>
+    </div>
+  )
+}
+
+const statCard =
+  'rounded-lg border border-moss-200 bg-moss-50 p-3 dark:border-moss-750 dark:bg-moss-900'
+
+function CriticalPaceStat({ cp }: { cp: CriticalPace }) {
+  const { t } = useTranslation('stats')
+  return (
+    <>
+      <div className="mt-4 grid grid-cols-3 gap-3">
+        <div className={statCard}>
+          <p className={`text-xs ${muted}`}>{t('vo2max.criticalPace')}</p>
+          <p className="mt-0.5 text-xl font-semibold">{formatPace(cp.criticalPaceSecPerKm)}</p>
+        </div>
+        <div className={statCard}>
+          <p className={`text-xs ${muted}`}>{t('vo2max.criticalSpeed')}</p>
+          <p className="mt-0.5 text-xl font-semibold">{cp.criticalSpeedMps.toFixed(2)}<span className="text-sm font-normal"> m/s</span></p>
+        </div>
+        <div className={statCard}>
+          <p className={`text-xs ${muted}`}>{t('vo2max.anaerobic')}</p>
+          <p className="mt-0.5 text-xl font-semibold">{cp.anaerobicCapacityM}<span className="text-sm font-normal"> m</span></p>
+        </div>
+      </div>
+      <p className={`mt-2 text-xs ${muted}`}>
+        {t('vo2max.criticalBasis', { count: cp.samples, r2: cp.fitQuality.toFixed(2) })}
+      </p>
+    </>
+  )
+}
+
+/* ── Durability: aerobic decoupling on long runs ───────────────────── */
+
+function DurabilityChart({ points }: { points: DurabilityPoint[] }) {
+  const { t } = useTranslation('stats')
+  const [hover, setHover] = useState<number | null>(null)
+  if (points.length < 2) return <p className={`text-sm ${muted}`}>{t('durability.notEnough')}</p>
+  const values = points.map((p) => p.decouplingPct)
+  const lo = Math.min(...values, 0)
+  const hi = Math.max(...values, 6) * 1.05
+  const x = xScale(points.length)
+  const y = (v: number) => PAD.top + (1 - (v - lo) / (hi - lo)) * plotH
+  const path = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${x(i)} ${y(p.decouplingPct)}`).join(' ')
+
+  const hovered = hover != null ? points[hover] : null
+  return (
+    <div className="relative" onPointerLeave={() => setHover(null)}>
+      {hovered && (
+        <ChartTooltip
+          xRatio={x(hover!) / W}
+          lines={[
+            format(parseISO(hovered.date), 'd MMMM yyyy', { locale: dateLocale() }),
+            t('durability.decoupling', { value: hovered.decouplingPct.toFixed(1) }),
+            `${hovered.distanceKm ?? '—'} km · ${formatChrono(hovered.durationMin * 60)}`,
+          ]}
+        />
+      )}
+      <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label={t('durability.aria')}>
+        <GridY ticks={[0, Math.round(hi / 2)]} y={y} format={(v) => `${v.toFixed(0)}%`} />
+        {/* the 5 % durability threshold */}
+        <line x1={PAD.left} x2={W - PAD.right} y1={y(5)} y2={y(5)} strokeWidth={1} strokeDasharray="4 3"
+          className="stroke-gold-600/70 dark:stroke-gold-300/70" />
+        <text x={W - PAD.right + 4} y={y(5) + 3} textAnchor="start"
+          className="fill-gold-600 text-[10px] dark:fill-gold-300">5%</text>
+        <path d={path} fill="none" strokeWidth={2} className="stroke-lake-600 dark:stroke-lake-300" />
+        {points.map((p, i) => (
+          <circle key={`${p.date}-${i}`} cx={x(i)} cy={y(p.decouplingPct)} r={3}
+            className={p.decouplingPct > 5
+              ? 'fill-clay-500 dark:fill-clay-300'
+              : 'fill-pine-600 dark:fill-pine-350'} />
+        ))}
+        {[0, Math.floor(points.length / 2), points.length - 1].map((i) => (
+          <text key={i} x={x(i)} y={H - 6} textAnchor="middle"
+            className="fill-moss-500 text-[10px] dark:fill-moss-400">
+            {format(parseISO(points[i].date), 'd MMM', { locale: dateLocale() })}
+          </text>
+        ))}
+        <HitStrips count={points.length} onHover={setHover} />
+      </svg>
     </div>
   )
 }

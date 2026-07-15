@@ -74,6 +74,26 @@ export default {
     runsWithHr_one: '{{count}} run with HR',
     runsWithHr_other: '{{count}} runs with HR',
   },
+  vo2max: {
+    title: 'VO2max & critical pace',
+    hint: 'Effective VO2max estimated from your road runs (pace vs heart rate), and critical pace — the highest pace you could hold — fitted from your best efforts.',
+    aria: 'Effective VO2max trend',
+    notEnough: 'Not enough HR data yet.',
+    value: 'VO2max ≈ {{value}}',
+    runs_one: '{{count}} run',
+    runs_other: '{{count}} runs',
+    criticalPace: 'Critical pace',
+    criticalSpeed: 'Critical speed',
+    anaerobic: "Anaerobic reserve D'",
+    criticalBasis: 'Fitted from {{count}} best efforts · R² {{r2}}',
+  },
+  durability: {
+    title: 'Aerobic durability',
+    hint: 'Heart-rate/pace decoupling on your long runs — how much efficiency drops in the second half. Under 5 % is durable; higher means you fade late.',
+    aria: 'Aerobic decoupling on long runs',
+    notEnough: 'Not enough long runs with heart rate yet.',
+    decoupling: 'Decoupling: {{value}} %',
+  },
   predictions: {
     title: 'Predictions',
     trailBasis:

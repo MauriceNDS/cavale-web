@@ -62,6 +62,14 @@ export interface WeeklyEffort {
   distanceKm: number
 }
 
+export interface TrailIndex {
+  index: number
+  sampleEfforts: number
+  bestEffortName: string | null
+  bestEffortDate: string
+  bestKmEffort: number
+}
+
 export interface AthleteHub {
   profile: {
     displayName: string
@@ -77,6 +85,7 @@ export interface AthleteHub {
   records: DistanceRecord[]
   longestRuns: { byDistance: RunRef | null; byDuration: RunRef | null }
   predictions: Prediction[]
+  trailIndex: TrailIndex | null
   totals: { year: PeriodTotals; allTime: PeriodTotals }
   monthly: MonthlyStat[]
   weeklyEffort: WeeklyEffort[]
@@ -257,6 +266,27 @@ export interface TrainingStatus {
   acwr: number
 }
 
+export interface Vo2maxPoint {
+  month: string
+  vo2max: number | null
+  runs: number
+}
+
+export interface CriticalPace {
+  criticalPaceSecPerKm: number
+  criticalSpeedMps: number
+  anaerobicCapacityM: number
+  samples: number
+  fitQuality: number
+}
+
+export interface DurabilityPoint {
+  date: string
+  decouplingPct: number
+  distanceKm: number | null
+  durationMin: number
+}
+
 export interface RunningStatsResponse {
   form: DayForm[]
   weeklyEffort: WeekEffort[]
@@ -268,6 +298,9 @@ export interface RunningStatsResponse {
   trailEstimates: TrailEstimate[]
   monotony: WeekMonotony[]
   trainingStatus: TrainingStatus | null
+  vo2maxTrend: Vo2maxPoint[]
+  criticalPace: CriticalPace | null
+  durability: DurabilityPoint[]
 }
 
 export function fetchRunningStats(): Promise<RunningStatsResponse> {

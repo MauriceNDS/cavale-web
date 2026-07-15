@@ -16,6 +16,7 @@ import {
   syncStravaHistory,
   type AthleteHub,
   type Season,
+  type TrailIndex,
   type TrainingStatusLabel,
 } from './api'
 import { EffortChart, MonthlyBars, TrendLine } from './charts'
@@ -451,6 +452,33 @@ function NextObjectiveForm({ hasFuture }: { hasFuture: boolean }) {
 
 /* ── Records, longest runs, estimations ────────────────────────────── */
 
+/** The personal trail performance index — one number the athlete watches climb. */
+function TrailIndexTile({ trailIndex }: { trailIndex: TrailIndex }) {
+  const { t } = useTranslation('athlete')
+  return (
+    <div className="mt-3 flex items-center justify-between gap-4 rounded-lg border border-copper-600/30 bg-copper-600/5 p-4 dark:border-copper-300/30 dark:bg-copper-300/10">
+      <div>
+        <p className={`text-xs font-semibold tracking-wide uppercase ${muted}`}>
+          {t('home.trailIndex.title')}
+        </p>
+        <p className={`mt-1 text-xs ${muted}`}>
+          {trailIndex.bestEffortName
+            ? t('home.trailIndex.bestNamed', {
+                name: trailIndex.bestEffortName,
+                km: trailIndex.bestKmEffort,
+              })
+            : t('home.trailIndex.best', { km: trailIndex.bestKmEffort })}
+          {' · '}
+          {t('home.trailIndex.basis', { count: trailIndex.sampleEfforts })}
+        </p>
+      </div>
+      <p className="font-display text-4xl font-semibold text-copper-600 dark:text-copper-300">
+        {trailIndex.index}
+      </p>
+    </div>
+  )
+}
+
 function RecordsSection({ hub }: { hub: AthleteHub }) {
   const { t } = useTranslation('athlete')
   const { records, longestRuns, predictions, sync } = hub
@@ -458,6 +486,7 @@ function RecordsSection({ hub }: { hub: AthleteHub }) {
   return (
     <section className={card}>
       <h2 className="font-display text-lg font-semibold">{t('home.records.title')}</h2>
+      {hub.trailIndex && <TrailIndexTile trailIndex={hub.trailIndex} />}
       {records.length === 0 ? (
         <p className={`mt-2 text-sm ${muted}`}>
           {sync.stravaConnected
