@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { ApiError } from '../../lib/api'
 import {
   createExercise,
@@ -13,13 +14,13 @@ import {
 } from './api'
 import {
   CATEGORIES,
-  CATEGORY_LABEL,
+  categoryLabel,
   EQUIPMENTS,
-  EQUIPMENT_LABEL,
+  equipmentLabel,
   MEASURES,
-  MEASURE_LABEL,
+  measureLabel,
   MUSCLES,
-  MUSCLE_LABEL,
+  muscleLabel,
 } from './labels'
 
 const fieldClass =
@@ -42,6 +43,7 @@ export function ExerciseForm({
   onSaved: (saved: ExerciseResponse) => void
   onCancel: () => void
 }) {
+  const { t } = useTranslation('gym')
   const queryClient = useQueryClient()
   const base = exercise ?? deriveFrom
   const [muscles, setMuscles] = useState<Muscle[]>(base?.muscles ?? [])
@@ -83,51 +85,51 @@ export function ExerciseForm({
     >
       <p className="text-sm font-semibold">
         {exercise
-          ? `Modifier « ${exercise.name} »`
+          ? t('exerciseForm.editTitle', { name: exercise.name })
           : deriveFrom
-            ? `Dériver de « ${deriveFrom.name} »`
-            : 'Nouvel exercice'}
+            ? t('exerciseForm.deriveTitle', { name: deriveFrom.name })
+            : t('exerciseForm.newTitle')}
       </p>
 
       <label className="block">
-        <span className="text-sm font-medium">Nom</span>
+        <span className="text-sm font-medium">{t('exerciseForm.name')}</span>
         <input
           name="name"
           required
           maxLength={150}
           defaultValue={exercise?.name ?? initialName ?? (deriveFrom ? `${deriveFrom.name} — ` : '')}
-          placeholder="Squat excentrique lent"
+          placeholder={t('exerciseForm.namePlaceholder')}
           className={fieldClass}
         />
       </label>
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         <label className="block">
-          <span className="text-sm font-medium">Catégorie</span>
+          <span className="text-sm font-medium">{t('exerciseForm.category')}</span>
           <select name="category" defaultValue={base?.category ?? 'FORCE'} className={fieldClass}>
             {CATEGORIES.map((c) => (
               <option key={c} value={c}>
-                {CATEGORY_LABEL[c]}
+                {categoryLabel(c)}
               </option>
             ))}
           </select>
         </label>
         <label className="block">
-          <span className="text-sm font-medium">Matériel</span>
+          <span className="text-sm font-medium">{t('exerciseForm.equipment')}</span>
           <select name="equipment" defaultValue={base?.equipment ?? 'BARBELL'} className={fieldClass}>
             {EQUIPMENTS.map((e) => (
               <option key={e} value={e}>
-                {EQUIPMENT_LABEL[e]}
+                {equipmentLabel(e)}
               </option>
             ))}
           </select>
         </label>
         <label className="block">
-          <span className="text-sm font-medium">Mesure</span>
+          <span className="text-sm font-medium">{t('exerciseForm.measure')}</span>
           <select name="measure" defaultValue={base?.measure ?? 'WEIGHT_REPS'} className={fieldClass}>
             {MEASURES.map((m) => (
               <option key={m} value={m}>
-                {MEASURE_LABEL[m]}
+                {measureLabel(m)}
               </option>
             ))}
           </select>
@@ -135,7 +137,7 @@ export function ExerciseForm({
       </div>
 
       <div>
-        <span className="text-sm font-medium">Muscles ciblés</span>
+        <span className="text-sm font-medium">{t('exerciseForm.muscles')}</span>
         <div className="mt-1.5 flex flex-wrap gap-1.5">
           {MUSCLES.map((muscle) => (
             <button
@@ -149,42 +151,42 @@ export function ExerciseForm({
                   : 'bg-moss-100 text-moss-500 hover:text-ink dark:bg-moss-800 dark:text-moss-400 dark:hover:text-linen'
               }`}
             >
-              {MUSCLE_LABEL[muscle]}
+              {muscleLabel(muscle)}
             </button>
           ))}
         </div>
       </div>
 
       <label className="block">
-        <span className="text-sm font-medium">Comment l'exécuter</span>
+        <span className="text-sm font-medium">{t('exerciseForm.description')}</span>
         <textarea
           name="description"
           rows={3}
           defaultValue={base?.description ?? ''}
-          placeholder="Position, tempo, consignes de sécurité…"
+          placeholder={t('exerciseForm.descriptionPlaceholder')}
           className={fieldClass}
         />
       </label>
 
       <label className="block">
-        <span className="text-sm font-medium">Ressource (vidéo, article)</span>
+        <span className="text-sm font-medium">{t('exerciseForm.resource')}</span>
         <input
           name="resourceUrl"
           type="url"
           maxLength={500}
           defaultValue={base?.resourceUrl ?? ''}
-          placeholder="https://youtube.com/…"
+          placeholder={t('exerciseForm.resourcePlaceholder')}
           className={fieldClass}
         />
       </label>
 
       <label className="block">
-        <span className="text-sm font-medium">Pourquoi pour le trail</span>
+        <span className="text-sm font-medium">{t('exerciseForm.runningBenefit')}</span>
         <textarea
           name="runningBenefit"
           rows={2}
           defaultValue={base?.runningBenefit ?? ''}
-          placeholder="Force excentrique pour encaisser les descentes…"
+          placeholder={t('exerciseForm.runningBenefitPlaceholder')}
           className={fieldClass}
         />
       </label>
@@ -201,14 +203,14 @@ export function ExerciseForm({
           disabled={mutation.isPending}
           className="rounded-lg bg-pine-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
         >
-          {mutation.isPending ? 'Enregistrement…' : 'Enregistrer'}
+          {mutation.isPending ? t('common:saving') : t('common:save')}
         </button>
         <button
           type="button"
           onClick={onCancel}
           className="px-3 py-2 text-sm font-medium text-moss-500 dark:text-moss-400"
         >
-          Annuler
+          {t('common:cancel')}
         </button>
       </div>
     </form>

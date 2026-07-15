@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { resolvedTheme, setThemeMode } from '../lib/theme'
 
 function Icon({ theme }: { theme: 'light' | 'dark' }) {
@@ -20,6 +21,7 @@ function Icon({ theme }: { theme: 'light' | 'dark' }) {
 /** Quick binary toggle for the public header — the signed-in account menus
  *  expose the full light / dark / system choice instead. */
 export function ThemeToggle() {
+  const { t } = useTranslation()
   const [theme, setCurrent] = useState<'light' | 'dark'>(() => resolvedTheme())
 
   function toggle() {
@@ -31,8 +33,8 @@ export function ThemeToggle() {
   return (
     <button
       onClick={toggle}
-      title={theme === 'light' ? 'Passer en mode sombre' : 'Passer en mode clair'}
-      aria-label={theme === 'light' ? 'Passer en mode sombre' : 'Passer en mode clair'}
+      title={theme === 'light' ? t('theme.toDark') : t('theme.toLight')}
+      aria-label={theme === 'light' ? t('theme.toDark') : t('theme.toLight')}
       className="grid h-8 w-8 place-items-center rounded-lg text-moss-500 transition hover:bg-moss-100 hover:text-ink dark:text-moss-400 dark:hover:bg-moss-800 dark:hover:text-linen"
     >
       <Icon theme={theme} />

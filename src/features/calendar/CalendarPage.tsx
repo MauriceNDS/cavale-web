@@ -27,7 +27,8 @@ import {
   startOfMonth,
   startOfWeek,
 } from 'date-fns'
-import { fr } from 'date-fns/locale'
+import { useTranslation } from 'react-i18next'
+import { dateLocale } from '../../i18n'
 import { useAuth } from '../auth/session'
 import { fetchTemplates } from '../gym/api'
 import {
@@ -45,9 +46,9 @@ import {
   KIND_DOT,
   KIND_EDGE,
   KIND_LEGEND,
-  KIND_LABEL,
+  kindLabel,
   WEEK_TYPE_BADGE,
-  WEEK_TYPE_LABEL,
+  weekTypeLabel,
   cleanTitle,
   formatDuration,
   formatSeconds,
@@ -61,6 +62,7 @@ type View = 'week' | 'month'
 const iso = (d: Date) => format(d, 'yyyy-MM-dd')
 
 export function CalendarPage() {
+  const { t } = useTranslation('calendar')
   const search = useSearch({ strict: false }) as { week?: string }
   const [view, setView] = useState<View>('week')
   const [anchor, setAnchor] = useState(() => {
@@ -156,7 +158,7 @@ export function CalendarPage() {
 
       {sessions.isError && (
         <p className="mt-8 text-center text-clay-500 dark:text-clay-300">
-          Impossible de charger le calendrier. Réessaie.
+          {t('header.loadError')}
         </p>
       )}
 
@@ -208,37 +210,38 @@ interface HeaderProps {
 }
 
 function CalendarHeader({ view, range, anchor, week, weekSessions, onShift, onToday, onView }: HeaderProps) {
+  const { t } = useTranslation('calendar')
   const title =
     view === 'week'
-      ? `${format(range.start, 'd', { locale: fr })}–${format(range.end, 'd MMM', { locale: fr })}`
-      : format(anchor, 'MMMM yyyy', { locale: fr })
+      ? `${format(range.start, 'd', { locale: dateLocale() })}–${format(range.end, 'd MMM', { locale: dateLocale() })}`
+      : format(anchor, 'MMMM yyyy', { locale: dateLocale() })
 
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
       <div className="flex items-center gap-1">
-        <NavButton label="Période précédente" onClick={() => onShift(-1)}>
+        <NavButton label={t('header.prevPeriod')} onClick={() => onShift(-1)}>
           ‹
         </NavButton>
         <button
           onClick={onToday}
           className="rounded-lg px-3 py-1.5 text-sm font-medium text-moss-500 transition hover:bg-moss-100 hover:text-ink dark:text-moss-400 dark:hover:bg-moss-800 dark:hover:text-linen"
         >
-          Aujourd'hui
+          {t('common:today')}
         </button>
-        <NavButton label="Période suivante" onClick={() => onShift(1)}>
+        <NavButton label={t('header.nextPeriod')} onClick={() => onShift(1)}>
           ›
         </NavButton>
       </div>
 
       <h1 className="font-display text-lg font-semibold capitalize md:text-xl">
-        {week ? `S${week.weekNumber} · ${title}` : title}
+        {week ? `${t('header.weekShort', { num: week.weekNumber })} · ${title}` : title}
       </h1>
 
       {week && (
         <span
           className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${WEEK_TYPE_BADGE[week.weekType]}`}
         >
-          {WEEK_TYPE_LABEL[week.weekType]}
+          {weekTypeLabel(week.weekType)}
         </span>
       )}
 
@@ -253,7 +256,7 @@ function CalendarHeader({ view, range, anchor, week, weekSessions, onShift, onTo
                 : 'text-moss-500 hover:text-ink dark:text-moss-400 dark:hover:text-linen'
             }`}
           >
-            {v === 'week' ? 'Semaine' : 'Mois'}
+            {v === 'week' ? t('header.week') : t('header.month')}
           </button>
         ))}
       </div>
@@ -269,6 +272,7 @@ function CalendarHeader({ view, range, anchor, week, weekSessions, onShift, onTo
  * (real measures when present, planned values for validated gym work).
  */
 function WeekMetrics({ week, sessions }: { week: WeekResponse; sessions: SessionResponse[] }) {
+  const { t } = useTranslation('calendar')
   const done = sessions.filter((s) => s.status === 'DONE')
   const doneDistance = done.reduce((sum, s) => sum + (s.activity?.distanceKm ?? 0), 0)
   const doneElevation = done.reduce(
@@ -287,22 +291,22 @@ function WeekMetrics({ week, sessions }: { week: WeekResponse; sessions: Session
 
   const metrics: { label: string; actual: string | null; target: string | null }[] = [
     {
-      label: 'Volume',
+      label: t('header.metrics.volume'),
       actual: doneDistance > 0 ? `${Math.round(doneDistance * 10) / 10}` : '—',
       target: week.targetVolumeKm != null ? `${week.targetVolumeKm} km` : null,
     },
     {
-      label: 'D+',
+      label: t('header.metrics.elevation'),
       actual: `${doneElevation}`,
       target: week.targetElevationM != null ? `${week.targetElevationM} m` : null,
     },
     {
-      label: 'Temps',
+      label: t('header.metrics.time'),
       actual: formatDuration(doneMinutes) ?? '0',
       target: formatDuration(plannedMinutes),
     },
     {
-      label: 'Charge',
+      label: t('header.metrics.load'),
       actual: `${Math.round(doneLoad)}`,
       target: week.targetLoadUa != null ? `${week.targetLoadUa} UA` : null,
     },
@@ -330,6 +334,7 @@ function WeekMetrics({ week, sessions }: { week: WeekResponse; sessions: Session
 
 /** Collapsible + editable week description. */
 function WeekFocus({ week }: { week: WeekResponse }) {
+  const { t } = useTranslation('calendar')
   const [expanded, setExpanded] = useState(false)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
@@ -374,13 +379,13 @@ function WeekFocus({ week }: { week: WeekResponse }) {
             disabled={mutation.isPending}
             className="rounded-lg bg-pine-600 px-3 py-1 text-xs font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
           >
-            Enregistrer
+            {t('common:save')}
           </button>
           <button
             onClick={() => setEditing(false)}
             className="rounded-lg px-3 py-1 text-xs font-medium text-moss-500 transition hover:bg-moss-100 dark:text-moss-400 dark:hover:bg-moss-800"
           >
-            Annuler
+            {t('common:cancel')}
           </button>
         </div>
       </div>
@@ -405,8 +410,8 @@ function WeekFocus({ week }: { week: WeekResponse }) {
             setDraft(focus)
             setEditing(true)
           }}
-          title={focus ? 'Modifier la description' : 'Ajouter une description'}
-          aria-label={focus ? 'Modifier la description' : 'Ajouter une description'}
+          title={focus ? t('header.editFocus') : t('header.addFocus')}
+          aria-label={focus ? t('header.editFocus') : t('header.addFocus')}
           className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-moss-400 transition hover:bg-moss-100 hover:text-ink dark:text-moss-500 dark:hover:bg-moss-800 dark:hover:text-linen"
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -419,7 +424,7 @@ function WeekFocus({ week }: { week: WeekResponse }) {
           onClick={() => setExpanded(!expanded)}
           className="text-xs font-medium text-pine-700 hover:underline dark:text-pine-300"
         >
-          {expanded ? 'Réduire' : 'Voir plus'}
+          {expanded ? t('common:collapse') : t('common:seeMore')}
         </button>
       )}
     </div>
@@ -492,6 +497,7 @@ function DayRow({
   onSelect: (s: SessionResponse) => void
   onAdd: (day: Date) => void
 }) {
+  const { t } = useTranslation('calendar')
   const { isOver, setNodeRef } = useDroppable({ id: iso(day) })
 
   return (
@@ -507,20 +513,20 @@ function DayRow({
     >
       <div className="flex items-center justify-between">
         <p className="text-xs font-semibold tracking-wide text-moss-500 uppercase dark:text-moss-400">
-          {format(day, 'EEEE d MMMM', { locale: fr })}
-          {isToday(day) && <span className="ml-2 text-pine-700 dark:text-pine-300">aujourd'hui</span>}
+          {format(day, 'EEEE d MMMM', { locale: dateLocale() })}
+          {isToday(day) && <span className="ml-2 text-pine-700 dark:text-pine-300">{t('day.today')}</span>}
         </p>
         <button
           onClick={() => onAdd(day)}
-          aria-label={`Ajouter une séance le ${format(day, 'd MMMM', { locale: fr })}`}
-          title="Ajouter une séance"
+          aria-label={t('day.addSessionOn', { date: format(day, 'd MMMM', { locale: dateLocale() }) })}
+          title={t('day.addSession')}
           className="-my-1 grid h-8 w-8 place-items-center rounded-md text-moss-400 transition hover:bg-moss-100 hover:text-ink focus-visible:opacity-100 md:my-0 md:h-6 md:w-6 md:opacity-0 md:group-hover/day:opacity-100 dark:text-moss-500 dark:hover:bg-moss-800 dark:hover:text-linen"
         >
           +
         </button>
       </div>
       {sessions.length === 0 ? (
-        <p className="mt-1 text-sm text-moss-300 dark:text-moss-700">Repos</p>
+        <p className="mt-1 text-sm text-moss-300 dark:text-moss-700">{t('day.rest')}</p>
       ) : (
         <div className="mt-2 space-y-1.5">
           {sessions.map((s) => (
@@ -616,7 +622,7 @@ function MonthView({
     <div className="mt-5">
       <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-semibold tracking-wide text-moss-500 uppercase dark:text-moss-400">
         {weekdays.map((d) => (
-          <span key={d.toISOString()}>{format(d, 'EEEEE', { locale: fr })}</span>
+          <span key={d.toISOString()}>{format(d, 'EEEEE', { locale: dateLocale() })}</span>
         ))}
       </div>
       <div className="mt-1 grid grid-cols-7 gap-1.5">
@@ -671,7 +677,7 @@ function MonthView({
         {KIND_LEGEND.map((k) => (
           <span key={k} className="flex items-center gap-1.5">
             <span className={`h-1.5 w-1.5 rounded-full ${KIND_DOT[k]}`} />
-            {KIND_LABEL[k]}
+            {kindLabel(k)}
           </span>
         ))}
       </p>
@@ -696,6 +702,7 @@ function AddSessionModal({
   onCreate: (weekId: string, body: CreateSessionRequest) => void
   onClose: () => void
 }) {
+  const { t } = useTranslation('calendar')
   const [error, setError] = useState<string | null>(null)
   const [discipline, setDiscipline] = useState<CreateSessionRequest['discipline']>('RUN')
   const [structure, setStructure] = useState<ItemDraft[]>([])
@@ -722,7 +729,7 @@ function AddSessionModal({
     const data = new FormData(event.currentTarget)
     const title = String(data.get('title') ?? '').trim()
     if (!title) {
-      setError('Le titre est requis.')
+      setError(t('addModal.titleRequired'))
       return
     }
     if (discipline === 'RUN' && structure.length > 0) {
@@ -756,7 +763,7 @@ function AddSessionModal({
       onClick={onClose}
       role="dialog"
       aria-modal="true"
-      aria-label="Ajouter une séance"
+      aria-label={t('addModal.title')}
     >
       <div
         className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-xl border border-moss-200 bg-moss-25 p-6 dark:border-moss-750 dark:bg-moss-850"
@@ -765,13 +772,13 @@ function AddSessionModal({
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-xs font-semibold tracking-wide text-moss-500 uppercase dark:text-moss-400">
-              {format(day, 'EEEE d MMMM', { locale: fr })}
+              {format(day, 'EEEE d MMMM', { locale: dateLocale() })}
             </p>
-            <h2 className="mt-1 font-display text-lg font-semibold">Ajouter une séance</h2>
+            <h2 className="mt-1 font-display text-lg font-semibold">{t('addModal.title')}</h2>
           </div>
           <button
             onClick={onClose}
-            aria-label="Fermer"
+            aria-label={t('common:close')}
             className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-moss-500 transition hover:bg-moss-100 hover:text-ink dark:text-moss-400 dark:hover:bg-moss-800 dark:hover:text-linen"
           >
             ✕
@@ -780,7 +787,7 @@ function AddSessionModal({
 
         {!week ? (
           <p className="mt-4 text-sm text-moss-500 dark:text-moss-400">
-            Ce jour est en dehors de ton plan actif — ajoute d'abord la semaine au plan.
+            {t('addModal.outsidePlan')}
           </p>
         ) : (
           <form onSubmit={handleSubmit} className="mt-4 space-y-3">
@@ -791,20 +798,20 @@ function AddSessionModal({
             )}
             <div className="grid grid-cols-2 gap-3">
               <label className="block text-xs text-moss-500 dark:text-moss-400">
-                Discipline
+                {t('addModal.discipline')}
                 <select
                   name="discipline"
                   value={discipline}
                   onChange={(e) => setDiscipline(e.target.value as CreateSessionRequest['discipline'])}
                   className={inputCls}
                 >
-                  <option value="RUN">Course</option>
-                  {gymEnabled && <option value="GYM">Renfo</option>}
-                  <option value="CROSS">Croisé (marche, vélo…)</option>
+                  <option value="RUN">{t('discipline.RUN')}</option>
+                  {gymEnabled && <option value="GYM">{t('discipline.GYM')}</option>}
+                  <option value="CROSS">{t('addModal.disciplineCross')}</option>
                 </select>
               </label>
               <label className="block text-xs text-moss-500 dark:text-moss-400">
-                Zone (course)
+                {t('addModal.zone')}
                 <select name="zone" defaultValue="" className={inputCls}>
                   <option value="">—</option>
                   {['Récup', 'EF', 'Tempo/AC', 'Seuil 60', 'Seuil 30', 'VMA', 'Sprint'].map((z) => (
@@ -816,7 +823,7 @@ function AddSessionModal({
               </label>
               {discipline === 'GYM' && (
                 <label className="col-span-2 block text-xs text-moss-500 dark:text-moss-400">
-                  Programme
+                  {t('addModal.program')}
                   <select
                     value={variantId}
                     onChange={(e) => {
@@ -826,7 +833,7 @@ function AddSessionModal({
                     }}
                     className={inputCls}
                   >
-                    <option value="">— séance libre —</option>
+                    <option value="">{t('addModal.freeSession')}</option>
                     {variantOptions.map((option) => (
                       <option key={option.id} value={option.id}>
                         {option.label}
@@ -836,35 +843,35 @@ function AddSessionModal({
                 </label>
               )}
               <label className="col-span-2 block text-xs text-moss-500 dark:text-moss-400">
-                Titre *
+                {t('addModal.titleLabel')}
                 <input
                   name="title"
                   type="text"
                   required
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="EF · Renfo FM-A · …"
+                  placeholder={t('addModal.titlePlaceholder')}
                   className={inputCls}
                 />
               </label>
               <label className="block text-xs text-moss-500 dark:text-moss-400">
-                Durée (min)
+                {t('addModal.duration')}
                 <input name="durationMin" type="number" min="1" className={inputCls} />
               </label>
               <label className="block text-xs text-moss-500 dark:text-moss-400">
-                D+ (m)
+                {t('addModal.elevation')}
                 <input name="elevationM" type="number" min="0" className={inputCls} />
               </label>
               <label className="block text-xs text-moss-500 dark:text-moss-400">
-                RPE min
+                {t('addModal.rpeMin')}
                 <input name="rpeMin" type="number" min="0" max="10" className={inputCls} />
               </label>
               <label className="block text-xs text-moss-500 dark:text-moss-400">
-                RPE max
+                {t('addModal.rpeMax')}
                 <input name="rpeMax" type="number" min="0" max="10" className={inputCls} />
               </label>
               <label className="col-span-2 block text-xs text-moss-500 dark:text-moss-400">
-                Consignes (texte libre)
+                {t('addModal.instructions')}
                 <textarea name="detail" rows={2} className={inputCls} />
               </label>
             </div>
@@ -872,7 +879,7 @@ function AddSessionModal({
             {discipline === 'RUN' && (
               <div>
                 <p className="text-xs font-semibold text-moss-500 dark:text-moss-400">
-                  Structure de la séance
+                  {t('addModal.structure')}
                 </p>
                 <div className="mt-1.5">
                   <WorkoutBuilder items={structure} onChange={setStructure} />
@@ -886,14 +893,14 @@ function AddSessionModal({
                 disabled={pending}
                 className="rounded-lg bg-pine-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
               >
-                {pending ? 'Création…' : 'Ajouter la séance'}
+                {pending ? t('common:creating') : t('addModal.submit')}
               </button>
               <button
                 type="button"
                 onClick={onClose}
                 className="rounded-lg px-4 py-2 text-sm font-medium text-moss-500 transition hover:bg-moss-100 dark:text-moss-400 dark:hover:bg-moss-800"
               >
-                Annuler
+                {t('common:cancel')}
               </button>
             </div>
           </form>

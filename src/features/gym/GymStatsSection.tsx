@@ -1,20 +1,22 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { format, parseISO } from 'date-fns'
-import { fr } from 'date-fns/locale'
+import i18n, { dateLocale } from '../../i18n'
 import {
   fetchGymStats,
   type ExerciseTrend,
   type MuscleVolume,
   type WeekTonnage,
 } from './api'
-import { CATEGORY_BADGE, MUSCLE_LABEL } from './labels'
+import { useTranslation } from 'react-i18next'
+import { CATEGORY_BADGE, muscleLabel } from './labels'
 
 const muted = 'text-moss-500 dark:text-moss-400'
 const card = 'rounded-xl border border-moss-200 bg-moss-25 p-5 dark:border-moss-750 dark:bg-moss-850'
 
 /** Gym progression: 1RM trends, tonnage, balance, fresh PRs, adherence. */
 export function GymStatsSection() {
+  const { t } = useTranslation('gym')
   const query = useQuery({ queryKey: ['gym-stats'], queryFn: fetchGymStats })
 
   if (query.isLoading) {
@@ -35,13 +37,13 @@ export function GymStatsSection() {
     <div className="space-y-4">
       {!hasData && (
         <p className={`mt-10 text-center ${muted}`}>
-          Termine ta première séance de renfo pour voir ta progression ici.
+          {t('stats.empty')}
         </p>
       )}
 
       {stats.prWall.length > 0 && (
         <section className={card}>
-          <h2 className="font-display text-lg font-semibold">Records récents</h2>
+          <h2 className="font-display text-lg font-semibold">{t('stats.recentPrs')}</h2>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
             {stats.prWall.map((pr) => (
               <div
@@ -60,7 +62,7 @@ export function GymStatsSection() {
                   )}
                 </p>
                 <p className={`mt-0.5 text-xs ${muted}`}>
-                  le {format(parseISO(pr.date), 'd MMMM', { locale: fr })}
+                  {t('stats.prDate', { date: format(parseISO(pr.date), 'd MMMM', { locale: dateLocale() }) })}
                 </p>
               </div>
             ))}
@@ -72,9 +74,9 @@ export function GymStatsSection() {
 
       {hasData && (
         <section className={card}>
-          <h2 className="font-display text-lg font-semibold">Tonnage hebdomadaire</h2>
+          <h2 className="font-display text-lg font-semibold">{t('stats.tonnageTitle')}</h2>
           <p className={`mt-0.5 text-xs ${muted}`}>
-            Poids total soulevé (kg × reps), 16 dernières semaines.
+            {t('stats.tonnageHint')}
           </p>
           <div className="mt-3">
             <TonnageBars weeks={stats.weeklyTonnage} />
@@ -85,10 +87,9 @@ export function GymStatsSection() {
 
       {stats.muscleVolume.length > 0 && (
         <section className={card}>
-          <h2 className="font-display text-lg font-semibold">Équilibre musculaire</h2>
+          <h2 className="font-display text-lg font-semibold">{t('stats.balanceTitle')}</h2>
           <p className={`mt-0.5 text-xs ${muted}`}>
-            Séries par groupe musculaire, 8 dernières semaines — surveille le ratio
-            quadriceps / ischios.
+            {t('stats.balanceHint')}
           </p>
           <div className="mt-3 space-y-1.5">
             <MuscleBars volumes={stats.muscleVolume} />
@@ -102,13 +103,14 @@ export function GymStatsSection() {
 /* ── 1RM trend (estimated, Epley) ──────────────────────────────────── */
 
 function OneRmSection({ trends }: { trends: ExerciseTrend[] }) {
+  const { t: tr } = useTranslation('gym')
   const [selected, setSelected] = useState(trends[0].exerciseId)
   const trend = trends.find((t) => t.exerciseId === selected) ?? trends[0]
 
   return (
     <section className={card}>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-display text-lg font-semibold">1RM estimé</h2>
+        <h2 className="font-display text-lg font-semibold">{tr('stats.oneRmTitle')}</h2>
         <div className="flex flex-wrap gap-1.5">
           {trends.map((t) => (
             <button
@@ -125,7 +127,7 @@ function OneRmSection({ trends }: { trends: ExerciseTrend[] }) {
         </div>
       </div>
       <p className={`mt-0.5 text-xs ${muted}`}>
-        Formule d'Epley d'après tes séries — une estimation, pas un test de force.
+        {tr('stats.oneRmHint')}
       </p>
       <div className="mt-3">
         <OneRmLine trend={trend} />
@@ -153,7 +155,7 @@ function OneRmLine({ trend }: { trend: ExerciseTrend }) {
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img"
-      aria-label={`1RM estimé — ${trend.name}`}>
+      aria-label={i18n.t('gym:stats.oneRmAria', { name: trend.name })}>
       {[...new Set([lo + (hi - lo) * 0.25, lo + (hi - lo) * 0.75])].map((t) => (
         <g key={t}>
           <line x1={PAD.left} x2={W - PAD.right} y1={y(t)} y2={y(t)}
@@ -179,7 +181,7 @@ function OneRmLine({ trend }: { trend: ExerciseTrend }) {
           {(i === 0 || i === points.length - 1 || points.length <= 6) && (
             <text x={x(i)} y={H - 8} textAnchor="middle"
               className="fill-moss-500 text-[10px] dark:fill-moss-400">
-              {format(parseISO(p.date), 'd MMM', { locale: fr })}
+              {format(parseISO(p.date), 'd MMM', { locale: dateLocale() })}
             </text>
           )}
         </g>
@@ -196,7 +198,7 @@ function TonnageBars({ weeks }: { weeks: WeekTonnage[] }) {
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img"
-      aria-label="Tonnage hebdomadaire">
+      aria-label={i18n.t('gym:stats.tonnageAria')}>
       {weeks.map((week, i) => {
         const h = (week.tonnageKg / max) * (H - PAD.top - PAD.bottom)
         const bx = PAD.left + i * barW + barW * 0.15
@@ -217,7 +219,7 @@ function TonnageBars({ weeks }: { weeks: WeekTonnage[] }) {
             {i % 4 === 0 && (
               <text x={bx + barW * 0.35} y={H - 8} textAnchor="middle"
                 className="fill-moss-500 text-[10px] dark:fill-moss-400">
-                {format(parseISO(week.weekStart), 'd MMM', { locale: fr })}
+                {format(parseISO(week.weekStart), 'd MMM', { locale: dateLocale() })}
               </text>
             )}
           </g>
@@ -228,13 +230,14 @@ function TonnageBars({ weeks }: { weeks: WeekTonnage[] }) {
 }
 
 function AdherenceLine({ adherence }: { adherence: { plannedGym: number; doneGym: number }[] }) {
+  const { t } = useTranslation('gym')
   const planned = adherence.reduce((sum, w) => sum + w.plannedGym, 0)
   const done = adherence.reduce((sum, w) => sum + w.doneGym, 0)
   if (planned === 0) return null
   return (
     <p className={`mt-2 text-sm ${muted}`}>
-      Assiduité : <span className="font-semibold text-ink dark:text-linen">{done}/{planned}</span>{' '}
-      séances renfo réalisées sur les 8 dernières semaines.
+      {t('stats.adherenceLabel')} <span className="font-semibold text-ink dark:text-linen">{done}/{planned}</span>{' '}
+      {t('stats.adherenceSuffix')}
     </p>
   )
 }
@@ -242,12 +245,13 @@ function AdherenceLine({ adherence }: { adherence: { plannedGym: number; doneGym
 /* ── Muscle balance (horizontal bars) ──────────────────────────────── */
 
 function MuscleBars({ volumes }: { volumes: MuscleVolume[] }) {
+  const { t } = useTranslation('gym')
   const max = Math.max(...volumes.map((v) => v.sets), 1)
   return (
     <>
       {volumes.map((volume) => (
         <div key={volume.muscle} className="flex items-center gap-2">
-          <span className={`w-28 shrink-0 text-xs ${muted}`}>{MUSCLE_LABEL[volume.muscle]}</span>
+          <span className={`w-28 shrink-0 text-xs ${muted}`}>{muscleLabel(volume.muscle)}</span>
           <div className="h-4 flex-1 overflow-hidden rounded bg-moss-100 dark:bg-moss-800">
             <div
               className="h-full rounded bg-copper-600 dark:bg-copper-300"
@@ -255,7 +259,7 @@ function MuscleBars({ volumes }: { volumes: MuscleVolume[] }) {
             />
           </div>
           <span className="w-14 shrink-0 text-right text-xs tabular-nums">
-            {volume.sets} série{volume.sets > 1 ? 's' : ''}
+            {t('stats.sets', { count: volume.sets })}
           </span>
         </div>
       ))}

@@ -1,10 +1,8 @@
+import i18n from '../../i18n'
 import type { Equipment, ExerciseCategory, ExerciseMeasure, Muscle } from './api'
 
-export const CATEGORY_LABEL: Record<ExerciseCategory, string> = {
-  FORCE: 'Force',
-  PLIOMETRIE: 'Pliométrie',
-  GAINAGE: 'Gainage',
-  MOBILITE: 'Mobilité',
+export function categoryLabel(category: ExerciseCategory): string {
+  return i18n.t(`gym:labels.category.${category}`)
 }
 
 /** Category color coding — one hue per training family, both modes. */
@@ -25,18 +23,8 @@ export const CATEGORY_EDGE: Record<ExerciseCategory, string> = {
 
 export const CATEGORIES: ExerciseCategory[] = ['FORCE', 'PLIOMETRIE', 'GAINAGE', 'MOBILITE']
 
-export const MUSCLE_LABEL: Record<Muscle, string> = {
-  QUADRICEPS: 'Quadriceps',
-  ISCHIOS: 'Ischios',
-  FESSIERS: 'Fessiers',
-  MOLLETS: 'Mollets',
-  TIBIAUX: 'Tibiaux',
-  ADDUCTEURS: 'Adducteurs',
-  CORE: 'Core',
-  DOS: 'Dos',
-  EPAULES: 'Épaules',
-  BRAS: 'Bras',
-  PIEDS_CHEVILLES: 'Pieds / chevilles',
+export function muscleLabel(muscle: Muscle): string {
+  return i18n.t(`gym:labels.muscle.${muscle}`)
 }
 
 export const MUSCLES: Muscle[] = [
@@ -53,35 +41,30 @@ export const MUSCLES: Muscle[] = [
   'PIEDS_CHEVILLES',
 ]
 
-export const EQUIPMENT_LABEL: Record<Equipment, string> = {
-  BARBELL: 'Barre',
-  DUMBBELL: 'Haltères',
-  MACHINE: 'Machine',
-  BODYWEIGHT: 'Poids du corps',
-  BAND: 'Élastique',
-  BOX: 'Box / step',
+export function equipmentLabel(equipment: Equipment): string {
+  return i18n.t(`gym:labels.equipment.${equipment}`)
 }
 
 export const EQUIPMENTS: Equipment[] = ['BARBELL', 'DUMBBELL', 'MACHINE', 'BODYWEIGHT', 'BAND', 'BOX']
 
-export const MEASURE_LABEL: Record<ExerciseMeasure, string> = {
-  WEIGHT_REPS: 'Poids × reps',
-  BODYWEIGHT_REPS: 'Poids du corps × reps',
-  SECONDS: 'Durée (secondes)',
+export function measureLabel(measure: ExerciseMeasure): string {
+  return i18n.t(`gym:labels.measure.${measure}`)
 }
 
 export const MEASURES: ExerciseMeasure[] = ['WEIGHT_REPS', 'BODYWEIGHT_REPS', 'SECONDS']
 
 /** "3 × 6" or "3 × 45 sec" — the prescription in one glance. */
 export function formatPrescription(sets: number, reps: number | null, seconds: number | null): string {
-  if (seconds != null) return `${sets} × ${seconds} sec`
+  if (seconds != null) return i18n.t('gym:labels.prescriptionSeconds', { sets, seconds })
   return `${sets} × ${reps ?? '?'}`
 }
 
 export function formatRest(restSec: number | null): string | null {
   if (restSec == null) return null
-  if (restSec < 60) return `repos ${restSec} sec`
+  if (restSec < 60) return i18n.t('gym:labels.restSec', { sec: restSec })
   const min = Math.floor(restSec / 60)
   const rest = restSec % 60
-  return rest === 0 ? `repos ${min} min` : `repos ${min} min ${rest}`
+  return rest === 0
+    ? i18n.t('gym:labels.restMin', { min })
+    : i18n.t('gym:labels.restMinSec', { min, sec: rest })
 }

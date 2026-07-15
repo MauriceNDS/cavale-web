@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import { ApiError } from '../../lib/api'
 import { ExerciseForm } from './ExerciseForm'
 import {
@@ -25,7 +26,7 @@ import {
 import {
   CATEGORY_BADGE,
   CATEGORY_EDGE,
-  CATEGORY_LABEL,
+  categoryLabel,
   formatPrescription,
   formatRest,
 } from './labels'
@@ -38,6 +39,7 @@ const actionBtn =
 
 /** One program: variant tabs, ordered prescriptions, alternatives. */
 export function TemplateEditorPage() {
+  const { t } = useTranslation('gym')
   const params = useParams({ strict: false }) as { templateId?: string }
   const templateId = params.templateId!
   const navigate = useNavigate()
@@ -95,11 +97,11 @@ export function TemplateEditorPage() {
   })
 
   if (templateQuery.isLoading) {
-    return <p className={`mt-10 text-center ${muted}`}>Chargement…</p>
+    return <p className={`mt-10 text-center ${muted}`}>{t('common:loading')}</p>
   }
   if (!template) {
     return (
-      <p className="mt-10 text-center text-clay-500 dark:text-clay-300">Programme introuvable.</p>
+      <p className="mt-10 text-center text-clay-500 dark:text-clay-300">{t('editor.notFound')}</p>
     )
   }
 
@@ -109,14 +111,14 @@ export function TemplateEditorPage() {
         to="/renfo"
         className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-medium text-moss-500 transition hover:bg-moss-100 hover:text-ink dark:text-moss-400 dark:hover:bg-moss-800 dark:hover:text-linen"
       >
-        ← Programmes
+        {t('editor.back')}
       </Link>
 
       <TemplateHeader
         template={template}
         onSaved={invalidate}
         onDelete={() => {
-          if (window.confirm(`Supprimer « ${template.name} » et tout son contenu ?`)) {
+          if (window.confirm(t('editor.deleteConfirm', { name: template.name }))) {
             deleteTemplateMutation.mutate()
           }
         }}
@@ -137,16 +139,16 @@ export function TemplateEditorPage() {
             {variant.label}
           </button>
         ))}
-        <button onClick={() => addVariantMutation.mutate()} className={actionBtn} title="Nouvelle variante vide">
-          + variante
+        <button onClick={() => addVariantMutation.mutate()} className={actionBtn} title={t('editor.addVariantTitle')}>
+          {t('editor.addVariant')}
         </button>
         <button
           onClick={() => copyVariantMutation.mutate()}
           disabled={!activeVariantId}
           className={actionBtn}
-          title="Dupliquer la variante affichée"
+          title={t('editor.duplicateTitle')}
         >
-          dupliquer
+          {t('editor.duplicate')}
         </button>
         {template.variants.length > 1 && (
           <button
@@ -154,7 +156,7 @@ export function TemplateEditorPage() {
             disabled={!activeVariantId}
             className={`${actionBtn} text-clay-500 dark:text-clay-300`}
           >
-            supprimer
+            {t('editor.deleteLower')}
           </button>
         )}
       </div>
@@ -313,7 +315,7 @@ function VariantEditor({ variantId }: { variantId: string }) {
                 <p className="font-medium">
                   {te.exercise.name}{' '}
                   <span className={`ml-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${CATEGORY_BADGE[te.exercise.category]}`}>
-                    {CATEGORY_LABEL[te.exercise.category]}
+                    {categoryLabel(te.exercise.category)}
                   </span>
                 </p>
                 <p className={`text-xs ${muted}`}>
@@ -421,6 +423,7 @@ function ExercisePicker({
   onClear?: () => void
   exclude?: string[]
 }) {
+  const { t } = useTranslation('gym')
   const [search, setSearch] = useState('')
   const [creating, setCreating] = useState(false)
   const query = useQuery({ queryKey: ['exercises'], queryFn: fetchExercises })
@@ -465,7 +468,7 @@ function ExercisePicker({
       <input
         value={search}
         onChange={(event) => setSearch(event.target.value)}
-        placeholder="Chercher dans la bibliothèque…"
+        placeholder={t('editor.picker.searchPlaceholder')}
         aria-label="Chercher un exercice"
         className={fieldClass}
       />
@@ -485,7 +488,7 @@ function ExercisePicker({
           onClick={() => setCreating(true)}
           className="rounded-full border border-dashed border-moss-300 px-2.5 py-1 text-xs font-medium text-moss-500 transition hover:border-pine-600 hover:text-pine-700 dark:border-moss-700 dark:text-moss-400 dark:hover:border-pine-350 dark:hover:text-pine-300"
         >
-          + Créer {search.trim() ? `« ${search.trim()} »` : 'un exercice'}
+          {search.trim() ? t('editor.picker.createNamed', { name: search.trim() }) : t('editor.picker.create')}
         </button>
       </div>
     </div>
@@ -507,6 +510,7 @@ function PrescriptionPanel({
   onDone: () => void
   onCancel: () => void
 }) {
+  const { t } = useTranslation('gym')
   const [exercise, setExercise] = useState<ExerciseResponse | null>(existing?.exercise ?? null)
   const mutation = useMutation({ mutationFn: onSubmit, onSuccess: onDone })
   const seconds = exercise?.measure === 'SECONDS'
@@ -540,7 +544,7 @@ function PrescriptionPanel({
         <>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <label className="block">
-              <span className="text-sm font-medium">Séries</span>
+              <span className="text-sm font-medium">{t('editor.fields.sets')}</span>
               <input name="sets" type="number" min={1} required defaultValue={existing?.sets ?? 3} className={fieldClass} />
             </label>
             {seconds ? (
@@ -565,7 +569,7 @@ function PrescriptionPanel({
           </div>
           <label className="block">
             <span className="text-sm font-medium">Note</span>
-            <input name="note" maxLength={300} defaultValue={existing?.note ?? ''} placeholder="Tempo 5-0-1, lesté si facile…" className={fieldClass} />
+            <input name="note" maxLength={300} defaultValue={existing?.note ?? ''} placeholder={t('editor.fields.notePlaceholder')} className={fieldClass} />
           </label>
         </>
       )}
@@ -603,6 +607,7 @@ function AlternativePanel({
   onDone: () => void
   onCancel: () => void
 }) {
+  const { t } = useTranslation('gym')
   const mutation = useMutation({
     mutationFn: (exerciseId: string) => addAlternative(te.id, exerciseId),
     onSuccess: onDone,
@@ -611,7 +616,7 @@ function AlternativePanel({
   return (
     <div className="mt-3 space-y-3 rounded-xl border border-moss-200 bg-moss-25 p-4 dark:border-moss-750 dark:bg-moss-850">
       <p className="text-sm font-semibold">
-        Alternative pour « {te.exercise.name} » (machine occupée, pas de salle…)
+        {t('editor.alternativeFor', { name: te.exercise.name })}
       </p>
       <ExercisePicker
         selected={null}

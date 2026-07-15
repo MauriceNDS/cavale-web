@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import { ApiError } from '../../lib/api'
 import {
   abandonWorkout,
@@ -13,19 +14,15 @@ import {
   type WorkoutBlockResponse,
   type WorkoutDetailResponse,
 } from './api'
-import { CATEGORY_BADGE, CATEGORY_EDGE, CATEGORY_LABEL, formatRest } from './labels'
+import { CATEGORY_BADGE, CATEGORY_EDGE, categoryLabel, formatRest } from './labels'
 
 const muted = 'text-moss-500 dark:text-moss-400'
 const inputCls =
   'w-full rounded-lg border border-moss-200 bg-moss-100 px-2 py-2 text-center text-base font-semibold tabular-nums outline-none focus:border-pine-600 focus:ring-2 focus:ring-pine-600/25 dark:border-moss-750 dark:bg-moss-800 dark:focus:border-pine-350 dark:focus:ring-pine-350/25'
 
-const EFFORT_LABEL: Record<PerceivedEffort, string> = {
-  TROP_FACILE: 'Trop facile',
-  FACILE: 'Facile',
-  COMME_PREVU: 'Comme prévu',
-  DIFFICILE: 'Difficile',
-  TROP_DIFFICILE: 'Trop difficile',
-}
+const EFFORTS: PerceivedEffort[] = [
+  'TROP_FACILE', 'FACILE', 'COMME_PREVU', 'DIFFICILE', 'TROP_DIFFICILE',
+]
 
 function formatElapsed(startedAt: string): string {
   const sec = Math.max(0, Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000))
@@ -39,6 +36,7 @@ function formatElapsed(startedAt: string): string {
 
 /** The live workout: tick a set, it's saved; lock your phone, nothing is lost. */
 export function WorkoutPage() {
+  const { t } = useTranslation('gym')
   const params = useParams({ strict: false }) as { workoutId?: string }
   const workoutId = params.workoutId!
   const queryClient = useQueryClient()
@@ -53,11 +51,11 @@ export function WorkoutPage() {
   const detail = query.data
 
   if (query.isLoading) {
-    return <p className={`mt-10 text-center ${muted}`}>Chargement…</p>
+    return <p className={`mt-10 text-center ${muted}`}>{t('common:loading')}</p>
   }
   if (!detail) {
     return (
-      <p className="mt-10 text-center text-clay-500 dark:text-clay-300">Entraînement introuvable.</p>
+      <p className="mt-10 text-center text-clay-500 dark:text-clay-300">{t('workout.notFound')}</p>
     )
   }
 
@@ -73,14 +71,14 @@ export function WorkoutPage() {
 
       {finished && (
         <p className="mt-4 rounded-lg bg-pine-100 p-3 text-sm font-medium text-pine-700 dark:bg-pine-900 dark:text-pine-300">
-          Séance terminée en {detail.log.durationMin} min — bien joué.{' '}
+          {t('workout.finishedIn', { min: detail.log.durationMin })}{' '}
           {detail.log.sessionId && (
             <Link
               to="/session/$sessionId"
               params={{ sessionId: detail.log.sessionId }}
               className="underline"
             >
-              Voir la séance
+              {t('workout.viewSession')}
             </Link>
           )}
         </p>
@@ -93,7 +91,7 @@ export function WorkoutPage() {
         ))}
         {detail.blocks.length === 0 && (
           <p className={`text-center text-sm ${muted}`}>
-            Le programme lié n'existe plus — les séries enregistrées restent ci-dessous.
+            {t('workout.templateGone')}
           </p>
         )}
       </div>
@@ -125,6 +123,7 @@ function WorkoutHeader({
   finished: boolean
   onFinish: () => void
 }) {
+  const { t } = useTranslation('gym')
   const [, forceTick] = useState(0)
   const navigate = useNavigate()
 
@@ -144,7 +143,7 @@ function WorkoutHeader({
       <div className="flex items-center gap-3">
         <div className="min-w-0 flex-1">
           <p className="truncate font-display text-lg font-semibold">
-            {detail.log.templateName ?? 'Entraînement'}
+            {detail.log.templateName ?? t('workout.untitled')}
           </p>
           {!finished && (
             <p className={`text-sm tabular-nums ${muted}`}>⏱ {formatElapsed(detail.log.startedAt)}</p>
@@ -154,19 +153,19 @@ function WorkoutHeader({
           <>
             <button
               onClick={() => {
-                if (window.confirm('Abandonner cette séance ? Les séries seront perdues.')) {
+                if (window.confirm(t('workout.abandonConfirm'))) {
                   abandonMutation.mutate()
                 }
               }}
               className="rounded-lg px-2.5 py-2 text-xs font-medium text-clay-500 transition hover:bg-clay-100 dark:text-clay-300 dark:hover:bg-clay-900"
             >
-              Abandonner
+              {t('workout.abandon')}
             </button>
             <button
               onClick={onFinish}
               className="rounded-lg bg-pine-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
             >
-              ✓ Terminer
+              {t('workout.finish')}
             </button>
           </>
         )}
@@ -188,6 +187,7 @@ function BlockCard({
   loggedSets: SetLogResponse[]
   readOnly: boolean
 }) {
+  const { t } = useTranslation('gym')
   // Swap to an alternative: sets log against the replacement exercise.
   const [exercise, setExercise] = useState<ExerciseResponse>(block.exercise)
   const [showAlternatives, setShowAlternatives] = useState(false)
@@ -217,12 +217,14 @@ function BlockCard({
   ].filter(Boolean).join(' · ')
 
   const lastLine = block.lastSets.length > 0
-    ? `Dernière fois : ${block.lastSets
-        .map((s) => (s.seconds != null ? `${s.seconds}s` : `${s.weightKg ?? 'PDC'}${s.weightKg != null ? ' kg' : ''}`))
-        .join(' / ')}`
+    ? t('workout.lastTime', {
+        values: block.lastSets
+          .map((s) => (s.seconds != null ? `${s.seconds}s` : `${s.weightKg ?? t('workout.bodyweight')}${s.weightKg != null ? ' kg' : ''}`))
+          .join(' / '),
+      })
     : null
   const recordLine = block.recordWeightKg != null
-    ? `Record : ${block.recordWeightKg} kg × ${block.targetReps}`
+    ? t('workout.record', { weight: block.recordWeightKg, reps: block.targetReps })
     : null
 
   return (
@@ -232,17 +234,17 @@ function BlockCard({
       <div className="flex flex-wrap items-center gap-2">
         <p className="font-medium">
           {exercise.name}
-          {swapped && <span className={`ml-1 text-xs ${muted}`}>(à la place de {block.exercise.name})</span>}
+          {swapped && <span className={`ml-1 text-xs ${muted}`}>{t('workout.insteadOf', { name: block.exercise.name })}</span>}
         </p>
         <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${CATEGORY_BADGE[exercise.category]}`}>
-          {CATEGORY_LABEL[exercise.category]}
+          {categoryLabel(exercise.category)}
         </span>
         {block.alternatives.length > 0 && !readOnly && (
           <button
             onClick={() => setShowAlternatives(!showAlternatives)}
             className="ml-auto text-xs font-medium text-pine-700 underline dark:text-pine-300"
           >
-            remplacer
+            {t('workout.replace')}
           </button>
         )}
       </div>
@@ -277,7 +279,7 @@ function BlockCard({
 
       {restLeft != null && (
         <p className="mt-2 rounded-lg bg-copper-600/15 px-3 py-1.5 text-sm font-semibold text-copper-600 tabular-nums dark:bg-copper-300/15 dark:text-copper-300">
-          Repos : {Math.floor(restLeft / 60)}:{String(restLeft % 60).padStart(2, '0')}
+          {t('workout.restCountdown', { time: `${Math.floor(restLeft / 60)}:${String(restLeft % 60).padStart(2, '0')}` })}
         </p>
       )}
 
@@ -322,6 +324,7 @@ function SetRow({
   readOnly: boolean
   onSaved: () => void
 }) {
+  const { t } = useTranslation('gym')
   const [saved, setSaved] = useState(logged != null)
   const weightRef = useRef<HTMLInputElement>(null)
   const repsRef = useRef<HTMLInputElement>(null)
@@ -362,7 +365,7 @@ function SetRow({
             type="number"
             inputMode="numeric"
             min={1}
-            aria-label={`Série ${setNumber} — secondes`}
+            aria-label={t('workout.setSecondsAria', { n: setNumber })}
             defaultValue={logged?.seconds ?? lastSame?.seconds ?? block.targetSeconds ?? ''}
             className={inputCls}
             disabled={readOnly}
@@ -377,8 +380,8 @@ function SetRow({
               inputMode="decimal"
               step="0.5"
               min={0}
-              aria-label={`Série ${setNumber} — poids (kg)`}
-              placeholder={bodyweight ? 'PDC' : 'kg'}
+              aria-label={t('workout.setWeightAria', { n: setNumber })}
+              placeholder={bodyweight ? t('workout.bodyweight') : 'kg'}
               defaultValue={logged?.weightKg ?? lastSame?.weightKg ?? ''}
               className={inputCls}
               disabled={readOnly}
@@ -391,7 +394,7 @@ function SetRow({
               type="number"
               inputMode="numeric"
               min={1}
-              aria-label={`Série ${setNumber} — répétitions`}
+              aria-label={t('workout.setRepsAria', { n: setNumber })}
               defaultValue={logged?.reps ?? lastSame?.reps ?? block.targetReps ?? ''}
               className={inputCls}
               disabled={readOnly}
@@ -403,7 +406,7 @@ function SetRow({
         <button
           onClick={() => mutation.mutate()}
           disabled={mutation.isPending}
-          aria-label={`Valider la série ${setNumber}`}
+          aria-label={t('workout.saveSetAria', { n: setNumber })}
           className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg text-lg font-semibold transition disabled:opacity-50 ${
             saved
               ? 'bg-pine-600 text-moss-25 dark:bg-pine-350 dark:text-moss-950'
@@ -415,7 +418,7 @@ function SetRow({
       )}
       {mutation.error instanceof ApiError && (
         <span role="alert" className="text-xs text-clay-500 dark:text-clay-300">
-          Échec
+          {t('workout.saveFailed')}
         </span>
       )}
     </div>
@@ -433,6 +436,7 @@ function FinishPanel({
   onDone: (sessionId: string | null) => void
   onCancel: () => void
 }) {
+  const { t } = useTranslation('gym')
   const elapsedMin = Math.max(
     1,
     Math.round((Date.now() - new Date(detail.log.startedAt).getTime()) / 60000),
@@ -458,9 +462,9 @@ function FinishPanel({
         })
       }}
     >
-      <p className="text-sm font-semibold">Terminer la séance</p>
+      <p className="text-sm font-semibold">{t('workout.finishTitle')}</p>
       <label className="block">
-        <span className="text-sm font-medium">Durée totale (min)</span>
+        <span className="text-sm font-medium">{t('workout.totalDuration')}</span>
         <input
           name="durationMin"
           type="number"
@@ -470,9 +474,9 @@ function FinishPanel({
         />
       </label>
       <div>
-        <span className="text-sm font-medium">Comment c'était ?</span>
+        <span className="text-sm font-medium">{t('workout.howWasIt')}</span>
         <div className="mt-1.5 flex flex-wrap gap-1.5">
-          {(Object.keys(EFFORT_LABEL) as PerceivedEffort[]).map((e) => (
+          {EFFORTS.map((e) => (
             <button
               key={e}
               type="button"
@@ -484,7 +488,7 @@ function FinishPanel({
                   : 'bg-moss-100 text-moss-500 hover:text-ink dark:bg-moss-800 dark:text-moss-400 dark:hover:text-linen'
               }`}
             >
-              {EFFORT_LABEL[e]}
+              {t(`workout.effort.${e}`)}
             </button>
           ))}
         </div>
@@ -496,10 +500,10 @@ function FinishPanel({
           onChange={(event) => setPain(event.target.checked)}
           className="h-4 w-4 accent-clay-500"
         />
-        Douleur / gêne ressentie
+        {t('workout.pain')}
       </label>
       <label className="block">
-        <span className="text-sm font-medium">Un mot sur la séance ? (optionnel)</span>
+        <span className="text-sm font-medium">{t('workout.commentLabel')}</span>
         <textarea name="comment" rows={2} className={`${inputCls} mt-1 text-left font-normal`} />
       </label>
       {mutation.error instanceof ApiError && (
@@ -513,10 +517,10 @@ function FinishPanel({
           disabled={mutation.isPending}
           className="rounded-lg bg-pine-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
         >
-          {mutation.isPending ? 'Enregistrement…' : '✓ Enregistrer la séance'}
+          {mutation.isPending ? t('common:saving') : t('workout.saveWorkout')}
         </button>
         <button type="button" onClick={onCancel} className={`px-3 py-2 text-sm font-medium ${muted}`}>
-          Continuer l'entraînement
+          {t('workout.continueWorkout')}
         </button>
       </div>
     </form>

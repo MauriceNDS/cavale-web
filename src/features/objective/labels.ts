@@ -1,10 +1,9 @@
+import i18n from '../../i18n'
 import type { ObjectiveType } from './api'
 
-export const OBJECTIVE_TYPE_LABEL: Record<ObjectiveType, string> = {
-  RACE: 'Course',
-  RECOVERY: 'Retour de blessure',
-  FITNESS: 'Remise en forme',
-  GENERAL: 'Entraînement général',
+/** Human label for an objective type, in the active UI language. */
+export function objectiveTypeLabel(type: ObjectiveType): string {
+  return i18n.t(`objective:types.${type}`)
 }
 
 export const OBJECTIVE_TYPES: ObjectiveType[] = ['RACE', 'RECOVERY', 'FITNESS', 'GENERAL']

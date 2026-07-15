@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import { ApiError } from '../../lib/api'
 import { updateProfile } from '../athlete/api'
 import { useAuth } from './session'
@@ -15,6 +16,7 @@ const fieldClass =
  * the profile page.
  */
 export function OnboardingPage() {
+  const { t } = useTranslation('auth')
   const { user, refresh } = useAuth()
   const navigate = useNavigate()
   const [gym, setGym] = useState(true)
@@ -28,16 +30,13 @@ export function OnboardingPage() {
   })
 
   if (!user) {
-    return <p className={`mt-16 text-center ${muted}`}>Chargement…</p>
+    return <p className={`mt-16 text-center ${muted}`}>{t('common:loading')}</p>
   }
 
   return (
     <div className="mx-auto mt-8 max-w-lg pb-16">
-      <h1 className="font-display text-3xl font-semibold">Bienvenue sur Cavale 🏔</h1>
-      <p className={`mt-2 ${muted}`}>
-        Deux minutes pour personnaliser ton entraînement — tout reste modifiable dans ton
-        profil.
-      </p>
+      <h1 className="font-display text-3xl font-semibold">{t('onboarding.title')}</h1>
+      <p className={`mt-2 ${muted}`}>{t('onboarding.intro')}</p>
 
       <form
         className="mt-6 space-y-5"
@@ -60,55 +59,52 @@ export function OnboardingPage() {
         }}
       >
         <section className="rounded-xl border border-moss-200 bg-moss-25 p-5 dark:border-moss-750 dark:bg-moss-850">
-          <h2 className="font-display text-lg font-semibold">Ton profil d'athlète</h2>
-          <p className={`mt-0.5 text-xs ${muted}`}>
-            Poids, FC et date de naissance nourrissent les statistiques et l'estimation
-            d'effort.
-          </p>
+          <h2 className="font-display text-lg font-semibold">{t('onboarding.profile.title')}</h2>
+          <p className={`mt-0.5 text-xs ${muted}`}>{t('onboarding.profile.intro')}</p>
           <div className="mt-3 grid grid-cols-2 gap-3">
             <label className="col-span-2 block text-sm font-medium">
-              Nom affiché
+              {t('onboarding.profile.displayName')}
               <input name="displayName" defaultValue={user.displayName} maxLength={100} className={fieldClass} />
             </label>
             <label className="block text-sm font-medium">
-              Poids (kg)
+              {t('onboarding.profile.weight')}
               <input name="weightKg" type="number" step="0.1" min="30" className={fieldClass} />
             </label>
             <label className="block text-sm font-medium">
-              Taille (cm)
+              {t('onboarding.profile.height')}
               <input name="heightCm" type="number" min="100" className={fieldClass} />
             </label>
             <label className="col-span-2 block text-sm font-medium">
-              Date de naissance
+              {t('onboarding.profile.birthDate')}
               <input name="birthDate" type="date" className={fieldClass} />
             </label>
             <label className="block text-sm font-medium">
-              FC max
+              {t('onboarding.profile.maxHr')}
               <input name="maxHr" type="number" min="100" max="240" className={fieldClass} />
             </label>
             <label className="block text-sm font-medium">
-              FC repos
+              {t('onboarding.profile.restingHr')}
               <input name="restingHr" type="number" min="25" max="120" className={fieldClass} />
             </label>
           </div>
         </section>
 
         <section>
-          <h2 className="font-display text-lg font-semibold">Tu utilises Cavale pour…</h2>
+          <h2 className="font-display text-lg font-semibold">{t('onboarding.usage.title')}</h2>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <UsageCard
               selected={!gym}
               onSelect={() => setGym(false)}
               emoji="🏃"
-              title="La course uniquement"
-              description="Plans, calendrier, Strava et statistiques. Le renfo reste activable plus tard dans les paramètres."
+              title={t('onboarding.usage.runningOnly.title')}
+              description={t('onboarding.usage.runningOnly.description')}
             />
             <UsageCard
               selected={gym}
               onSelect={() => setGym(true)}
               emoji="🏔"
-              title="Course + renfo"
-              description="Tout, plus les programmes de force, le suivi des séances en salle et leurs statistiques."
+              title={t('onboarding.usage.runningAndGym.title')}
+              description={t('onboarding.usage.runningAndGym.description')}
             />
           </div>
         </section>
@@ -125,14 +121,14 @@ export function OnboardingPage() {
             disabled={mutation.isPending}
             className="rounded-lg bg-pine-600 px-5 py-2.5 font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
           >
-            {mutation.isPending ? 'Enregistrement…' : "C'est parti"}
+            {mutation.isPending ? t('common:saving') : t('onboarding.submit')}
           </button>
           <button
             type="button"
             onClick={() => void navigate({ to: '/' })}
             className={`text-sm font-medium ${muted} hover:underline`}
           >
-            Plus tard
+            {t('onboarding.later')}
           </button>
         </div>
       </form>

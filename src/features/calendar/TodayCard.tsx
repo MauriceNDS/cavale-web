@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { addDays, format, parseISO } from 'date-fns'
-import { fr } from 'date-fns/locale'
+import { useTranslation } from 'react-i18next'
+import { dateLocale } from '../../i18n'
 import { fetchActiveWorkout, startWorkout } from '../gym/api'
 import {
   downloadSessionFit,
@@ -12,7 +13,7 @@ import {
 } from './api'
 import {
   KIND_EDGE,
-  KIND_LABEL,
+  kindLabel,
   cleanTitle,
   formatDuration,
   trainingKind,
@@ -20,9 +21,9 @@ import {
 
 const muted = 'text-moss-500 dark:text-moss-400'
 
-const STATUS_BADGE: Partial<Record<SessionResponse['status'], { label: string; className: string }>> = {
-  DONE: { label: 'Validée', className: 'bg-pine-100 text-pine-700 dark:bg-pine-900 dark:text-pine-300' },
-  SKIPPED: { label: 'Passée', className: 'bg-clay-100 text-clay-500 dark:bg-clay-900 dark:text-clay-300' },
+const STATUS_BADGE: Partial<Record<SessionResponse['status'], string>> = {
+  DONE: 'bg-pine-100 text-pine-700 dark:bg-pine-900 dark:text-pine-300',
+  SKIPPED: 'bg-clay-100 text-clay-500 dark:bg-clay-900 dark:text-clay-300',
 }
 
 /**
@@ -30,6 +31,7 @@ const STATUS_BADGE: Partial<Record<SessionResponse['status'], { label: string; c
  * planned one — with the .fit export and the Strava proposal one click away.
  */
 export function TodayCard() {
+  const { t } = useTranslation('calendar')
   const today = format(new Date(), 'yyyy-MM-dd')
   const horizon = format(addDays(new Date(), 7), 'yyyy-MM-dd')
   const query = useQuery({
@@ -58,24 +60,28 @@ export function TodayCard() {
           params={{ workoutId: activeWorkout.data.log.id }}
           className="mb-3 flex items-center justify-between gap-2 rounded-lg border border-copper-600/40 bg-copper-600/10 px-3 py-2.5 text-sm font-semibold text-copper-600 transition hover:bg-copper-600/20 dark:border-copper-300/40 dark:bg-copper-300/10 dark:text-copper-300"
         >
-          <span>🏋 Séance en cours : {activeWorkout.data.log.templateName ?? 'Renfo'}</span>
-          <span>Reprendre →</span>
+          <span>
+            {t('today.activeWorkout', {
+              name: activeWorkout.data.log.templateName ?? t('kind.GYM'),
+            })}
+          </span>
+          <span>{t('today.resume')}</span>
         </Link>
       )}
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="font-display text-lg font-semibold">
-          {showingNext ? 'Prochaine séance' : 'Aujourd’hui'}
+          {showingNext ? t('today.nextSession') : t('common:today')}
         </h2>
         <p className={`text-sm ${muted}`}>
-          {format(parseISO(showingNext ? shown[0].date : today), 'EEEE d MMMM', { locale: fr })}
+          {format(parseISO(showingNext ? shown[0].date : today), 'EEEE d MMMM', { locale: dateLocale() })}
         </p>
       </div>
-      {showingNext && <p className={`mt-1 text-sm ${muted}`}>Rien de prévu aujourd'hui.</p>}
+      {showingNext && <p className={`mt-1 text-sm ${muted}`}>{t('today.nothingToday')}</p>}
       {shown.length === 0 ? (
         <p className={`mt-2 text-sm ${muted}`}>
-          Aucune séance planifiée cette semaine —{' '}
+          {t('today.noneThisWeek')}{' '}
           <Link to="/calendrier" className="font-medium text-pine-700 underline dark:text-pine-300">
-            voir le calendrier
+            {t('today.seeCalendar')}
           </Link>
         </p>
       ) : (
@@ -90,10 +96,11 @@ export function TodayCard() {
 }
 
 function SessionRow({ session }: { session: SessionResponse }) {
+  const { t } = useTranslation('calendar')
   const [exporting, setExporting] = useState(false)
   const navigate = useNavigate()
   const kind = trainingKind(session)
-  const badge = STATUS_BADGE[session.status]
+  const badgeCls = STATUS_BADGE[session.status]
   const isRest = session.discipline === 'REST'
 
   const startMutation = useMutation({
@@ -132,14 +139,14 @@ function SessionRow({ session }: { session: SessionResponse }) {
         >
           <p className={`truncate font-medium ${isRest ? muted : ''}`}>{cleanTitle(session.title)}</p>
           <p className={`text-xs ${muted}`}>
-            {KIND_LABEL[kind]}
+            {kindLabel(kind)}
             {session.durationMin != null && ` · ${formatDuration(session.durationMin)}`}
             {session.elevationM != null && ` · ${session.elevationM} m D+`}
           </p>
         </Link>
-        {badge && (
-          <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${badge.className}`}>
-            {badge.label}
+        {badgeCls && (
+          <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${badgeCls}`}>
+            {t(`session.status.${session.status}`)}
           </span>
         )}
         {session.discipline === 'RUN' && session.status === 'PLANNED' && (
@@ -148,7 +155,7 @@ function SessionRow({ session }: { session: SessionResponse }) {
             disabled={exporting}
             className="rounded-lg border border-moss-200 px-3 py-1.5 text-sm font-medium transition hover:bg-moss-100 disabled:opacity-50 dark:border-moss-750 dark:hover:bg-moss-800"
           >
-            {exporting ? 'Export…' : '⌚ .fit'}
+            {exporting ? t('session.exporting') : '⌚ .fit'}
           </button>
         )}
         {session.discipline === 'GYM' && session.status === 'PLANNED' && session.templateVariantId && (
@@ -157,15 +164,15 @@ function SessionRow({ session }: { session: SessionResponse }) {
             disabled={startMutation.isPending}
             className="rounded-lg bg-copper-600 px-3 py-1.5 text-sm font-semibold text-moss-25 transition hover:opacity-90 disabled:opacity-50 dark:bg-copper-300 dark:text-moss-950"
           >
-            {startMutation.isPending ? 'Démarrage…' : '🏋 Démarrer'}
+            {startMutation.isPending ? t('session.starting') : t('today.start')}
           </button>
         )}
       </div>
       {proposal && (
         <div className="flex flex-wrap items-center gap-2 border-t border-[#fc4c02]/30 bg-[#fc4c02]/5 p-3 dark:bg-[#fc4c02]/10">
           <p className="min-w-0 flex-1 text-sm">
-            <span className="font-semibold">Sortie Strava correspondante :</span>{' '}
-            {proposal.name ?? 'Sortie'}
+            <span className="font-semibold">{t('proposal.matchingRun')}</span>{' '}
+            {proposal.name ?? t('proposal.run')}
             <span className={`block text-xs ${muted}`}>
               {formatDuration(proposal.durationMin)}
               {proposal.distanceKm != null && ` · ${proposal.distanceKm} km`}
@@ -177,7 +184,7 @@ function SessionRow({ session }: { session: SessionResponse }) {
             params={{ sessionId: session.id }}
             className="rounded-lg bg-[#fc4c02] px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-[#e04502]"
           >
-            ✓ Valider
+            {t('session.validate')}
           </Link>
         </div>
       )}

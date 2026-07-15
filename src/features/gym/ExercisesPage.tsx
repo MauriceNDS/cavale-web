@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { ApiError } from '../../lib/api'
 import { RenfoTabs } from './RenfoTabs'
 import { ExerciseForm } from './ExerciseForm'
@@ -16,12 +17,12 @@ import {
   CATEGORIES,
   CATEGORY_BADGE,
   CATEGORY_EDGE,
-  CATEGORY_LABEL,
+  categoryLabel,
   EQUIPMENTS,
-  EQUIPMENT_LABEL,
-  MEASURE_LABEL,
+  equipmentLabel,
+  measureLabel,
   MUSCLES,
-  MUSCLE_LABEL,
+  muscleLabel,
 } from './labels'
 
 const muted = 'text-moss-500 dark:text-moss-400'
@@ -34,6 +35,7 @@ type FormState =
 
 /** The library — every movement with its theory, colored by category. */
 export function ExercisesPage() {
+  const { t } = useTranslation('gym')
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState<ExerciseCategory | null>(null)
   const [muscle, setMuscle] = useState<Muscle | ''>('')
@@ -58,8 +60,8 @@ export function ExercisesPage() {
         <input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Rechercher un exercice…"
-          aria-label="Rechercher un exercice"
+          placeholder={t('exercises.searchPlaceholder')}
+          aria-label={t('exercises.searchAria')}
           className="w-full rounded-lg border border-moss-200 bg-moss-100 px-3 py-2 text-sm transition outline-none focus:border-pine-600 focus:ring-2 focus:ring-pine-600/25 sm:w-64 dark:border-moss-750 dark:bg-moss-800 dark:focus:border-pine-350 dark:focus:ring-pine-350/25"
         />
         <div className="flex flex-wrap gap-1.5">
@@ -74,7 +76,7 @@ export function ExercisesPage() {
                   : CATEGORY_BADGE[c] + ' opacity-60 hover:opacity-100'
               }`}
             >
-              {CATEGORY_LABEL[c]}
+              {categoryLabel(c)}
             </button>
           ))}
         </div>
@@ -82,7 +84,7 @@ export function ExercisesPage() {
           onClick={() => setForm({ kind: 'create' })}
           className="ml-auto rounded-lg bg-pine-600 px-3.5 py-2 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
         >
-          + Nouvel exercice
+          {t('exercises.new')}
         </button>
       </div>
 
@@ -90,26 +92,26 @@ export function ExercisesPage() {
         <select
           value={muscle}
           onChange={(event) => setMuscle(event.target.value as Muscle | '')}
-          aria-label="Filtrer par muscle"
+          aria-label={t('exercises.filterMuscleAria')}
           className="rounded-lg border border-moss-200 bg-moss-100 px-2.5 py-1.5 text-sm outline-none dark:border-moss-750 dark:bg-moss-800"
         >
-          <option value="">Tous les muscles</option>
+          <option value="">{t('exercises.allMuscles')}</option>
           {MUSCLES.map((m) => (
             <option key={m} value={m}>
-              {MUSCLE_LABEL[m]}
+              {muscleLabel(m)}
             </option>
           ))}
         </select>
         <select
           value={equipment}
           onChange={(event) => setEquipment(event.target.value as Equipment | '')}
-          aria-label="Filtrer par matériel"
+          aria-label={t('exercises.filterEquipmentAria')}
           className="rounded-lg border border-moss-200 bg-moss-100 px-2.5 py-1.5 text-sm outline-none dark:border-moss-750 dark:bg-moss-800"
         >
-          <option value="">Tout le matériel</option>
+          <option value="">{t('exercises.allEquipment')}</option>
           {EQUIPMENTS.map((e) => (
             <option key={e} value={e}>
-              {EQUIPMENT_LABEL[e]}
+              {equipmentLabel(e)}
             </option>
           ))}
         </select>
@@ -121,7 +123,7 @@ export function ExercisesPage() {
             }}
             className="text-xs font-medium text-pine-700 underline dark:text-pine-300"
           >
-            effacer les filtres
+            {t('exercises.clearFilters')}
           </button>
         )}
       </div>
@@ -137,17 +139,17 @@ export function ExercisesPage() {
         </div>
       )}
 
-      {query.isLoading && <p className={`mt-8 text-center ${muted}`}>Chargement…</p>}
+      {query.isLoading && <p className={`mt-8 text-center ${muted}`}>{t('common:loading')}</p>}
       {query.isError && (
         <p className="mt-8 text-center text-clay-500 dark:text-clay-300">
-          Impossible de charger la bibliothèque.
+          {t('exercises.loadError')}
         </p>
       )}
       {query.data && exercises.length === 0 && (
         <p className={`mt-8 text-center ${muted}`}>
           {query.data.filter((e) => !e.archived).length === 0
-            ? 'Ta bibliothèque est vide — crée ton premier exercice.'
-            : 'Aucun exercice ne correspond.'}
+            ? t('exercises.emptyLibrary')
+            : t('exercises.noMatch')}
         </p>
       )}
 
@@ -180,6 +182,7 @@ function ExerciseCard({
   onEdit: () => void
   onDerive: () => void
 }) {
+  const { t } = useTranslation('gym')
   const queryClient = useQueryClient()
 
   const archiveMutation = useMutation({
@@ -213,16 +216,16 @@ function ExerciseCard({
           <span
             className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${CATEGORY_BADGE[exercise.category]}`}
           >
-            {CATEGORY_LABEL[exercise.category]}
+            {categoryLabel(exercise.category)}
           </span>
           {exercise.derivedFromName && (
             <span className={`text-xs ${muted}`}>← {exercise.derivedFromName}</span>
           )}
         </div>
         <p className={`mt-0.5 text-xs ${muted}`}>
-          {EQUIPMENT_LABEL[exercise.equipment]} · {MEASURE_LABEL[exercise.measure]}
+          {equipmentLabel(exercise.equipment)} · {measureLabel(exercise.measure)}
           {exercise.muscles.length > 0 &&
-            ` · ${exercise.muscles.map((m) => MUSCLE_LABEL[m]).join(', ')}`}
+            ` · ${exercise.muscles.map((m) => muscleLabel(m)).join(', ')}`}
         </p>
       </button>
 
@@ -231,7 +234,7 @@ function ExerciseCard({
           {exercise.description && <p className="whitespace-pre-line">{exercise.description}</p>}
           {exercise.runningBenefit && (
             <p className={`mt-2 ${muted}`}>
-              <span className="font-medium text-ink dark:text-linen">Pourquoi pour le trail : </span>
+              <span className="font-medium text-ink dark:text-linen">{t('exercises.whyForTrail')}</span>
               {exercise.runningBenefit}
             </p>
           )}
@@ -242,24 +245,24 @@ function ExerciseCard({
               rel="noreferrer"
               className="mt-2 inline-block font-medium text-pine-700 underline dark:text-pine-300"
             >
-              Voir la ressource ↗
+              {t('exercises.viewResource')}
             </a>
           )}
           {!exercise.description && !exercise.runningBenefit && !exercise.resourceUrl && (
-            <p className={muted}>Pas encore de fiche — ajoute la théorie en modifiant l'exercice.</p>
+            <p className={muted}>{t('exercises.noSheet')}</p>
           )}
           <div className="mt-3 flex flex-wrap gap-2">
-            <ActionButton onClick={onEdit}>Modifier</ActionButton>
-            <ActionButton onClick={onDerive}>Dériver</ActionButton>
+            <ActionButton onClick={onEdit}>{t('common:edit')}</ActionButton>
+            <ActionButton onClick={onDerive}>{t('exercises.derive')}</ActionButton>
             <ActionButton onClick={() => archiveMutation.mutate()} disabled={archiveMutation.isPending}>
-              Archiver
+              {t('exercises.archive')}
             </ActionButton>
             <ActionButton
               onClick={() => deleteMutation.mutate()}
               disabled={deleteMutation.isPending}
               danger
             >
-              Supprimer
+              {t('common:delete')}
             </ActionButton>
           </div>
           {deleteMutation.error instanceof ApiError && (

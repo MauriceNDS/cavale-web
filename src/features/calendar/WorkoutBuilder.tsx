@@ -1,5 +1,7 @@
+import { useTranslation } from 'react-i18next'
+import i18n from '../../i18n'
 import type { Allure, Terrain, WorkoutNode } from './api'
-import { ALLURES, ALLURE_LABEL, allureStyle } from './labels'
+import { ALLURES, allureLabel, allureStyle } from './labels'
 
 /**
  * Structured workout editor: blocks (allure + durée + terrain) and loops
@@ -79,14 +81,14 @@ export function draftsToNodes(items: ItemDraft[]): WorkoutNode[] {
 export function draftsError(items: ItemDraft[]): string | null {
   for (const item of items) {
     if (item.kind === 'step' && (!item.value || item.value <= 0)) {
-      return 'Chaque bloc doit avoir une durée positive.'
+      return i18n.t('calendar:builder.errors.stepDuration')
     }
     if (item.kind === 'loop') {
-      if (item.steps.length < 2) return 'Une boucle doit contenir au moins 2 blocs.'
+      if (item.steps.length < 2) return i18n.t('calendar:builder.errors.loopMinSteps')
       if (item.steps.some((s) => !s.value || s.value <= 0)) {
-        return 'Chaque bloc doit avoir une durée positive.'
+        return i18n.t('calendar:builder.errors.stepDuration')
       }
-      if (!item.count || item.count < 2) return 'Une boucle se répète au moins 2 fois.'
+      if (!item.count || item.count < 2) return i18n.t('calendar:builder.errors.loopMinCount')
     }
   }
   return null
@@ -112,6 +114,7 @@ export function WorkoutBuilder({
   items: ItemDraft[]
   onChange: (items: ItemDraft[]) => void
 }) {
+  const { t } = useTranslation('calendar')
   function updateItem(index: number, item: ItemDraft) {
     onChange(items.map((existing, i) => (i === index ? item : existing)))
   }
@@ -153,14 +156,14 @@ export function WorkoutBuilder({
           onClick={() => onChange([...items, newStep()])}
           className="rounded-lg border border-moss-200 px-3 py-1.5 text-xs font-semibold text-ink transition hover:bg-moss-100 dark:border-moss-750 dark:text-linen dark:hover:bg-moss-800"
         >
-          + Bloc
+          {t('builder.addStep')}
         </button>
         <button
           type="button"
           onClick={() => onChange([...items, newLoop()])}
           className="rounded-lg border border-moss-200 px-3 py-1.5 text-xs font-semibold text-ink transition hover:bg-moss-100 dark:border-moss-750 dark:text-linen dark:hover:bg-moss-800"
         >
-          + Boucle
+          {t('builder.addLoop')}
         </button>
       </div>
     </div>
@@ -168,6 +171,7 @@ export function WorkoutBuilder({
 }
 
 function StepEditor({ step, onChange }: { step: StepDraft; onChange: (s: StepDraft) => void }) {
+  const { t } = useTranslation('calendar')
   const style = allureStyle(step.allure)
   return (
     <div
@@ -178,11 +182,11 @@ function StepEditor({ step, onChange }: { step: StepDraft; onChange: (s: StepDra
           value={step.allure}
           onChange={(e) => onChange({ ...step, allure: e.target.value as Allure })}
           className={`${inputCls} font-semibold`}
-          aria-label="Allure"
+          aria-label={t('builder.allure')}
         >
           {ALLURES.map((a) => (
             <option key={a} value={a}>
-              {ALLURE_LABEL[a]}
+              {allureLabel(a)}
             </option>
           ))}
         </select>
@@ -192,13 +196,13 @@ function StepEditor({ step, onChange }: { step: StepDraft; onChange: (s: StepDra
           value={step.value}
           onChange={(e) => onChange({ ...step, value: Number(e.target.value) })}
           className={`${inputCls} w-16 text-right tabular-nums`}
-          aria-label="Durée"
+          aria-label={t('builder.duration')}
         />
         <select
           value={step.unit}
           onChange={(e) => onChange({ ...step, unit: e.target.value as 'sec' | 'min' })}
           className={inputCls}
-          aria-label="Unité"
+          aria-label={t('builder.unit')}
         >
           <option value="sec">sec</option>
           <option value="min">min</option>
@@ -207,11 +211,11 @@ function StepEditor({ step, onChange }: { step: StepDraft; onChange: (s: StepDra
           value={step.terrain}
           onChange={(e) => onChange({ ...step, terrain: e.target.value as Terrain })}
           className={inputCls}
-          aria-label="Terrain"
+          aria-label={t('builder.terrain')}
         >
-          <option value="PLAT">plat</option>
-          <option value="COTE">en côte</option>
-          <option value="DESCENTE">en descente</option>
+          <option value="PLAT">{t('terrain.PLAT')}</option>
+          <option value="COTE">{t('terrain.COTE')}</option>
+          <option value="DESCENTE">{t('terrain.DESCENTE')}</option>
         </select>
       </div>
     </div>
@@ -219,6 +223,7 @@ function StepEditor({ step, onChange }: { step: StepDraft; onChange: (s: StepDra
 }
 
 function LoopEditor({ loop, onChange }: { loop: LoopDraft; onChange: (l: LoopDraft) => void }) {
+  const { t } = useTranslation('calendar')
   function updateStep(index: number, step: StepDraft) {
     onChange({ ...loop, steps: loop.steps.map((s, i) => (i === index ? step : s)) })
   }
@@ -255,7 +260,7 @@ function LoopEditor({ loop, onChange }: { loop: LoopDraft; onChange: (l: LoopDra
           onClick={() => onChange({ ...loop, steps: [...loop.steps, newStep()] })}
           className="rounded-lg px-2 py-1 text-xs font-medium text-moss-500 transition hover:bg-moss-100 dark:text-moss-400 dark:hover:bg-moss-800"
         >
-          + Bloc dans la boucle
+          {t('builder.addStepInLoop')}
         </button>
       </div>
       <div className="flex w-14 shrink-0 flex-col items-center justify-center gap-1 border-l border-moss-200 bg-moss-100 py-2 text-moss-500 dark:border-moss-750 dark:bg-moss-800 dark:text-moss-400">
@@ -269,7 +274,7 @@ function LoopEditor({ loop, onChange }: { loop: LoopDraft; onChange: (l: LoopDra
           value={loop.count}
           onChange={(e) => onChange({ ...loop, count: Number(e.target.value) })}
           className={`${inputCls} w-11 text-center font-semibold tabular-nums`}
-          aria-label="Nombre de répétitions"
+          aria-label={t('builder.repeatCount')}
         />
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
@@ -289,18 +294,19 @@ function ItemControls({
   onDown: () => void
   onRemove?: () => void
 }) {
+  const { t } = useTranslation('calendar')
   const cls =
     'grid h-6 w-6 place-items-center rounded-md text-moss-400 transition hover:bg-moss-100 hover:text-ink disabled:opacity-30 dark:text-moss-500 dark:hover:bg-moss-800 dark:hover:text-linen'
   return (
     <div className="flex shrink-0 flex-col">
-      <button type="button" onClick={onUp} aria-label="Monter" className={cls}>
+      <button type="button" onClick={onUp} aria-label={t('builder.up')} className={cls}>
         ↑
       </button>
-      <button type="button" onClick={onDown} aria-label="Descendre" className={cls}>
+      <button type="button" onClick={onDown} aria-label={t('builder.down')} className={cls}>
         ↓
       </button>
       {onRemove && (
-        <button type="button" onClick={onRemove} aria-label="Supprimer" className={cls}>
+        <button type="button" onClick={onRemove} aria-label={t('common:delete')} className={cls}>
           ✕
         </button>
       )}

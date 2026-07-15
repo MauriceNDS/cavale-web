@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { format, parseISO } from 'date-fns'
-import { fr } from 'date-fns/locale'
+import { useTranslation } from 'react-i18next'
+import { dateLocale, numberLocale } from '../../i18n'
 import { useMeasuredWidth } from '../../lib/useMeasuredWidth'
 import type { MonthlyStat, WeeklyEffort } from './api'
 import { formatMonth } from './labels'
@@ -78,7 +79,7 @@ function Grid({
             textAnchor="end"
             className="fill-moss-500 text-[10px] dark:fill-moss-400"
           >
-            {fmt ? fmt(t) : t.toLocaleString('fr-FR')}
+            {fmt ? fmt(t) : t.toLocaleString(numberLocale())}
           </text>
         </g>
       ))}
@@ -95,6 +96,7 @@ interface MonthlyBarsProps {
 }
 
 export function MonthlyBars({ months, value, unit }: MonthlyBarsProps) {
+  const { t } = useTranslation('athlete')
   const { ref, width } = useMeasuredWidth<HTMLDivElement>(FALLBACK_W)
   const [hover, setHover] = useState<number | null>(null)
   const plotW = width - PAD.left - PAD.right
@@ -108,7 +110,7 @@ export function MonthlyBars({ months, value, unit }: MonthlyBarsProps) {
 
   return (
     <div ref={ref} className="relative">
-      <svg viewBox={`0 0 ${width} ${H}`} className="h-auto w-full" role="img" aria-label={`Par mois (${unit})`}>
+      <svg viewBox={`0 0 ${width} ${H}`} className="h-auto w-full" role="img" aria-label={t('charts.monthlyAria', { unit })}>
         <Grid ticks={ticks} y={y} width={width} />
         {months.map((month, i) => {
           const v = value(month)
@@ -150,10 +152,10 @@ export function MonthlyBars({ months, value, unit }: MonthlyBarsProps) {
           <dl className="mt-1 space-y-0.5">
             <div className="flex justify-between">
               <dt className="text-moss-500 dark:text-moss-400">{unit}</dt>
-              <dd className="font-medium">{value(months[hover]).toLocaleString('fr-FR')}</dd>
+              <dd className="font-medium">{value(months[hover]).toLocaleString(numberLocale())}</dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-moss-500 dark:text-moss-400">Sorties</dt>
+              <dt className="text-moss-500 dark:text-moss-400">{t('charts.runs')}</dt>
               <dd>{months[hover].runs}</dd>
             </div>
           </dl>
@@ -177,6 +179,7 @@ interface TrendLineProps {
 }
 
 export function TrendLine({ months, value, formatValue, formatTick, invert, label }: TrendLineProps) {
+  const { t } = useTranslation('athlete')
   const { ref, width } = useMeasuredWidth<HTMLDivElement>(FALLBACK_W)
   const [hover, setHover] = useState<number | null>(null)
   const plotW = width - PAD.left - PAD.right
@@ -186,7 +189,7 @@ export function TrendLine({ months, value, formatValue, formatTick, invert, labe
   }[]
 
   if (points.length === 0) {
-    return <p className="py-10 text-center text-sm text-moss-500 dark:text-moss-400">Pas encore de données.</p>
+    return <p className="py-10 text-center text-sm text-moss-500 dark:text-moss-400">{t('charts.noData')}</p>
   }
 
   const values = points.map((p) => p.v)
@@ -309,6 +312,7 @@ export function TrendLine({ months, value, formatValue, formatTick, invert, labe
 /* ── Weekly relative effort: bars + 4-week rolling average ─────────── */
 
 export function EffortChart({ weeks }: { weeks: WeeklyEffort[] }) {
+  const { t } = useTranslation('athlete')
   const { ref, width } = useMeasuredWidth<HTMLDivElement>(FALLBACK_W)
   const [hover, setHover] = useState<number | null>(null)
   const plotW = width - PAD.left - PAD.right
@@ -334,14 +338,14 @@ export function EffortChart({ weeks }: { weeks: WeeklyEffort[] }) {
       <div className="mb-2 flex items-center gap-4">
         <span className="flex items-center gap-1.5 text-xs text-moss-500 dark:text-moss-400">
           <span className="h-2.5 w-2.5 rounded-[3px] bg-pine-600 dark:bg-pine-350" aria-hidden />
-          Effort hebdo
+          {t('charts.weeklyEffortLegend')}
         </span>
         <span className="flex items-center gap-1.5 text-xs text-moss-500 dark:text-moss-400">
           <span className="h-[2px] w-4 rounded bg-moss-400 dark:bg-moss-500" aria-hidden />
-          Moyenne 4 sem.
+          {t('charts.rollingLegend')}
         </span>
       </div>
-      <svg viewBox={`0 0 ${width} ${H}`} className="h-auto w-full" role="img" aria-label="Effort relatif hebdomadaire">
+      <svg viewBox={`0 0 ${width} ${H}`} className="h-auto w-full" role="img" aria-label={t('charts.effortAria')}>
         <Grid ticks={ticks} y={y} width={width} />
         {weeks.map((week, i) => (
           <g key={week.weekStart}>
@@ -364,7 +368,7 @@ export function EffortChart({ weeks }: { weeks: WeeklyEffort[] }) {
                 textAnchor="middle"
                 className="fill-moss-500 text-[10px] dark:fill-moss-400"
               >
-                {format(parseISO(week.weekStart), 'd MMM', { locale: fr })}
+                {format(parseISO(week.weekStart), 'd MMM', { locale: dateLocale() })}
               </text>
             )}
             <rect
@@ -390,19 +394,21 @@ export function EffortChart({ weeks }: { weeks: WeeklyEffort[] }) {
       {hover != null && (
         <Tooltip x={PAD.left + hover * band + band / 2} width={width}>
           <p className="font-semibold">
-            Semaine du {format(parseISO(weeks[hover].weekStart), 'd MMMM', { locale: fr })}
+            {t('charts.weekOf', {
+              date: format(parseISO(weeks[hover].weekStart), 'd MMMM', { locale: dateLocale() }),
+            })}
           </p>
           <dl className="mt-1 space-y-0.5">
             <div className="flex justify-between">
-              <dt className="text-moss-500 dark:text-moss-400">Effort relatif</dt>
+              <dt className="text-moss-500 dark:text-moss-400">{t('charts.relativeEffort')}</dt>
               <dd className="font-medium">{weeks[hover].relativeEffort}</dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-moss-500 dark:text-moss-400">Volume</dt>
+              <dt className="text-moss-500 dark:text-moss-400">{t('charts.volume')}</dt>
               <dd>{Math.round(weeks[hover].distanceKm)} km</dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-moss-500 dark:text-moss-400">Moy. 4 sem.</dt>
+              <dt className="text-moss-500 dark:text-moss-400">{t('charts.rollingShort')}</dt>
               <dd>{Math.round(rolling[hover])}</dd>
             </div>
           </dl>

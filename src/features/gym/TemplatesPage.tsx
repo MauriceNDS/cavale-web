@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import { ApiError } from '../../lib/api'
 import { RenfoTabs } from './RenfoTabs'
 import { createTemplate, fetchTemplates } from './api'
@@ -11,6 +12,7 @@ const fieldClass =
 
 /** Strength programs — each card is a template with its A/B/C variants. */
 export function TemplatesPage() {
+  const { t } = useTranslation('gym')
   const [creating, setCreating] = useState(false)
   const queryClient = useQueryClient()
   const query = useQuery({ queryKey: ['gym-templates'], queryFn: fetchTemplates })
@@ -33,7 +35,7 @@ export function TemplatesPage() {
           onClick={() => setCreating(true)}
           className="rounded-lg bg-pine-600 px-3.5 py-2 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
         >
-          + Nouveau programme
+          {t('templates.new')}
         </button>
       </div>
 
@@ -50,14 +52,20 @@ export function TemplatesPage() {
           }}
         >
           <label className="block">
-            <span className="text-sm font-medium">Nom du programme</span>
-            <input name="name" required maxLength={150} placeholder="Force Max" className={fieldClass} />
+            <span className="text-sm font-medium">{t('templates.nameLabel')}</span>
+            <input
+              name="name"
+              required
+              maxLength={150}
+              placeholder={t('templates.namePlaceholder')}
+              className={fieldClass}
+            />
           </label>
           <label className="block">
-            <span className="text-sm font-medium">Objectif</span>
+            <span className="text-sm font-medium">{t('templates.goalLabel')}</span>
             <input
               name="goal"
-              placeholder="Cycle force de l'hiver — squat, soulevé, fentes"
+              placeholder={t('templates.goalPlaceholder')}
               className={fieldClass}
             />
           </label>
@@ -72,29 +80,27 @@ export function TemplatesPage() {
               disabled={createMutation.isPending}
               className="rounded-lg bg-pine-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
             >
-              {createMutation.isPending ? 'Création…' : 'Créer'}
+              {createMutation.isPending ? t('common:creating') : t('common:create')}
             </button>
             <button
               type="button"
               onClick={() => setCreating(false)}
               className={`px-3 py-2 text-sm font-medium ${muted}`}
             >
-              Annuler
+              {t('common:cancel')}
             </button>
           </div>
         </form>
       )}
 
-      {query.isLoading && <p className={`mt-8 text-center ${muted}`}>Chargement…</p>}
+      {query.isLoading && <p className={`mt-8 text-center ${muted}`}>{t('common:loading')}</p>}
       {query.isError && (
         <p className="mt-8 text-center text-clay-500 dark:text-clay-300">
-          Impossible de charger les programmes.
+          {t('templates.loadError')}
         </p>
       )}
       {query.data && templates.length === 0 && !creating && (
-        <p className={`mt-8 text-center ${muted}`}>
-          Aucun programme — crée « Force Max » pour commencer.
-        </p>
+        <p className={`mt-8 text-center ${muted}`}>{t('templates.empty')}</p>
       )}
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -120,7 +126,9 @@ export function TemplatesPage() {
             </div>
             {template.goal && <p className={`mt-1 text-sm ${muted}`}>{template.goal}</p>}
             <p className={`mt-2 text-xs ${muted}`}>
-              {template.variants.reduce((sum, v) => sum + v.exerciseCount, 0)} exercice(s) au total
+              {t('templates.exerciseTotal', {
+                count: template.variants.reduce((sum, v) => sum + v.exerciseCount, 0),
+              })}
             </p>
           </Link>
         ))}

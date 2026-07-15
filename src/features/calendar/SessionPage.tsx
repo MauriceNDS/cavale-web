@@ -2,7 +2,8 @@ import { useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { format, parseISO } from 'date-fns'
-import { fr } from 'date-fns/locale'
+import { useTranslation } from 'react-i18next'
+import { dateLocale } from '../../i18n'
 import { ApiError } from '../../lib/api'
 import { GlossaryText } from '../../lib/glossary'
 import { useMeasuredWidth } from '../../lib/useMeasuredWidth'
@@ -24,9 +25,9 @@ import {
   type WorkoutNode,
 } from './api'
 import {
-  DISCIPLINE_LABEL,
+  disciplineLabel,
   EFFORTS,
-  EFFORT_LABEL,
+  effortLabel,
   cleanTitle,
   formatDuration,
   formatSeconds,
@@ -41,13 +42,6 @@ import {
   type ItemDraft,
 } from './WorkoutBuilder'
 
-const STATUS_LABEL: Record<SessionResponse['status'], string> = {
-  PLANNED: 'Planifiée',
-  DONE: 'Validée',
-  SKIPPED: 'Passée',
-  MOVED: 'Déplacée',
-}
-
 function formatPace(durationMin: number, distanceKm: number | null): string | null {
   if (!distanceKm || distanceKm <= 0) return null
   const secPerKm = Math.round((durationMin * 60) / distanceKm)
@@ -57,6 +51,7 @@ function formatPace(durationMin: number, distanceKm: number | null): string | nu
 /* ── Page ──────────────────────────────────────────────────────────── */
 
 export function SessionPage() {
+  const { t } = useTranslation('calendar')
   const params = useParams({ strict: false }) as { sessionId?: string }
   const search = useSearch({ strict: false }) as { from?: string }
   const sessionId = params.sessionId!
@@ -89,15 +84,15 @@ export function SessionPage() {
         search={search.from ? { week: search.from } : undefined}
         className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-medium text-moss-500 transition hover:bg-moss-100 hover:text-ink dark:text-moss-400 dark:hover:bg-moss-800 dark:hover:text-linen"
       >
-        ← Retour à la semaine
+        ← {t('session.back')}
       </Link>
 
       {query.isLoading && (
-        <p className="mt-10 text-center text-moss-500 dark:text-moss-400">Chargement…</p>
+        <p className="mt-10 text-center text-moss-500 dark:text-moss-400">{t('common:loading')}</p>
       )}
       {query.isError && (
         <p className="mt-10 text-center text-clay-500 dark:text-clay-300">
-          Séance introuvable.
+          {t('session.notFound')}
         </p>
       )}
 
@@ -106,7 +101,7 @@ export function SessionPage() {
       )}
       {statusMutation.isError && (
         <p role="alert" className="mt-3 text-sm text-clay-500 dark:text-clay-300">
-          L'action a échoué. Réessaie.
+          {t('session.actionFailed')}
         </p>
       )}
       {void navigate}
@@ -123,6 +118,7 @@ function SessionView({
   statusMutation: { mutate: (b: { status?: SessionResponse['status']; workout?: WorkoutNode[]; date?: string }) => void; isPending: boolean }
   onDone: () => void
 }) {
+  const { t } = useTranslation('calendar')
   const [editingStructure, setEditingStructure] = useState(false)
   const [exporting, setExporting] = useState(false)
 
@@ -146,8 +142,8 @@ function SessionView({
     <div className="mt-4">
       {/* ── Header ── */}
       <p className="text-xs font-semibold tracking-wide text-moss-500 uppercase dark:text-moss-400">
-        {format(parseISO(session.date), 'EEEE d MMMM', { locale: fr })} ·{' '}
-        {DISCIPLINE_LABEL[session.discipline]}
+        {format(parseISO(session.date), 'EEEE d MMMM', { locale: dateLocale() })} ·{' '}
+        {disciplineLabel(session.discipline)}
       </p>
       <div className="mt-1 flex flex-wrap items-center gap-3">
         <h1 className="font-display text-2xl font-semibold text-balance">
@@ -162,19 +158,19 @@ function SessionView({
                 : 'bg-moss-100 text-moss-500 dark:bg-moss-800 dark:text-moss-400'
           }`}
         >
-          {STATUS_LABEL[session.status]}
+          {t(`session.status.${session.status}`)}
         </span>
       </div>
       <div className="mt-2 flex flex-wrap gap-2">
-        {totalSec > 0 && <HeaderChip label="Durée" value={formatSeconds(totalSec)!} />}
-        {session.elevationM != null && <HeaderChip label="D+" value={`${session.elevationM} m`} />}
+        {totalSec > 0 && <HeaderChip label={t('session.chipDuration')} value={formatSeconds(totalSec)!} />}
+        {session.elevationM != null && <HeaderChip label={t('session.chipElevation')} value={`${session.elevationM} m`} />}
         {session.rpeMin != null && (
           <HeaderChip
-            label="RPE"
+            label={t('session.chipRpe')}
             value={`${session.rpeMin}${session.rpeMax !== session.rpeMin ? `–${session.rpeMax}` : ''}`}
           />
         )}
-        {session.zone && <HeaderChip label="Zone" value={session.zone} />}
+        {session.zone && <HeaderChip label={t('session.chipZone')} value={session.zone} />}
         {session.templateName && (
           <span className="rounded-lg border border-copper-600/40 bg-copper-600/10 px-2.5 py-1 text-xs font-semibold text-copper-600 dark:border-copper-300/40 dark:bg-copper-300/10 dark:text-copper-300">
             {session.templateName} · {session.variantLabel}
@@ -190,7 +186,7 @@ function SessionView({
           {consignes && (
             <div className="mt-5 rounded-lg bg-moss-100 p-3 text-sm dark:bg-moss-800">
               <p className="text-xs font-semibold tracking-wide text-moss-500 uppercase dark:text-moss-400">
-                Consignes
+                {t('session.instructions')}
               </p>
               <p className="mt-1 whitespace-pre-line text-moss-500 dark:text-moss-400">
                 <GlossaryText text={consignes} />
@@ -216,14 +212,14 @@ function SessionView({
                   <WorkoutTree nodes={session.workout} />
                 ) : (
                   <p className="text-sm text-moss-400 dark:text-moss-500">
-                    Pas encore de structure.
+                    {t('session.noStructure')}
                   </p>
                 )}
                 <button
                   onClick={() => setEditingStructure(true)}
                   className="mt-1.5 text-xs font-medium text-moss-400 hover:text-ink hover:underline dark:text-moss-500 dark:hover:text-linen"
                 >
-                  {session.workout.length > 0 ? 'Modifier la structure' : '+ Créer la structure'}
+                  {session.workout.length > 0 ? t('session.editStructure') : t('session.createStructure')}
                 </button>
               </div>
             )
@@ -277,6 +273,7 @@ function SessionActions({
   statusMutation: { mutate: (b: { status?: SessionResponse['status']; date?: string }) => void; isPending: boolean }
   onValidated: () => void
 }) {
+  const { t } = useTranslation('calendar')
   const [step, setStep] = useState<WizardStep>({ kind: 'none' })
   const [proposalDismissed, setProposalDismissed] = useState(false)
 
@@ -308,19 +305,19 @@ function SessionActions({
 
   if (step.kind === 'choose') {
     return (
-      <WizardShell title="Comment valider ?" onCancel={() => setStep({ kind: 'none' })}>
+      <WizardShell title={t('wizard.howToValidate')} onCancel={() => setStep({ kind: 'none' })}>
         <div className="flex flex-wrap gap-2">
           <button
             onClick={() => setStep({ kind: 'strava' })}
             className="rounded-lg bg-[#fc4c02] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#e04502]"
           >
-            Importer depuis Strava
+            {t('wizard.importStrava')}
           </button>
           <button
             onClick={() => setStep({ kind: 'manual' })}
             className="rounded-lg border border-pine-600/50 px-4 py-2 text-sm font-semibold text-pine-700 transition hover:bg-pine-100 dark:text-pine-300 dark:hover:bg-pine-900"
           >
-            Saisir manuellement
+            {t('wizard.manualEntry')}
           </button>
         </div>
       </WizardShell>
@@ -329,7 +326,7 @@ function SessionActions({
 
   if (step.kind === 'strava') {
     return (
-      <WizardShell title="Sorties Strava récentes" onCancel={() => setStep({ kind: 'none' })}>
+      <WizardShell title={t('wizard.stravaTitle')} onCancel={() => setStep({ kind: 'none' })}>
         <StravaPicker onPick={(id) => setStep({ kind: 'effort', payload: { strava: id } })} />
       </WizardShell>
     )
@@ -337,7 +334,7 @@ function SessionActions({
 
   if (step.kind === 'manual') {
     return (
-      <WizardShell title="Mesures de la sortie" onCancel={() => setStep({ kind: 'none' })}>
+      <WizardShell title={t('wizard.manualTitle')} onCancel={() => setStep({ kind: 'none' })}>
         <ManualForm
           session={session}
           onSubmit={(measures) => setStep({ kind: 'effort', payload: { manual: measures } })}
@@ -348,7 +345,7 @@ function SessionActions({
 
   if (step.kind === 'move') {
     return (
-      <WizardShell title="Déplacer la séance" onCancel={() => setStep({ kind: 'none' })}>
+      <WizardShell title={t('wizard.moveTitle')} onCancel={() => setStep({ kind: 'none' })}>
         <form
           onSubmit={(event) => {
             event.preventDefault()
@@ -359,7 +356,7 @@ function SessionActions({
           className="flex flex-wrap items-end gap-2"
         >
           <label className="block text-xs text-moss-500 dark:text-moss-400">
-            Nouvelle date
+            {t('wizard.newDate')}
             <input
               name="date"
               type="date"
@@ -373,7 +370,7 @@ function SessionActions({
             disabled={pending}
             className="rounded-lg bg-pine-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
           >
-            Déplacer
+            {t('session.move')}
           </button>
         </form>
       </WizardShell>
@@ -382,7 +379,7 @@ function SessionActions({
 
   if (step.kind === 'effort') {
     return (
-      <WizardShell title="Comment c'était ?" onCancel={() => setStep({ kind: 'none' })}>
+      <WizardShell title={t('wizard.effortTitle')} onCancel={() => setStep({ kind: 'none' })}>
         <EffortForm
           pending={pending}
           error={validateMutation.isError || stravaMutation.isError}
@@ -444,21 +441,21 @@ function SessionActions({
             disabled={pending}
             className="rounded-lg bg-pine-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
           >
-            ✓ Valider
+            {t('session.validate')}
           </button>
           <button
             onClick={() => statusMutation.mutate({ status: 'SKIPPED' })}
             disabled={pending}
             className="rounded-lg border border-clay-500/40 px-4 py-2 text-sm font-semibold text-clay-500 transition hover:bg-clay-100 disabled:opacity-50 dark:text-clay-300 dark:hover:bg-clay-900"
           >
-            Passer
+            {t('session.skip')}
           </button>
           <button
             onClick={() => setStep({ kind: 'move' })}
             disabled={pending}
             className="rounded-lg border border-moss-200 px-4 py-2 text-sm font-medium text-moss-500 transition hover:bg-moss-100 disabled:opacity-50 dark:border-moss-750 dark:text-moss-400 dark:hover:bg-moss-800"
           >
-            Déplacer
+            {t('session.move')}
           </button>
         </>
       )}
@@ -468,7 +465,7 @@ function SessionActions({
           disabled={pending}
           className="rounded-lg border border-moss-200 px-4 py-2 text-sm font-medium text-moss-500 transition hover:bg-moss-100 disabled:opacity-50 dark:border-moss-750 dark:text-moss-400 dark:hover:bg-moss-800"
         >
-          Annuler « passée »
+          {t('session.undoSkip')}
         </button>
       )}
       {session.status === 'DONE' && (
@@ -477,7 +474,7 @@ function SessionActions({
           disabled={pending}
           className="rounded-lg border border-moss-200 px-4 py-2 text-sm font-medium text-moss-500 transition hover:bg-moss-100 disabled:opacity-50 dark:border-moss-750 dark:text-moss-400 dark:hover:bg-moss-800"
         >
-          Remettre à planifiée
+          {t('session.backToPlanned')}
         </button>
       )}
       </div>
@@ -488,6 +485,7 @@ function SessionActions({
 
 /** GYM: one tap opens the live workout — finishing it validates the session. */
 function StartWorkoutButton({ sessionId }: { sessionId: string }) {
+  const { t } = useTranslation('calendar')
   const navigate = useNavigate()
   const mutation = useMutation({
     mutationFn: () => startWorkout({ sessionId }),
@@ -501,7 +499,7 @@ function StartWorkoutButton({ sessionId }: { sessionId: string }) {
       disabled={mutation.isPending}
       className="rounded-lg bg-copper-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:opacity-90 disabled:opacity-50 dark:bg-copper-300 dark:text-moss-950"
     >
-      {mutation.isPending ? 'Démarrage…' : '🏋 Démarrer la séance'}
+      {mutation.isPending ? t('session.starting') : t('session.startWorkout')}
     </button>
   )
 }
@@ -518,7 +516,7 @@ function ProposalBanner({
 }) {
   const pace = formatPace(proposal.durationMin, proposal.distanceKm)
   const facts = [
-    format(parseISO(proposal.date), 'EEEE d MMMM', { locale: fr }),
+    format(parseISO(proposal.date), 'EEEE d MMMM', { locale: dateLocale() }),
     formatDuration(proposal.durationMin),
     proposal.distanceKm != null ? `${proposal.distanceKm} km` : null,
     pace,
@@ -579,6 +577,7 @@ function WizardShell({
 }
 
 function StravaPicker({ onPick }: { onPick: (id: number) => void }) {
+  const { t } = useTranslation('calendar')
   const activities = useQuery({
     queryKey: ['strava-activities'],
     queryFn: fetchStravaActivities,
@@ -588,26 +587,26 @@ function StravaPicker({ onPick }: { onPick: (id: number) => void }) {
   const notConnected = activities.error instanceof ApiError && activities.error.status === 409
 
   if (activities.isLoading)
-    return <p className="text-sm text-moss-500 dark:text-moss-400">Chargement des sorties…</p>
+    return <p className="text-sm text-moss-500 dark:text-moss-400">{t('wizard.loadingActivities')}</p>
   if (notConnected)
     return (
       <p className="text-sm text-moss-500 dark:text-moss-400">
-        Strava n'est pas connecté.{' '}
+        {t('wizard.stravaNotConnected')}{' '}
         <Link to="/parametres" className="font-medium text-pine-700 underline dark:text-pine-300">
-          Connecter dans les paramètres
+          {t('wizard.connectInSettings')}
         </Link>
       </p>
     )
   if (activities.isError)
     return (
       <p role="alert" className="text-sm text-clay-500 dark:text-clay-300">
-        Impossible de charger les sorties Strava. Réessaie.
+        {t('wizard.activitiesError')}
       </p>
     )
   if (!activities.data || activities.data.length === 0)
     return (
       <p className="text-sm text-moss-500 dark:text-moss-400">
-        Aucune sortie récente à importer — tout est déjà rattaché.
+        {t('wizard.noActivities')}
       </p>
     )
 
@@ -621,7 +620,7 @@ function StravaPicker({ onPick }: { onPick: (id: number) => void }) {
         >
           <p className="truncate text-sm font-medium">{a.name}</p>
           <p className="text-xs text-moss-500 tabular-nums dark:text-moss-400">
-            {format(parseISO(a.date), 'EEE d MMM', { locale: fr })} ·{' '}
+            {format(parseISO(a.date), 'EEE d MMM', { locale: dateLocale() })} ·{' '}
             {[
               `${a.distanceKm} km`,
               formatDuration(a.durationMin),
@@ -645,6 +644,7 @@ function ManualForm({
   session: SessionResponse
   onSubmit: (measures: Omit<ValidateSessionRequest, 'perceivedEffort' | 'comment'>) => void
 }) {
+  const { t } = useTranslation('calendar')
   const [error, setError] = useState<string | null>(null)
   const inputCls =
     'mt-0.5 w-full rounded-lg border border-moss-200 bg-moss-100 px-2.5 py-1.5 text-sm outline-none focus:border-pine-600 focus:ring-2 focus:ring-pine-600/25 dark:border-moss-750 dark:bg-moss-800 dark:focus:border-pine-350 dark:focus:ring-pine-350/25'
@@ -655,7 +655,7 @@ function ManualForm({
     const durationMin = Number(data.get('durationMin'))
     const distanceKm = Number(data.get('distanceKm'))
     if (!durationMin || durationMin <= 0 || !distanceKm || distanceKm <= 0) {
-      setError('La durée et la distance sont obligatoires.')
+      setError(t('wizard.measuresRequired'))
       return
     }
     setError(null)
@@ -676,20 +676,20 @@ function ManualForm({
       )}
       <div className="grid grid-cols-2 gap-3">
         <label className="block text-xs text-moss-500 dark:text-moss-400">
-          Durée (min) *
+          {t('wizard.durationLabel')}
           <input name="durationMin" type="number" min="1" required
             defaultValue={session.durationMin ?? ''} className={inputCls} />
         </label>
         <label className="block text-xs text-moss-500 dark:text-moss-400">
-          Distance (km) *
+          {t('wizard.distanceLabel')}
           <input name="distanceKm" type="number" min="0.1" step="0.01" required className={inputCls} />
         </label>
         <label className="block text-xs text-moss-500 dark:text-moss-400">
-          D+ (m)
+          {t('wizard.elevationLabel')}
           <input name="elevationM" type="number" min="0" className={inputCls} />
         </label>
         <label className="block text-xs text-moss-500 dark:text-moss-400">
-          FC moyenne (bpm)
+          {t('wizard.avgHrLabel')}
           <input name="avgHr" type="number" min="30" max="250" className={inputCls} />
         </label>
       </div>
@@ -697,7 +697,7 @@ function ManualForm({
         type="submit"
         className="mt-3 rounded-lg bg-pine-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
       >
-        Continuer
+        {t('wizard.continue')}
       </button>
     </form>
   )
@@ -712,6 +712,7 @@ function EffortForm({
   error: boolean
   onSubmit: (effort: PerceivedEffort, painFlag: boolean, comment?: string) => void
 }) {
+  const { t } = useTranslation('calendar')
   const [effort, setEffort] = useState<PerceivedEffort>('COMME_PREVU')
   const [pain, setPain] = useState(false)
   const [comment, setComment] = useState('')
@@ -720,10 +721,10 @@ function EffortForm({
     <div>
       {error && (
         <p role="alert" className="mb-2 text-sm text-clay-500 dark:text-clay-300">
-          La validation a échoué. Réessaie.
+          {t('wizard.validateFailed')}
         </p>
       )}
-      <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Effort perçu">
+      <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={t('wizard.effortAria')}>
         {EFFORTS.map((e) => (
           <button
             key={e}
@@ -736,7 +737,7 @@ function EffortForm({
                 : 'border border-moss-200 text-moss-500 hover:bg-moss-100 dark:border-moss-750 dark:text-moss-400 dark:hover:bg-moss-800'
             }`}
           >
-            {EFFORT_LABEL[e]}
+            {effortLabel(e)}
           </button>
         ))}
       </div>
@@ -748,14 +749,14 @@ function EffortForm({
           className="h-4 w-4 accent-clay-500"
         />
         <span className={pain ? 'font-medium text-clay-500 dark:text-clay-300' : ''}>
-          Douleur ou gêne ressentie pendant la sortie
+          {t('wizard.pain')}
         </span>
       </label>
       <textarea
         value={comment}
         onChange={(e) => setComment(e.target.value)}
         rows={2}
-        placeholder="Un mot sur la séance ? (optionnel)"
+        placeholder={t('wizard.commentPlaceholder')}
         className="mt-3 w-full rounded-lg border border-moss-200 bg-moss-100 p-2.5 text-sm outline-none focus:border-pine-600 focus:ring-2 focus:ring-pine-600/25 dark:border-moss-750 dark:bg-moss-800 dark:focus:border-pine-350 dark:focus:ring-pine-350/25"
       />
       <button
@@ -763,7 +764,7 @@ function EffortForm({
         disabled={pending}
         className="mt-2 rounded-lg bg-pine-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
       >
-        {pending ? 'Validation…' : '✓ Valider la séance'}
+        {pending ? t('wizard.validating') : t('wizard.validateSession')}
       </button>
     </div>
   )
@@ -782,6 +783,7 @@ function StructureEditor({
   onSave: (workout: WorkoutNode[]) => void
   onCancel: () => void
 }) {
+  const { t } = useTranslation('calendar')
   const [items, setItems] = useState<ItemDraft[]>(() => nodesToDrafts(session.workout))
   const [error, setError] = useState<string | null>(null)
 
@@ -797,7 +799,7 @@ function StructureEditor({
 
   return (
     <div className="mt-5">
-      <p className="text-sm font-semibold">Structure de la séance</p>
+      <p className="text-sm font-semibold">{t('session.structureTitle')}</p>
       {error && (
         <p role="alert" className="mt-1 text-sm text-clay-500 dark:text-clay-300">
           {error}
@@ -834,6 +836,7 @@ function ActivityReport({
   session: SessionResponse
   statusMutation: { mutate: (b: { status?: SessionResponse['status'] }) => void; isPending: boolean }
 }) {
+  const { t } = useTranslation('calendar')
   const activity = session.activity!
   const streams = useQuery({
     queryKey: ['session-streams', session.id],
@@ -885,13 +888,13 @@ function ActivityReport({
       {/* effort + comment */}
       <div className="mt-3 rounded-xl border border-moss-200 bg-moss-25 p-3 dark:border-moss-750 dark:bg-moss-850">
         <p className="text-[11px] font-semibold tracking-wide text-moss-500 uppercase dark:text-moss-400">
-          Ressenti
+          {t('report.feeling')}
         </p>
         <p className="mt-0.5 text-sm font-medium">
-          {activity.perceivedEffort ? EFFORT_LABEL[activity.perceivedEffort] : '—'}
+          {activity.perceivedEffort ? effortLabel(activity.perceivedEffort) : '—'}
           {activity.painFlag && (
             <span className="ml-2 rounded-full bg-clay-100 px-2 py-0.5 text-xs font-semibold text-clay-600 dark:bg-clay-900 dark:text-clay-300">
-              ⚠ Douleur signalée
+              {t('report.painReported')}
             </span>
           )}
         </p>
@@ -914,7 +917,7 @@ function ActivityReport({
           disabled={statusMutation.isPending}
           className="rounded-lg border border-moss-200 px-4 py-2 text-sm font-medium text-moss-500 transition hover:bg-moss-100 disabled:opacity-50 dark:border-moss-750 dark:text-moss-400 dark:hover:bg-moss-800"
         >
-          Remettre à planifiée
+          {t('session.backToPlanned')}
         </button>
       </div>
     </div>
@@ -924,6 +927,7 @@ function ActivityReport({
 /* ── Charts — one series each, hover crosshair, Massif tokens ──────── */
 
 function StreamCharts({ streams }: { streams: ActivityStreams }) {
+  const { t } = useTranslation('calendar')
   const km = streams.distance.map((d) => d / 1000)
 
   const altitude = useMemo(
@@ -952,7 +956,7 @@ function StreamCharts({ streams }: { streams: ActivityStreams }) {
     <div className="mt-4 space-y-3">
       {altitude.length > 1 && (
         <StreamChart
-          title="Profil (m)"
+          title={t('report.chartElevation')}
           points={altitude}
           colorClass="text-pine-600 dark:text-pine-350"
           area
@@ -961,7 +965,7 @@ function StreamCharts({ streams }: { streams: ActivityStreams }) {
       )}
       {pace.length > 1 && (
         <StreamChart
-          title="Allure (min/km)"
+          title={t('report.chartPace')}
           points={pace}
           colorClass="text-teal-600 dark:text-teal-300"
           invertY
@@ -970,7 +974,7 @@ function StreamCharts({ streams }: { streams: ActivityStreams }) {
       )}
       {hr.length > 1 && (
         <StreamChart
-          title="Fréquence cardiaque (bpm)"
+          title={t('report.chartHr')}
           points={hr}
           colorClass="text-rowan-600 dark:text-rowan-300"
           yFormat={(y) => `${Math.round(y)} bpm`}

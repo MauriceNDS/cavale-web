@@ -2,12 +2,13 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { differenceInCalendarDays, differenceInYears, format, parseISO } from 'date-fns'
-import { fr } from 'date-fns/locale'
+import { Trans, useTranslation } from 'react-i18next'
+import { dateLocale, numberLocale } from '../../i18n'
 import { ApiError } from '../../lib/api'
 import { fetchMe } from '../auth/api'
 import { createPlan } from '../calendar/api'
 import { TodayCard } from '../calendar/TodayCard'
-import { OBJECTIVE_TYPE_BADGE, OBJECTIVE_TYPE_LABEL, formatTimeMin } from '../objective/labels'
+import { OBJECTIVE_TYPE_BADGE, formatTimeMin, objectiveTypeLabel } from '../objective/labels'
 import {
   analyzeStravaRecords,
   fetchHub,
@@ -28,13 +29,14 @@ const pill = (active: boolean) =>
   }`
 
 export function HomePage() {
+  const { t } = useTranslation('athlete')
   const hub = useQuery({ queryKey: ['hub'], queryFn: fetchHub })
 
   if (hub.isLoading) {
-    return <p className={`mt-16 text-center ${muted}`}>Chargement…</p>
+    return <p className={`mt-16 text-center ${muted}`}>{t('common:loading')}</p>
   }
   if (!hub.data) {
-    return <p className={`mt-16 text-center ${muted}`}>Impossible de charger le tableau de bord.</p>
+    return <p className={`mt-16 text-center ${muted}`}>{t('home.loadError')}</p>
   }
   return <HubContent hub={hub.data} />
 }
@@ -53,13 +55,8 @@ function HubContent({ hub }: { hub: AthleteHub }) {
 
 /* ── Profile header + Strava sync ──────────────────────────────────── */
 
-const STATUS_CHIP: Record<string, string> = {
-  INJURED: 'Blessé',
-  RECOVERING: 'Reprise',
-  SICK: 'Malade',
-}
-
 function StatusChip() {
+  const { t } = useTranslation('athlete')
   const me = useQuery({ queryKey: ['me'], queryFn: fetchMe })
   const user = me.data
   if (!user || user.athleteStatus === 'AVAILABLE') return null
@@ -68,23 +65,26 @@ function StatusChip() {
       to="/profil"
       className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-clay-100 px-3 py-1 text-xs font-semibold text-clay-600 transition hover:bg-clay-100/70 dark:bg-clay-900 dark:text-clay-300"
     >
-      ⚠ {STATUS_CHIP[user.athleteStatus]}
+      ⚠ {t(`home.status.${user.athleteStatus}`)}
       {user.statusSince &&
-        ` depuis le ${format(parseISO(user.statusSince), 'd MMMM', { locale: fr })}`}
+        ` ${t('home.status.since', {
+          date: format(parseISO(user.statusSince), 'd MMMM', { locale: dateLocale() }),
+        })}`}
       {user.statusNote && ` · ${user.statusNote}`}
     </Link>
   )
 }
 
 function ProfileHeader({ hub }: { hub: AthleteHub }) {
+  const { t } = useTranslation('athlete')
   const { profile, totals } = hub
   const age = profile.birthDate ? differenceInYears(new Date(), parseISO(profile.birthDate)) : null
   const details = [
-    age != null && `${age} ans`,
+    age != null && t('home.profile.age', { count: age }),
     profile.weightKg != null && `${profile.weightKg} kg`,
     profile.heightCm != null && `${profile.heightCm} cm`,
-    profile.maxHr != null && `FC max ${profile.maxHr}`,
-    profile.restingHr != null && `FC repos ${profile.restingHr}`,
+    profile.maxHr != null && t('home.profile.maxHr', { value: profile.maxHr }),
+    profile.restingHr != null && t('home.profile.restingHr', { value: profile.restingHr }),
   ].filter(Boolean) as string[]
 
   return (
@@ -93,10 +93,10 @@ function ProfileHeader({ hub }: { hub: AthleteHub }) {
         <div>
           <h1 className="font-display text-3xl font-semibold">{profile.displayName}</h1>
           <p className={`mt-1 text-sm ${muted}`}>
-            {details.length > 0 ? details.join(' · ') : 'Complète ton profil'}
+            {details.length > 0 ? details.join(' · ') : t('home.profile.completeProfile')}
             {' · '}
             <Link to="/profil" className="text-pine-700 underline dark:text-pine-300">
-              modifier
+              {t('home.profile.edit')}
             </Link>
           </p>
           <StatusChip />
@@ -104,15 +104,15 @@ function ProfileHeader({ hub }: { hub: AthleteHub }) {
         <div className="flex gap-6 text-right">
           <div>
             <p className="text-xl font-semibold">
-              {Math.round(totals.year.distanceKm).toLocaleString('fr-FR')} km
+              {Math.round(totals.year.distanceKm).toLocaleString(numberLocale())} km
             </p>
-            <p className={`text-xs ${muted}`}>cette année · {totals.year.runs} sorties</p>
+            <p className={`text-xs ${muted}`}>{t('home.profile.yearTotal', { count: totals.year.runs })}</p>
           </div>
           <div>
             <p className="text-xl font-semibold">
-              {Math.round(totals.allTime.distanceKm).toLocaleString('fr-FR')} km
+              {Math.round(totals.allTime.distanceKm).toLocaleString(numberLocale())} km
             </p>
-            <p className={`text-xs ${muted}`}>au total · {totals.allTime.runs} sorties</p>
+            <p className={`text-xs ${muted}`}>{t('home.profile.allTimeTotal', { count: totals.allTime.runs })}</p>
           </div>
         </div>
       </div>
@@ -122,6 +122,7 @@ function ProfileHeader({ hub }: { hub: AthleteHub }) {
 }
 
 function SyncCard({ sync }: { sync: AthleteHub['sync'] }) {
+  const { t } = useTranslation('athlete')
   const queryClient = useQueryClient()
   const [progress, setProgress] = useState<string | null>(null)
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['hub'] })
@@ -129,7 +130,13 @@ function SyncCard({ sync }: { sync: AthleteHub['sync'] }) {
   const syncMutation = useMutation({
     mutationFn: syncStravaHistory,
     onSuccess: (result) => {
-      setProgress(`${result.imported} importées, ${result.updated} mises à jour (${result.totalRuns} courses)`)
+      setProgress(
+        t('home.sync.progress', {
+          imported: result.imported,
+          updated: result.updated,
+          total: result.totalRuns,
+        }),
+      )
       invalidate()
     },
   })
@@ -138,10 +145,10 @@ function SyncCard({ sync }: { sync: AthleteHub['sync'] }) {
     mutationFn: analyzeStravaRecords,
     onSuccess: (result) => {
       if (result.remaining > 0 && result.analyzed > 0) {
-        setProgress(`Analyse… ${result.remaining} restantes`)
+        setProgress(t('home.sync.analyzing', { count: result.remaining }))
         analyzeMutation.mutate() // next batch, until done or rate-limited
       } else {
-        setProgress(result.remaining === 0 ? 'Records à jour ✓' : 'Limite Strava atteinte — réessaie dans 15 min')
+        setProgress(result.remaining === 0 ? t('home.sync.upToDate') : t('home.sync.rateLimited'))
         invalidate()
       }
     },
@@ -150,11 +157,13 @@ function SyncCard({ sync }: { sync: AthleteHub['sync'] }) {
   if (!sync.stravaConnected) {
     return (
       <p className={`mt-4 border-t border-moss-200 pt-3 text-sm dark:border-moss-750 ${muted}`}>
-        Connecte Strava dans les{' '}
-        <Link to="/parametres" className="text-pine-700 underline dark:text-pine-300">
-          paramètres
-        </Link>{' '}
-        pour importer ton historique, tes records et ton effort relatif.
+        <Trans
+          i18nKey="home.sync.connectPrompt"
+          ns="athlete"
+          components={[
+            <Link key="settings" to="/parametres" className="text-pine-700 underline dark:text-pine-300" />,
+          ]}
+        />
       </p>
     )
   }
@@ -165,8 +174,11 @@ function SyncCard({ sync }: { sync: AthleteHub['sync'] }) {
   return (
     <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-moss-200 pt-3 dark:border-moss-750">
       <p className={`text-sm ${muted}`}>
-        Strava : {sync.syncedActivities.toLocaleString('fr-FR')} activités synchronisées
-        {sync.recordsPending > 0 && ` · ${sync.recordsPending} à analyser`}
+        {t('home.sync.synced', {
+          count: sync.syncedActivities,
+          formatted: sync.syncedActivities.toLocaleString(numberLocale()),
+        })}
+        {sync.recordsPending > 0 && ` · ${t('home.sync.toAnalyze', { count: sync.recordsPending })}`}
       </p>
       <div className="flex w-full flex-wrap gap-2 sm:ml-auto sm:w-auto">
         <button
@@ -174,7 +186,7 @@ function SyncCard({ sync }: { sync: AthleteHub['sync'] }) {
           disabled={busy}
           className="rounded-lg bg-moss-100 px-3 py-1.5 text-sm font-medium transition hover:bg-moss-200 disabled:opacity-50 dark:bg-moss-800 dark:hover:bg-moss-750"
         >
-          {syncMutation.isPending ? 'Synchronisation…' : "Synchroniser l'historique"}
+          {syncMutation.isPending ? t('home.sync.syncing') : t('home.sync.syncButton')}
         </button>
         {sync.recordsPending > 0 && (
           <button
@@ -182,7 +194,7 @@ function SyncCard({ sync }: { sync: AthleteHub['sync'] }) {
             disabled={busy}
             className="rounded-lg bg-pine-600 px-3 py-1.5 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
           >
-            {analyzeMutation.isPending ? 'Analyse…' : 'Analyser les records'}
+            {analyzeMutation.isPending ? t('home.sync.analyzeBusy') : t('home.sync.analyzeButton')}
           </button>
         )}
       </div>
@@ -199,6 +211,7 @@ function SyncCard({ sync }: { sync: AthleteHub['sync'] }) {
 /* ── Objectives: past / current / next ─────────────────────────────── */
 
 function ObjectivesRail({ seasons }: { seasons: Season[] }) {
+  const { t } = useTranslation('athlete')
   const past = seasons.filter((s) => s.timeframe === 'PAST')
   const current = seasons.find((s) => s.timeframe === 'CURRENT')
   const future = seasons.filter((s) => s.timeframe === 'FUTURE')
@@ -209,11 +222,11 @@ function ObjectivesRail({ seasons }: { seasons: Season[] }) {
 
   return (
     <section className={card}>
-      <h2 className="font-display text-lg font-semibold">Objectifs</h2>
+      <h2 className="font-display text-lg font-semibold">{t('home.objectives.title')}</h2>
       <div className="mt-3 grid gap-3 md:grid-cols-3">
         <div className={hiddenColumn}>
-          <ObjectiveColumn title="Passés">
-            {past.length === 0 && <EmptyNote>Aucune saison terminée.</EmptyNote>}
+          <ObjectiveColumn title={t('home.objectives.past')}>
+            {past.length === 0 && <EmptyNote>{t('home.objectives.noPast')}</EmptyNote>}
             {past
               .slice()
               .reverse()
@@ -223,16 +236,16 @@ function ObjectivesRail({ seasons }: { seasons: Season[] }) {
           </ObjectiveColumn>
         </div>
         <div className="order-first md:order-none">
-          <ObjectiveColumn title="En cours" highlight>
+          <ObjectiveColumn title={t('home.objectives.current')} highlight>
             {current ? (
               <SeasonCard season={current} showLink />
             ) : (
-              <EmptyNote>Aucun plan actif — importe ou crée ton plan.</EmptyNote>
+              <EmptyNote>{t('home.objectives.noActive')}</EmptyNote>
             )}
           </ObjectiveColumn>
         </div>
         <div className={hiddenColumn}>
-          <ObjectiveColumn title="À venir">
+          <ObjectiveColumn title={t('home.objectives.upcoming')}>
             {future.map((season) => (
               <SeasonCard key={season.planId} season={season} />
             ))}
@@ -244,7 +257,7 @@ function ObjectivesRail({ seasons }: { seasons: Season[] }) {
         onClick={() => setShowAll(!showAll)}
         className="mt-3 text-sm font-medium text-pine-700 hover:underline md:hidden dark:text-pine-300"
       >
-        {showAll ? 'Masquer passés & à venir' : 'Voir passés & à venir'}
+        {showAll ? t('home.objectives.hideAll') : t('home.objectives.showAll')}
       </button>
     </section>
   )
@@ -270,6 +283,7 @@ function EmptyNote({ children }: { children: React.ReactNode }) {
 }
 
 function SeasonCard({ season, showLink }: { season: Season; showLink?: boolean }) {
+  const { t } = useTranslation('athlete')
   const objective = season.objective
   const date = objective?.date ?? season.endDate
   const days = differenceInCalendarDays(parseISO(date), new Date())
@@ -280,19 +294,22 @@ function SeasonCard({ season, showLink }: { season: Season; showLink?: boolean }
         <p className="font-medium">{objective?.name ?? season.planName}</p>
         {objective && (
           <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${OBJECTIVE_TYPE_BADGE[objective.type]}`}>
-            {OBJECTIVE_TYPE_LABEL[objective.type]}
+            {objectiveTypeLabel(objective.type)}
           </span>
         )}
       </div>
       <p className={`mt-0.5 text-sm ${muted}`}>
-        {format(parseISO(date), 'd MMM yyyy', { locale: fr })}
+        {format(parseISO(date), 'd MMM yyyy', { locale: dateLocale() })}
         {objective?.distanceKm != null && ` · ${objective.distanceKm} km`}
-        {objective?.resultTimeMin != null && ` · réalisé ${formatTimeMin(objective.resultTimeMin)}`}
-        {objective?.resultTimeMin == null && objective?.targetTimeMin != null && ` · visé ${formatTimeMin(objective.targetTimeMin)}`}
+        {objective?.resultTimeMin != null &&
+          ` · ${t('home.objectives.doneChip', { time: formatTimeMin(objective.resultTimeMin) })}`}
+        {objective?.resultTimeMin == null &&
+          objective?.targetTimeMin != null &&
+          ` · ${t('home.objectives.targetChip', { time: formatTimeMin(objective.targetTimeMin) })}`}
       </p>
       {season.timeframe === 'CURRENT' && days >= 0 && (
         <p className="mt-1 font-display text-xl font-semibold text-pine-700 dark:text-pine-300">
-          J−{days}
+          {t('home.objectives.countdown', { count: days })}
         </p>
       )}
       {showLink && (
@@ -300,7 +317,7 @@ function SeasonCard({ season, showLink }: { season: Season; showLink?: boolean }
           to="/objectif"
           className="mt-1 inline-block text-sm font-medium text-pine-700 underline dark:text-pine-300"
         >
-          Voir la progression
+          {t('home.objectives.seeProgress')}
         </Link>
       )}
     </div>
@@ -309,6 +326,7 @@ function SeasonCard({ season, showLink }: { season: Season; showLink?: boolean }
 
 /** Plan the next season: creates a DRAFT plan whose MAIN objective is the goal. */
 function NextObjectiveForm({ hasFuture }: { hasFuture: boolean }) {
+  const { t } = useTranslation('athlete')
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
 
@@ -327,7 +345,7 @@ function NextObjectiveForm({ hasFuture }: { hasFuture: boolean }) {
         onClick={() => setOpen(true)}
         className={`w-full rounded-lg border border-dashed border-moss-300 px-3 py-2 text-sm font-medium ${muted} transition hover:border-pine-600 hover:text-pine-700 dark:border-moss-700 dark:hover:border-pine-350 dark:hover:text-pine-300`}
       >
-        {hasFuture ? '+ Autre objectif futur' : '+ Définir le prochain objectif'}
+        {hasFuture ? t('home.objectives.addAnother') : t('home.objectives.addFirst')}
       </button>
     )
   }
@@ -350,20 +368,31 @@ function NextObjectiveForm({ hasFuture }: { hasFuture: boolean }) {
       }}
     >
       <label className="block">
-        <span className="text-sm font-medium">Nom de la saison</span>
-        <input name="name" required maxLength={150} placeholder="Saison UTMB 2027" className={fieldClass} />
+        <span className="text-sm font-medium">{t('home.objectives.form.seasonName')}</span>
+        <input
+          name="name"
+          required
+          maxLength={150}
+          placeholder={t('home.objectives.form.seasonPlaceholder')}
+          className={fieldClass}
+        />
       </label>
       <label className="block">
-        <span className="text-sm font-medium">Objectif</span>
-        <input name="goal" maxLength={500} placeholder="UTMB 100 km" className={fieldClass} />
+        <span className="text-sm font-medium">{t('home.objectives.form.goal')}</span>
+        <input
+          name="goal"
+          maxLength={500}
+          placeholder={t('home.objectives.form.goalPlaceholder')}
+          className={fieldClass}
+        />
       </label>
       <div className="grid grid-cols-2 gap-2">
         <label className="block">
-          <span className="text-sm font-medium">Début</span>
+          <span className="text-sm font-medium">{t('home.objectives.form.start')}</span>
           <input name="startDate" type="date" required className={fieldClass} />
         </label>
         <label className="block">
-          <span className="text-sm font-medium">Fin</span>
+          <span className="text-sm font-medium">{t('home.objectives.form.end')}</span>
           <input name="endDate" type="date" required className={fieldClass} />
         </label>
       </div>
@@ -378,10 +407,10 @@ function NextObjectiveForm({ hasFuture }: { hasFuture: boolean }) {
           disabled={mutation.isPending}
           className="rounded-lg bg-pine-600 px-3 py-1.5 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
         >
-          {mutation.isPending ? 'Création…' : 'Créer'}
+          {mutation.isPending ? t('common:creating') : t('common:create')}
         </button>
         <button type="button" onClick={() => setOpen(false)} className={`px-3 py-1.5 text-sm font-medium ${muted}`}>
-          Annuler
+          {t('common:cancel')}
         </button>
       </div>
     </form>
@@ -391,18 +420,19 @@ function NextObjectiveForm({ hasFuture }: { hasFuture: boolean }) {
 /* ── Records, longest runs, estimations ────────────────────────────── */
 
 function RecordsSection({ hub }: { hub: AthleteHub }) {
+  const { t } = useTranslation('athlete')
   const { records, longestRuns, predictions, sync } = hub
 
   return (
     <section className={card}>
-      <h2 className="font-display text-lg font-semibold">Records</h2>
+      <h2 className="font-display text-lg font-semibold">{t('home.records.title')}</h2>
       {records.length === 0 ? (
         <p className={`mt-2 text-sm ${muted}`}>
           {sync.stravaConnected
             ? sync.recordsPending > 0
-              ? 'Lance « Analyser les records » ci-dessus pour extraire tes meilleurs temps.'
-              : "Synchronise ton historique Strava pour découvrir tes records."
-            : 'Connecte Strava pour découvrir tes records de distance.'}
+              ? t('home.records.emptyAnalyze')
+              : t('home.records.emptySync')
+            : t('home.records.emptyConnect')}
         </p>
       ) : (
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -412,7 +442,7 @@ function RecordsSection({ hub }: { hub: AthleteHub }) {
               <p className="mt-0.5 text-xl font-semibold">{formatChrono(record.seconds)}</p>
               <p className={`mt-0.5 text-xs ${muted}`}>
                 {formatPace(Math.round((record.seconds * 1000) / record.distanceM))} ·{' '}
-                {format(parseISO(record.date), 'MMM yyyy', { locale: fr })}
+                {format(parseISO(record.date), 'MMM yyyy', { locale: dateLocale() })}
               </p>
             </div>
           ))}
@@ -423,24 +453,24 @@ function RecordsSection({ hub }: { hub: AthleteHub }) {
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           {longestRuns.byDistance && (
             <div className="rounded-lg border border-moss-200 bg-moss-50 p-3 dark:border-moss-750 dark:bg-moss-900">
-              <p className={`text-xs ${muted}`}>Plus longue sortie (distance)</p>
+              <p className={`text-xs ${muted}`}>{t('home.records.longestByDistance')}</p>
               <p className="mt-0.5 text-xl font-semibold">{longestRuns.byDistance.distanceKm} km</p>
               <p className={`mt-0.5 truncate text-xs ${muted}`}>
-                {longestRuns.byDistance.name ?? 'Sortie'} ·{' '}
-                {format(parseISO(longestRuns.byDistance.date), 'd MMM yyyy', { locale: fr })}
+                {longestRuns.byDistance.name ?? t('home.records.runFallback')} ·{' '}
+                {format(parseISO(longestRuns.byDistance.date), 'd MMM yyyy', { locale: dateLocale() })}
               </p>
             </div>
           )}
           {longestRuns.byDuration && (
             <div className="rounded-lg border border-moss-200 bg-moss-50 p-3 dark:border-moss-750 dark:bg-moss-900">
-              <p className={`text-xs ${muted}`}>Plus longue sortie (durée)</p>
+              <p className={`text-xs ${muted}`}>{t('home.records.longestByDuration')}</p>
               <p className="mt-0.5 text-xl font-semibold">
                 {formatHours(longestRuns.byDuration.durationMin)}
                 <span className="text-sm font-normal"> ({formatChrono(longestRuns.byDuration.durationMin * 60)})</span>
               </p>
               <p className={`mt-0.5 truncate text-xs ${muted}`}>
-                {longestRuns.byDuration.name ?? 'Sortie'} ·{' '}
-                {format(parseISO(longestRuns.byDuration.date), 'd MMM yyyy', { locale: fr })}
+                {longestRuns.byDuration.name ?? t('home.records.runFallback')} ·{' '}
+                {format(parseISO(longestRuns.byDuration.date), 'd MMM yyyy', { locale: dateLocale() })}
               </p>
             </div>
           )}
@@ -449,17 +479,15 @@ function RecordsSection({ hub }: { hub: AthleteHub }) {
 
       {predictions.length > 0 && (
         <>
-          <h3 className="mt-5 font-display text-base font-semibold">Temps estimés</h3>
-          <p className={`mt-0.5 text-xs ${muted}`}>
-            Estimations (formule de Riegel) d'après tes records — pas des résultats.
-          </p>
+          <h3 className="mt-5 font-display text-base font-semibold">{t('home.records.estimatesTitle')}</h3>
+          <p className={`mt-0.5 text-xs ${muted}`}>{t('home.records.estimatesIntro')}</p>
           <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
             {predictions.map((prediction) => (
               <div key={prediction.label} className="rounded-lg border border-dashed border-moss-300 p-3 dark:border-moss-700">
                 <p className={`text-xs ${muted}`}>{prediction.label}</p>
                 <p className="mt-0.5 text-xl font-semibold">{formatChrono(prediction.seconds)}</p>
                 <p className={`mt-0.5 text-xs ${muted}`}>
-                  {formatPace(prediction.paceSecPerKm)} · d'après ton {prediction.basedOn}
+                  {formatPace(prediction.paceSecPerKm)} · {t('home.records.basedOn', { record: prediction.basedOn })}
                 </p>
               </div>
             ))}
@@ -476,27 +504,28 @@ type VolumeMetric = 'km' | 'dplus'
 type TrendMetric = 'pace' | 'hr' | 'cadence'
 
 function TrendsSection({ hub }: { hub: AthleteHub }) {
+  const { t } = useTranslation('athlete')
   const [volumeMetric, setVolumeMetric] = useState<VolumeMetric>('km')
   const [trendMetric, setTrendMetric] = useState<TrendMetric>('pace')
   const { monthly, weeklyEffort, totals } = hub
 
   const trend = {
     pace: {
-      label: 'Allure moyenne',
+      label: t('home.trends.avgPace'),
       value: (m: (typeof monthly)[number]) => m.avgPaceSecPerKm,
       format: (v: number) => formatPace(v),
       tick: (v: number) => formatPace(v).replace('/km', ''),
       invert: true,
     },
     hr: {
-      label: 'FC moyenne',
+      label: t('home.trends.avgHr'),
       value: (m: (typeof monthly)[number]) => m.avgHr,
       format: (v: number) => `${Math.round(v)} bpm`,
       tick: (v: number) => `${Math.round(v)}`,
       invert: false,
     },
     cadence: {
-      label: 'Cadence moyenne',
+      label: t('home.trends.avgCadence'),
       value: (m: (typeof monthly)[number]) => m.avgCadenceSpm,
       format: (v: number) => `${Math.round(v)} spm`,
       tick: (v: number) => `${Math.round(v)}`,
@@ -507,19 +536,21 @@ function TrendsSection({ hub }: { hub: AthleteHub }) {
   return (
     <section className={card}>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-display text-lg font-semibold">Volume mensuel</h2>
+        <h2 className="font-display text-lg font-semibold">{t('home.trends.volumeTitle')}</h2>
         <div className="flex gap-1 rounded-lg bg-moss-100 p-0.5 dark:bg-moss-800">
           <button onClick={() => setVolumeMetric('km')} className={pill(volumeMetric === 'km')}>
-            Distance (km)
+            {t('home.trends.distanceKm')}
           </button>
           <button onClick={() => setVolumeMetric('dplus')} className={pill(volumeMetric === 'dplus')}>
-            D+ (m)
+            {t('home.trends.elevationM')}
           </button>
         </div>
       </div>
       <p className={`mt-1 text-xs ${muted}`}>
-        {formatHours(totals.year.durationMin)} et {totals.year.elevationM.toLocaleString('fr-FR')} m
-        de D+ cette année.
+        {t('home.trends.yearSummary', {
+          duration: formatHours(totals.year.durationMin),
+          elevation: totals.year.elevationM.toLocaleString(numberLocale()),
+        })}
       </p>
       <div className="mt-3">
         <MonthlyBars
@@ -530,21 +561,21 @@ function TrendsSection({ hub }: { hub: AthleteHub }) {
       </div>
 
       <div className="mt-6 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-display text-lg font-semibold">Évolution</h2>
+        <h2 className="font-display text-lg font-semibold">{t('home.trends.evolutionTitle')}</h2>
         <div className="flex gap-1 rounded-lg bg-moss-100 p-0.5 dark:bg-moss-800">
           <button onClick={() => setTrendMetric('pace')} className={pill(trendMetric === 'pace')}>
-            Allure
+            {t('home.trends.pace')}
           </button>
           <button onClick={() => setTrendMetric('hr')} className={pill(trendMetric === 'hr')}>
-            FC
+            {t('home.trends.hr')}
           </button>
           <button onClick={() => setTrendMetric('cadence')} className={pill(trendMetric === 'cadence')}>
-            Cadence
+            {t('home.trends.cadence')}
           </button>
         </div>
       </div>
       {trendMetric === 'pace' && (
-        <p className={`mt-1 text-xs ${muted}`}>Axe inversé : plus haut = plus rapide.</p>
+        <p className={`mt-1 text-xs ${muted}`}>{t('home.trends.invertedAxis')}</p>
       )}
       <div className="mt-3">
         <TrendLine
@@ -557,10 +588,8 @@ function TrendsSection({ hub }: { hub: AthleteHub }) {
         />
       </div>
 
-      <h2 className="mt-6 font-display text-lg font-semibold">Effort relatif</h2>
-      <p className={`mt-1 text-xs ${muted}`}>
-        Charge d'entraînement Strava des 16 dernières semaines.
-      </p>
+      <h2 className="mt-6 font-display text-lg font-semibold">{t('home.trends.effortTitle')}</h2>
+      <p className={`mt-1 text-xs ${muted}`}>{t('home.trends.effortIntro')}</p>
       <div className="mt-3">
         <EffortChart weeks={weeklyEffort} />
       </div>

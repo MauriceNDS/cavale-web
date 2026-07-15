@@ -1,13 +1,8 @@
+import i18n from '../../i18n'
 import type { Discipline, SessionResponse, WeekType } from './api'
 
-export const WEEK_TYPE_LABEL: Record<WeekType, string> = {
-  RECOVERY: 'Récupération',
-  TRANSITION: 'Transition',
-  BUILD: 'Développement',
-  DELOAD: 'Décharge',
-  SHOCK: 'Bloc choc',
-  TAPER: 'Affûtage',
-  RACE: 'Course',
+export function weekTypeLabel(type: WeekType): string {
+  return i18n.t(`calendar:weekType.${type}`)
 }
 
 /** Badge styling per week type — semantic colors from the Massif system. */
@@ -21,11 +16,8 @@ export const WEEK_TYPE_BADGE: Record<WeekType, string> = {
   RACE: 'bg-copper-600/15 text-copper-600 dark:bg-copper-300/15 dark:text-copper-300',
 }
 
-export const DISCIPLINE_LABEL: Record<Discipline, string> = {
-  RUN: 'Course',
-  GYM: 'Renfo',
-  REST: 'Repos',
-  CROSS: 'Croisé',
+export function disciplineLabel(d: Discipline): string {
+  return i18n.t(`calendar:discipline.${d}`)
 }
 
 /* ── Training-kind classification (drives calendar colors) ─────────── */
@@ -59,17 +51,8 @@ export function trainingKind(session: SessionResponse): TrainingKind {
   return 'EF'
 }
 
-export const KIND_LABEL: Record<TrainingKind, string> = {
-  CHOC: 'Bloc choc',
-  SL: 'Sortie longue',
-  VMA: 'VMA / VO2',
-  SEUIL30: 'Seuil 30',
-  SEUIL60: 'Seuil 60',
-  TEMPO: 'Tempo / AC',
-  EF: 'EF / Récup',
-  GYM: 'Renfo',
-  CROSS: 'Croisé',
-  REST: 'Repos',
+export function kindLabel(kind: TrainingKind): string {
+  return i18n.t(`calendar:kind.${kind}`)
 }
 
 /** Left-edge accent per training kind on session cards (week view). */
@@ -115,12 +98,8 @@ export const KIND_LEGEND: TrainingKind[] = [
 
 import type { Allure, PerceivedEffort, Terrain, WorkoutNode } from './api'
 
-export const EFFORT_LABEL: Record<PerceivedEffort, string> = {
-  TROP_FACILE: 'Trop facile',
-  FACILE: 'Facile',
-  COMME_PREVU: 'Comme prévu',
-  DIFFICILE: 'Difficile',
-  TROP_DIFFICILE: 'Trop difficile',
+export function effortLabel(e: PerceivedEffort): string {
+  return i18n.t(`calendar:effort.${e}`)
 }
 
 export const EFFORTS: PerceivedEffort[] = [
@@ -155,22 +134,14 @@ export function cleanTitle(title: string): string {
 }
 
 /** Display names — a block's identity is always its allure. */
-export const ALLURE_LABEL: Record<Allure, string> = {
-  LENTE: 'Allure Lente',
-  EF: 'Allure EF',
-  COURSE: 'Allure Course',
-  SEUIL60: 'Allure Seuil 60',
-  SEUIL30: 'Allure Seuil 30',
-  VMA: 'Allure VMA',
-  SPRINT: 'Allure Sprint',
+export function allureLabel(a: Allure): string {
+  return i18n.t(`calendar:allure.${a}`)
 }
 
 export const ALLURES: Allure[] = ['LENTE', 'EF', 'COURSE', 'SEUIL60', 'SEUIL30', 'VMA', 'SPRINT']
 
-export const TERRAIN_LABEL: Record<Terrain, string> = {
-  PLAT: 'plat',
-  COTE: 'en côte',
-  DESCENTE: 'en descente',
+export function terrainLabel(t: Terrain): string {
+  return i18n.t(`calendar:terrain.${t}`)
 }
 
 /** Block styling by allure. */

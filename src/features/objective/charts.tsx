@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { ReactNode } from 'react'
 import { format, parseISO } from 'date-fns'
-import { fr } from 'date-fns/locale'
+import { dateLocale, numberLocale } from '../../i18n'
 import { useMeasuredWidth } from '../../lib/useMeasuredWidth'
 import type { WeekProgress } from './api'
 
@@ -100,6 +101,7 @@ interface WeeklyChartProps {
 
 /** Weekly bars: actual filled in pine, the week's target as a muted tick cap. */
 export function WeeklyChart({ weeks, metric, races }: WeeklyChartProps) {
+  const { t } = useTranslation('objective')
   const { ref, width } = useMeasuredWidth<HTMLDivElement>(FALLBACK_W)
   const [hover, setHover] = useState<TooltipState | null>(null)
   const m = METRIC[metric]
@@ -122,17 +124,17 @@ export function WeeklyChart({ weeks, metric, races }: WeeklyChartProps) {
       <div className="mb-2 flex items-center gap-4">
         <LegendSwatch
           className="h-2.5 w-2.5 rounded-[3px] bg-pine-600 dark:bg-pine-350"
-          label="Réalisé"
+          label={t('charts.actual')}
         />
-        <LegendSwatch className="h-[2px] w-3 bg-moss-400 dark:bg-moss-500" label="Objectif" />
+        <LegendSwatch className="h-[2px] w-3 bg-moss-400 dark:bg-moss-500" label={t('charts.target')} />
         {races.length > 0 && (
           <LegendSwatch
             className="h-2 w-2 rounded-full bg-copper-600 dark:bg-copper-300"
-            label="Course"
+            label={t('charts.race')}
           />
         )}
       </div>
-      <svg viewBox={`0 0 ${width} ${H}`} className="h-auto w-full" role="img" aria-label="Progression hebdomadaire">
+      <svg viewBox={`0 0 ${width} ${H}`} className="h-auto w-full" role="img" aria-label={t('charts.weeklyAria')}>
         {ticks.map((t) => (
           <g key={t}>
             <line
@@ -149,7 +151,7 @@ export function WeeklyChart({ weeks, metric, races }: WeeklyChartProps) {
               textAnchor="end"
               className="fill-moss-500 text-[10px] dark:fill-moss-400"
             >
-              {t.toLocaleString('fr-FR')}
+              {t.toLocaleString(numberLocale())}
             </text>
           </g>
         ))}
@@ -206,7 +208,7 @@ export function WeeklyChart({ weeks, metric, races }: WeeklyChartProps) {
                       : 'fill-moss-500 text-[10px] dark:fill-moss-400'
                   }
                 >
-                  S{week.weekNumber}
+                  {t('charts.weekShort', { number: week.weekNumber })}
                 </text>
               )}
               <rect
@@ -231,24 +233,24 @@ export function WeeklyChart({ weeks, metric, races }: WeeklyChartProps) {
             return (
               <>
                 <p className="font-semibold">
-                  Semaine {week.weekNumber}
+                  {t('charts.week', { number: week.weekNumber })}
                   <span className="ml-1 font-normal text-moss-500 dark:text-moss-400">
-                    {format(parseISO(week.startDate), 'd MMM', { locale: fr })}
+                    {format(parseISO(week.startDate), 'd MMM', { locale: dateLocale() })}
                   </span>
                 </p>
                 <dl className="mt-1 space-y-0.5">
                   <div className="flex justify-between">
-                    <dt className="text-moss-500 dark:text-moss-400">Réalisé</dt>
+                    <dt className="text-moss-500 dark:text-moss-400">{t('charts.actual')}</dt>
                     <dd className="font-medium">
-                      {m.round(m.actual(week)).toLocaleString('fr-FR')} {m.unit}
+                      {m.round(m.actual(week)).toLocaleString(numberLocale())} {m.unit}
                     </dd>
                   </div>
                   <div className="flex justify-between">
-                    <dt className="text-moss-500 dark:text-moss-400">Objectif</dt>
-                    <dd>{m.round(m.target(week)).toLocaleString('fr-FR')} {m.unit}</dd>
+                    <dt className="text-moss-500 dark:text-moss-400">{t('charts.target')}</dt>
+                    <dd>{m.round(m.target(week)).toLocaleString(numberLocale())} {m.unit}</dd>
                   </div>
                   <div className="flex justify-between">
-                    <dt className="text-moss-500 dark:text-moss-400">Séances</dt>
+                    <dt className="text-moss-500 dark:text-moss-400">{t('charts.sessions')}</dt>
                     <dd>
                       {week.sessionsDone}/{week.sessionsPlanned}
                     </dd>
@@ -274,6 +276,7 @@ interface CumulativeChartProps {
  * stops at the current week) — "where I am vs where the plan says".
  */
 export function CumulativeChart({ weeks, metric }: CumulativeChartProps) {
+  const { t } = useTranslation('objective')
   const { ref, width } = useMeasuredWidth<HTMLDivElement>(FALLBACK_W)
   const [hover, setHover] = useState<TooltipState | null>(null)
   const m = METRIC[metric]
@@ -311,10 +314,10 @@ export function CumulativeChart({ weeks, metric }: CumulativeChartProps) {
   return (
     <div ref={ref} className="relative">
       <div className="mb-2 flex items-center gap-4">
-        <LegendSwatch className="h-[2px] w-4 rounded bg-pine-600 dark:bg-pine-350" label="Réalisé" />
-        <LegendSwatch className="h-[2px] w-4 rounded bg-moss-400 dark:bg-moss-500" label="Prévu" />
+        <LegendSwatch className="h-[2px] w-4 rounded bg-pine-600 dark:bg-pine-350" label={t('charts.actual')} />
+        <LegendSwatch className="h-[2px] w-4 rounded bg-moss-400 dark:bg-moss-500" label={t('charts.planned')} />
       </div>
-      <svg viewBox={`0 0 ${width} ${H}`} className="h-auto w-full" role="img" aria-label="Cumul sur la saison">
+      <svg viewBox={`0 0 ${width} ${H}`} className="h-auto w-full" role="img" aria-label={t('charts.cumulativeAria')}>
         {ticks.map((t) => (
           <g key={t}>
             <line
@@ -331,7 +334,7 @@ export function CumulativeChart({ weeks, metric }: CumulativeChartProps) {
               textAnchor="end"
               className="fill-moss-500 text-[10px] dark:fill-moss-400"
             >
-              {t.toLocaleString('fr-FR')}
+              {t.toLocaleString(numberLocale())}
             </text>
           </g>
         ))}
@@ -388,7 +391,7 @@ export function CumulativeChart({ weeks, metric }: CumulativeChartProps) {
                     : 'fill-moss-500 text-[10px] dark:fill-moss-400'
                 }
               >
-                S{week.weekNumber}
+                {t('charts.weekShort', { number: week.weekNumber })}
               </text>
             )}
             <rect
@@ -410,19 +413,19 @@ export function CumulativeChart({ weeks, metric }: CumulativeChartProps) {
             const week = weeks[hover.index]
             return (
               <>
-                <p className="font-semibold">Semaine {week.weekNumber}</p>
+                <p className="font-semibold">{t('charts.week', { number: week.weekNumber })}</p>
                 <dl className="mt-1 space-y-0.5">
                   {hover.index <= actualEnd && (
                     <div className="flex justify-between">
-                      <dt className="text-moss-500 dark:text-moss-400">Réalisé</dt>
+                      <dt className="text-moss-500 dark:text-moss-400">{t('charts.actual')}</dt>
                       <dd className="font-medium">
-                        {m.round(actualCum[hover.index]).toLocaleString('fr-FR')} {m.unit}
+                        {m.round(actualCum[hover.index]).toLocaleString(numberLocale())} {m.unit}
                       </dd>
                     </div>
                   )}
                   <div className="flex justify-between">
-                    <dt className="text-moss-500 dark:text-moss-400">Prévu</dt>
-                    <dd>{m.round(targetCum[hover.index]).toLocaleString('fr-FR')} {m.unit}</dd>
+                    <dt className="text-moss-500 dark:text-moss-400">{t('charts.planned')}</dt>
+                    <dd>{m.round(targetCum[hover.index]).toLocaleString(numberLocale())} {m.unit}</dd>
                   </div>
                 </dl>
               </>

@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { format, parseISO, subMonths } from 'date-fns'
-import { fr } from 'date-fns/locale'
+import { useTranslation } from 'react-i18next'
+import { dateLocale, numberLocale } from '../../i18n'
 import {
   fetchRunningStats,
   type Acwr,
@@ -36,6 +37,7 @@ function formatPace(secPerKm: number): string {
 
 /** The statistics home: running on one side, strength on the other. */
 export function StatsPage() {
+  const { t } = useTranslation('stats')
   const search = useSearch({ strict: false }) as { tab?: string }
   const navigate = useNavigate()
   const gymEnabled = useAuth().user?.gymEnabled ?? true
@@ -44,7 +46,7 @@ export function StatsPage() {
   return (
     <div className="mx-auto mt-6 max-w-3xl space-y-4 pb-10">
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="font-display text-2xl font-semibold">Statistiques</h1>
+        <h1 className="font-display text-2xl font-semibold">{t('title')}</h1>
         <div className="flex gap-1 rounded-lg bg-moss-100 p-0.5 dark:bg-moss-800">
           {(gymEnabled ? (['course', 'renfo'] as const) : (['course'] as const)).map((value) => (
             <button
@@ -57,7 +59,7 @@ export function StatsPage() {
                   : 'text-moss-500 hover:text-ink dark:text-moss-400 dark:hover:text-linen'
               }`}
             >
-              {value === 'course' ? 'Course' : 'Renfo'}
+              {value === 'course' ? t('tabRunning') : t('tabStrength')}
             </button>
           ))}
         </div>
@@ -71,6 +73,7 @@ export function StatsPage() {
 /* ── Course ────────────────────────────────────────────────────────── */
 
 function RunningStats() {
+  const { t } = useTranslation('stats')
   const [months, setMonths] = useState<RangeMonths>(3)
   const query = useQuery({ queryKey: ['running-stats'], queryFn: fetchRunningStats })
 
@@ -78,12 +81,12 @@ function RunningStats() {
   const cutoff = useMemo(() => subMonths(new Date(), months), [months])
 
   if (query.isLoading) {
-    return <p className={`mt-10 text-center ${muted}`}>Chargement…</p>
+    return <p className={`mt-10 text-center ${muted}`}>{t('common:loading')}</p>
   }
   if (!stats) {
     return (
       <p className="mt-10 text-center text-clay-500 dark:text-clay-300">
-        Impossible de charger les statistiques.
+        {t('loadError')}
       </p>
     )
   }
@@ -97,7 +100,7 @@ function RunningStats() {
   return (
     <>
       <div className="flex items-center gap-2">
-        <span className={`text-xs font-semibold tracking-wide uppercase ${muted}`}>Période</span>
+        <span className={`text-xs font-semibold tracking-wide uppercase ${muted}`}>{t('period')}</span>
         <div className="flex gap-1 rounded-lg bg-moss-100 p-0.5 dark:bg-moss-800">
           {RANGES.map((r) => (
             <button
@@ -110,7 +113,7 @@ function RunningStats() {
                   : 'text-moss-500 hover:text-ink dark:text-moss-400 dark:hover:text-linen'
               }`}
             >
-              {r} mois
+              {t('months', { count: r })}
             </button>
           ))}
         </div>
@@ -118,11 +121,11 @@ function RunningStats() {
 
       <section className={card}>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-display text-lg font-semibold">Forme & Fitness</h2>
+          <h2 className="font-display text-lg font-semibold">{t('form.title')}</h2>
           <AcwrChip acwr={stats.acwr} />
         </div>
         <p className={`mt-0.5 text-xs ${muted}`}>
-          Fitness = effort relatif lissé sur 42 j, Fatigue sur 7 j, Forme = différence.
+          {t('form.hint')}
         </p>
         <div className="mt-3">
           <FormChart days={form} />
@@ -130,10 +133,9 @@ function RunningStats() {
       </section>
 
       <section className={card}>
-        <h2 className="font-display text-lg font-semibold">Effort relatif hebdo</h2>
+        <h2 className="font-display text-lg font-semibold">{t('effort.title')}</h2>
         <p className={`mt-0.5 text-xs ${muted}`}>
-          La zone ombrée est ta cible de progression : 0,8–1,3 × la moyenne des 3 dernières
-          semaines.
+          {t('effort.hint')}
         </p>
         <div className="mt-3">
           <EffortBandChart weeks={effort} />
@@ -142,10 +144,9 @@ function RunningStats() {
       </section>
 
       <section className={card}>
-        <h2 className="font-display text-lg font-semibold">Volume</h2>
+        <h2 className="font-display text-lg font-semibold">{t('volume.title')}</h2>
         <p className={`mt-0.5 text-xs ${muted}`}>
-          Barres : km — ligne : D+. Le total km-effort (km + D+/100) est la vraie monnaie du
-          trail.
+          {t('volume.hint')}
         </p>
         <div className="mt-3">
           <VolumeChart weeks={volume} />
@@ -155,9 +156,9 @@ function RunningStats() {
 
       {stats.checkpoints.length > 0 && (
         <section className={card}>
-          <h2 className="font-display text-lg font-semibold">Après X minutes de course…</h2>
+          <h2 className="font-display text-lg font-semibold">{t('checkpoints.title')}</h2>
           <p className={`mt-0.5 text-xs ${muted}`}>
-            Où tu te trouves typiquement (médianes de tes sorties, flux Strava inclus).
+            {t('checkpoints.hint')}
           </p>
           <CheckpointsTable checkpoints={stats.checkpoints} />
         </section>
@@ -165,9 +166,9 @@ function RunningStats() {
 
       {efficiency.some((m) => m.metersPerBeat != null) && (
         <section className={card}>
-          <h2 className="font-display text-lg font-semibold">Efficience aérobie</h2>
+          <h2 className="font-display text-lg font-semibold">{t('efficiency.title')}</h2>
           <p className={`mt-0.5 text-xs ${muted}`}>
-            Mètres parcourus par battement de cœur — plus haut = plus efficace au même effort.
+            {t('efficiency.hint')}
           </p>
           <div className="mt-3">
             <EfficiencyChart months={efficiency} />
@@ -177,7 +178,7 @@ function RunningStats() {
 
       {(stats.trailEstimates.length > 0 || stats.roadPredictions.length > 0) && (
         <section className={card}>
-          <h2 className="font-display text-lg font-semibold">Prédictions</h2>
+          <h2 className="font-display text-lg font-semibold">{t('predictions.title')}</h2>
           {stats.trailEstimates.length > 0 && (
             <TrailEstimates estimates={stats.trailEstimates} />
           )}
@@ -192,21 +193,21 @@ function RunningStats() {
 
 /* ── ACWR chip ─────────────────────────────────────────────────────── */
 
-const ACWR_STYLE: Record<Acwr['zone'], { label: string; className: string }> = {
-  UNDER: { label: 'sous-charge', className: 'bg-lake-600/15 text-lake-600 dark:bg-lake-300/15 dark:text-lake-300' },
-  OPTIMAL: { label: 'zone optimale', className: 'bg-pine-100 text-pine-700 dark:bg-pine-900 dark:text-pine-300' },
-  CAUTION: { label: 'prudence', className: 'bg-gold-600/15 text-gold-600 dark:bg-gold-300/15 dark:text-gold-300' },
-  DANGER: { label: 'risque de blessure', className: 'bg-clay-100 text-clay-600 dark:bg-clay-900 dark:text-clay-300' },
+const ACWR_STYLE: Record<Acwr['zone'], string> = {
+  UNDER: 'bg-lake-600/15 text-lake-600 dark:bg-lake-300/15 dark:text-lake-300',
+  OPTIMAL: 'bg-pine-100 text-pine-700 dark:bg-pine-900 dark:text-pine-300',
+  CAUTION: 'bg-gold-600/15 text-gold-600 dark:bg-gold-300/15 dark:text-gold-300',
+  DANGER: 'bg-clay-100 text-clay-600 dark:bg-clay-900 dark:text-clay-300',
 }
 
 function AcwrChip({ acwr }: { acwr: Acwr }) {
-  const style = ACWR_STYLE[acwr.zone]
+  const { t } = useTranslation('stats')
   return (
     <span
-      title="Ratio charge aiguë (7 j) / chronique (28 j). Zone saine : 0,8–1,3 ; danger au-delà de 1,5."
-      className={`rounded-full px-2.5 py-1 text-xs font-semibold ${style.className}`}
+      title={t('acwr.tooltip')}
+      className={`rounded-full px-2.5 py-1 text-xs font-semibold ${ACWR_STYLE[acwr.zone]}`}
     >
-      Charge 7j/28j : {acwr.ratio.toFixed(2)} · {style.label}
+      {t('acwr.chip', { ratio: acwr.ratio.toFixed(2), zone: t(`acwr.zone.${acwr.zone}`) })}
     </span>
   )
 }
@@ -280,8 +281,9 @@ function ChartTooltip({ xRatio, lines }: { xRatio: number; lines: string[] }) {
 /* ── Forme & Fitness: three series in one frame ────────────────────── */
 
 function FormChart({ days }: { days: DayForm[] }) {
+  const { t } = useTranslation('stats')
   const [hover, setHover] = useState<number | null>(null)
-  if (days.length < 2) return <p className={`text-sm ${muted}`}>Pas encore assez de données.</p>
+  if (days.length < 2) return <p className={`text-sm ${muted}`}>{t('form.notEnough')}</p>
   const values = days.flatMap((d) => [d.fitness, d.fatigue, d.formScore])
   const lo = Math.min(...values, 0)
   const hi = Math.max(...values) * 1.1 || 1
@@ -297,14 +299,14 @@ function FormChart({ days }: { days: DayForm[] }) {
         <ChartTooltip
           xRatio={(PAD.left + (hover! * plotW) / (days.length - 1)) / W}
           lines={[
-            format(parseISO(hovered.date), 'EEEE d MMMM', { locale: fr }),
-            `Fitness ${hovered.fitness}`,
-            `Fatigue ${hovered.fatigue}`,
-            `Forme ${hovered.formScore}`,
+            format(parseISO(hovered.date), 'EEEE d MMMM', { locale: dateLocale() }),
+            `${t('form.fitness')} ${hovered.fitness}`,
+            `${t('form.fatigue')} ${hovered.fatigue}`,
+            `${t('form.form')} ${hovered.formScore}`,
           ]}
         />
       )}
-      <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="Forme et fitness">
+      <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label={t('form.aria')}>
         <GridY ticks={[0, hi * 0.5]} y={y} />
         {/* form area under zero shows accumulated fatigue */}
         <path d={`${path((d) => d.formScore)} L ${x(days.length - 1)} ${y(0)} L ${x(0)} ${y(0)} Z`}
@@ -318,7 +320,7 @@ function FormChart({ days }: { days: DayForm[] }) {
         {[0, Math.floor(days.length / 2), days.length - 1].map((i) => (
           <text key={i} x={x(i)} y={H - 6} textAnchor="middle"
             className="fill-moss-500 text-[10px] dark:fill-moss-400">
-            {format(parseISO(days[i].date), 'd MMM', { locale: fr })}
+            {format(parseISO(days[i].date), 'd MMM', { locale: dateLocale() })}
           </text>
         ))}
         {hover != null && (
@@ -328,9 +330,9 @@ function FormChart({ days }: { days: DayForm[] }) {
         <HitStrips count={days.length} onHover={setHover} />
       </svg>
       <div className={`mt-1 flex flex-wrap gap-3 text-xs ${muted}`}>
-        <span><span className="mr-1 inline-block h-2 w-4 rounded-sm bg-pine-600 dark:bg-pine-350" />Fitness {days.at(-1)!.fitness}</span>
-        <span><span className="mr-1 inline-block h-2 w-4 rounded-sm bg-clay-500 dark:bg-clay-300" />Fatigue {days.at(-1)!.fatigue}</span>
-        <span><span className="mr-1 inline-block h-2 w-4 rounded-sm bg-lake-600 dark:bg-lake-300" />Forme {days.at(-1)!.formScore}</span>
+        <span><span className="mr-1 inline-block h-2 w-4 rounded-sm bg-pine-600 dark:bg-pine-350" />{t('form.fitness')} {days.at(-1)!.fitness}</span>
+        <span><span className="mr-1 inline-block h-2 w-4 rounded-sm bg-clay-500 dark:bg-clay-300" />{t('form.fatigue')} {days.at(-1)!.fatigue}</span>
+        <span><span className="mr-1 inline-block h-2 w-4 rounded-sm bg-lake-600 dark:bg-lake-300" />{t('form.form')} {days.at(-1)!.formScore}</span>
       </div>
     </div>
   )
@@ -339,8 +341,9 @@ function FormChart({ days }: { days: DayForm[] }) {
 /* ── Weekly effort with the target band ────────────────────────────── */
 
 function EffortBandChart({ weeks }: { weeks: WeekEffort[] }) {
+  const { t } = useTranslation('stats')
   const [hover, setHover] = useState<number | null>(null)
-  if (weeks.length === 0) return <p className={`text-sm ${muted}`}>Pas encore de données.</p>
+  if (weeks.length === 0) return <p className={`text-sm ${muted}`}>{t('effort.noData')}</p>
   const hi = Math.max(...weeks.flatMap((w) => [w.effort, w.bandHigh ?? 0]), 1) * 1.1
   const y = (v: number) => PAD.top + (1 - v / hi) * plotH
   const barW = plotW / weeks.length
@@ -352,15 +355,17 @@ function EffortBandChart({ weeks }: { weeks: WeekEffort[] }) {
         <ChartTooltip
           xRatio={(PAD.left + hover! * barW + barW / 2) / W}
           lines={[
-            `Semaine du ${format(parseISO(hovered.weekStart), 'd MMMM', { locale: fr })}`,
-            `Effort relatif : ${hovered.effort}`,
-            hovered.bandLow != null ? `Zone cible : ${hovered.bandLow}–${hovered.bandHigh}` : 'Zone cible : —',
-            ...(hovered.partlyEstimated ? ['(sorties sans FC estimées)'] : []),
+            t('effort.weekOf', { date: format(parseISO(hovered.weekStart), 'd MMMM', { locale: dateLocale() }) }),
+            t('effort.relativeEffort', { value: hovered.effort }),
+            hovered.bandLow != null
+              ? t('effort.targetZone', { low: hovered.bandLow, high: hovered.bandHigh })
+              : t('effort.targetZoneNone'),
+            ...(hovered.partlyEstimated ? [t('effort.estimatedNote')] : []),
           ]}
         />
       )}
     <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img"
-      aria-label="Effort relatif hebdomadaire et zone cible">
+      aria-label={t('effort.aria')}>
       <GridY ticks={[hi * 0.3, hi * 0.7]} y={y} />
       {/* the band, drawn as a continuous ribbon behind the bars */}
       {weeks.map((week, i) =>
@@ -388,7 +393,7 @@ function EffortBandChart({ weeks }: { weeks: WeekEffort[] }) {
         <text key={week.weekStart}
           x={PAD.left + weeks.indexOf(week) * barW + barW / 2} y={H - 6} textAnchor="middle"
           className="fill-moss-500 text-[10px] dark:fill-moss-400">
-          {format(parseISO(week.weekStart), 'd MMM', { locale: fr })}
+          {format(parseISO(week.weekStart), 'd MMM', { locale: dateLocale() })}
         </text>
       ))}
       <HitStrips count={weeks.length} onHover={setHover} />
@@ -398,18 +403,19 @@ function EffortBandChart({ weeks }: { weeks: WeekEffort[] }) {
 }
 
 function EffortStatus({ weeks }: { weeks: WeekEffort[] }) {
+  const { t } = useTranslation('stats')
   const current = weeks.at(-1)
   if (!current || current.bandLow == null || current.bandHigh == null) return null
   const status = current.effort > current.bandHigh
-    ? 'au-dessus de la zone — pense à lever le pied'
+    ? t('effort.statusOver')
     : current.effort >= current.bandLow
-      ? 'dans la zone — progression saine'
-      : `vise ${current.bandLow}–${current.bandHigh} d'ici dimanche`
+      ? t('effort.statusIn')
+      : t('effort.statusUnder', { low: current.bandLow, high: current.bandHigh })
   return (
     <p className={`mt-2 text-sm ${muted}`}>
-      Cette semaine : <span className="font-semibold text-ink dark:text-linen">{current.effort}</span>{' '}
+      {t('effort.thisWeek')} <span className="font-semibold text-ink dark:text-linen">{current.effort}</span>{' '}
       · {status}
-      {current.partlyEstimated && ' · (sorties sans FC estimées)'}
+      {current.partlyEstimated && ` · ${t('effort.estimatedNote')}`}
     </p>
   )
 }
@@ -417,8 +423,9 @@ function EffortStatus({ weeks }: { weeks: WeekEffort[] }) {
 /* ── Volume: km bars + D+ line, two axes ───────────────────────────── */
 
 function VolumeChart({ weeks }: { weeks: WeekVolume[] }) {
+  const { t } = useTranslation('stats')
   const [hover, setHover] = useState<number | null>(null)
-  if (weeks.length === 0) return <p className={`text-sm ${muted}`}>Pas encore de données.</p>
+  if (weeks.length === 0) return <p className={`text-sm ${muted}`}>{t('effort.noData')}</p>
   const maxKm = Math.max(...weeks.map((w) => w.distanceKm), 1)
   const maxD = Math.max(...weeks.map((w) => w.elevationM), 1)
   const yKm = (v: number) => PAD.top + (1 - v / (maxKm * 1.1)) * plotH
@@ -435,15 +442,15 @@ function VolumeChart({ weeks }: { weeks: WeekVolume[] }) {
         <ChartTooltip
           xRatio={(PAD.left + hover! * barW + barW / 2) / W}
           lines={[
-            `Semaine du ${format(parseISO(hovered.weekStart), 'd MMMM', { locale: fr })}`,
-            `${hovered.distanceKm} km · ${hovered.elevationM} m D+`,
-            `${hovered.kmEffort} km-effort · ${hovered.runs} sortie${hovered.runs > 1 ? 's' : ''}`,
+            t('effort.weekOf', { date: format(parseISO(hovered.weekStart), 'd MMMM', { locale: dateLocale() }) }),
+            t('volume.kmAndElevation', { km: hovered.distanceKm, elevation: hovered.elevationM }),
+            `${t('volume.kmEffort', { value: hovered.kmEffort })} · ${t('volume.runs', { count: hovered.runs })}`,
             formatChrono(hovered.durationMin * 60),
           ]}
         />
       )}
     <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img"
-      aria-label="Volume hebdomadaire : kilomètres et dénivelé">
+      aria-label={t('volume.aria')}>
       <GridY ticks={[maxKm * 0.5, maxKm]} y={yKm} format={(v) => `${Math.round(v)}k`} />
       {/* right axis for D+ */}
       {[maxD].map((t) => (
@@ -463,7 +470,7 @@ function VolumeChart({ weeks }: { weeks: WeekVolume[] }) {
         <text key={week.weekStart}
           x={PAD.left + weeks.indexOf(week) * barW + barW / 2} y={H - 6} textAnchor="middle"
           className="fill-moss-500 text-[10px] dark:fill-moss-400">
-          {format(parseISO(week.weekStart), 'd MMM', { locale: fr })}
+          {format(parseISO(week.weekStart), 'd MMM', { locale: dateLocale() })}
         </text>
       ))}
       <HitStrips count={weeks.length} onHover={setHover} />
@@ -473,15 +480,16 @@ function VolumeChart({ weeks }: { weeks: WeekVolume[] }) {
 }
 
 function VolumeTotals({ weeks }: { weeks: WeekVolume[] }) {
+  const { t } = useTranslation('stats')
   const km = weeks.reduce((sum, w) => sum + Number(w.distanceKm), 0)
   const elevation = weeks.reduce((sum, w) => sum + w.elevationM, 0)
   const kmEffort = weeks.reduce((sum, w) => sum + Number(w.kmEffort), 0)
   const minutes = weeks.reduce((sum, w) => sum + w.durationMin, 0)
   return (
     <p className={`mt-2 text-sm ${muted}`}>
-      Total période :{' '}
+      {t('volume.totalPrefix')}{' '}
       <span className="font-semibold text-ink dark:text-linen">{Math.round(km)} km</span> ·{' '}
-      {elevation.toLocaleString('fr-FR')} m D+ · {formatChrono(minutes * 60)} ·{' '}
+      {elevation.toLocaleString(numberLocale())} m D+ · {formatChrono(minutes * 60)} ·{' '}
       <span className="font-semibold text-ink dark:text-linen">{Math.round(kmEffort)} km-effort</span>
     </p>
   )
@@ -490,6 +498,7 @@ function VolumeTotals({ weeks }: { weeks: WeekVolume[] }) {
 /* ── Checkpoints table ─────────────────────────────────────────────── */
 
 function CheckpointsTable({ checkpoints }: { checkpoints: DurationCheckpoint[] }) {
+  const { t } = useTranslation('stats')
   return (
     <div className="mt-3 grid gap-2 sm:grid-cols-3 lg:grid-cols-5">
       {checkpoints.map((cp) => (
@@ -503,7 +512,7 @@ function CheckpointsTable({ checkpoints }: { checkpoints: DurationCheckpoint[] }
             {cp.medianElevationM ?? 0} m D+
             {cp.medianPaceSecPerKm != null && ` · ${formatPace(cp.medianPaceSecPerKm)}`}
           </p>
-          <p className={`mt-1 text-[10px] ${muted}`}>{cp.samples} sorties</p>
+          <p className={`mt-1 text-[10px] ${muted}`}>{t('volume.runs', { count: cp.samples })}</p>
         </div>
       ))}
     </div>
@@ -513,9 +522,10 @@ function CheckpointsTable({ checkpoints }: { checkpoints: DurationCheckpoint[] }
 /* ── Efficiency ────────────────────────────────────────────────────── */
 
 function EfficiencyChart({ months }: { months: MonthEfficiency[] }) {
+  const { t } = useTranslation('stats')
   const [hover, setHover] = useState<number | null>(null)
   const points = months.filter((m) => m.metersPerBeat != null)
-  if (points.length < 2) return <p className={`text-sm ${muted}`}>Pas encore assez de données FC.</p>
+  if (points.length < 2) return <p className={`text-sm ${muted}`}>{t('efficiency.notEnough')}</p>
   const values = points.map((m) => m.metersPerBeat!)
   const lo = Math.min(...values) * 0.97
   const hi = Math.max(...values) * 1.03
@@ -530,13 +540,13 @@ function EfficiencyChart({ months }: { months: MonthEfficiency[] }) {
         <ChartTooltip
           xRatio={x(hover!) / W}
           lines={[
-            format(parseISO(`${hovered.month}-01`), 'MMMM yyyy', { locale: fr }),
-            `${hovered.metersPerBeat} m / battement`,
-            `${hovered.runs} sortie${hovered.runs > 1 ? 's' : ''} avec FC`,
+            format(parseISO(`${hovered.month}-01`), 'MMMM yyyy', { locale: dateLocale() }),
+            t('efficiency.metersPerBeat', { value: hovered.metersPerBeat }),
+            t('efficiency.runsWithHr', { count: hovered.runs }),
           ]}
         />
       )}
-    <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="Efficience aérobie">
+    <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label={t('efficiency.aria')}>
       <GridY ticks={[lo + (hi - lo) * 0.25, lo + (hi - lo) * 0.75]} y={y}
         format={(v) => v.toFixed(2)} />
       <path d={path} fill="none" strokeWidth={2} className="stroke-pine-600 dark:stroke-pine-350" />
@@ -546,7 +556,7 @@ function EfficiencyChart({ months }: { months: MonthEfficiency[] }) {
             className="fill-pine-600 dark:fill-pine-350" />
           <text x={x(i)} y={H - 6} textAnchor="middle"
             className="fill-moss-500 text-[10px] dark:fill-moss-400">
-            {format(parseISO(`${m.month}-01`), 'MMM', { locale: fr })}
+            {format(parseISO(`${m.month}-01`), 'MMM', { locale: dateLocale() })}
           </text>
         </g>
       ))}
@@ -559,6 +569,7 @@ function EfficiencyChart({ months }: { months: MonthEfficiency[] }) {
 /* ── Predictions ───────────────────────────────────────────────────── */
 
 function TrailEstimates({ estimates }: { estimates: TrailEstimate[] }) {
+  const { t } = useTranslation('stats')
   return (
     <div className="mt-3 space-y-2">
       {estimates.map((estimate) => (
@@ -568,7 +579,7 @@ function TrailEstimates({ estimates }: { estimates: TrailEstimate[] }) {
             <p className="font-medium">
               {estimate.objectiveName}
               <span className={`ml-2 text-xs ${muted}`}>
-                {format(parseISO(estimate.date), 'd MMM yyyy', { locale: fr })} ·{' '}
+                {format(parseISO(estimate.date), 'd MMM yyyy', { locale: dateLocale() })} ·{' '}
                 {estimate.distanceKm} km
                 {estimate.elevationM != null && ` · ${estimate.elevationM} m D+`} ·{' '}
                 {estimate.kmEffort} km-effort
@@ -582,8 +593,7 @@ function TrailEstimates({ estimates }: { estimates: TrailEstimate[] }) {
             </p>
           </div>
           <p className={`mt-1 text-xs ${muted}`}>
-            D'après ton allure par km-effort sur {estimate.sampleRuns} sorties trail récentes,
-            fatigue ultra incluse — pas un chrono garanti.
+            {t('predictions.trailBasis', { count: estimate.sampleRuns })}
           </p>
         </div>
       ))}
@@ -592,19 +602,19 @@ function TrailEstimates({ estimates }: { estimates: TrailEstimate[] }) {
 }
 
 function RoadPredictions({ predictions }: { predictions: RoadPrediction[] }) {
+  const { t } = useTranslation('stats')
   return (
     <div className="mt-4 overflow-x-auto">
       <p className={`mb-1 text-xs ${muted}`}>
-        Sur route, une fourchette entre trois modèles — Riegel est optimiste au-delà du semi,
-        Vickers-Vertosick tient compte de ton volume d'entraînement.
+        {t('predictions.roadHint')}
       </p>
       <table className="w-full min-w-105 text-sm">
         <thead>
           <tr className={`text-left text-xs uppercase ${muted}`}>
-            <th className="py-1.5 pr-2 font-semibold">Distance</th>
-            <th className="py-1.5 pr-2 font-semibold">Fourchette</th>
-            <th className="py-1.5 pr-2 font-semibold">Record réel</th>
-            <th className="py-1.5 font-semibold">Base</th>
+            <th className="py-1.5 pr-2 font-semibold">{t('predictions.colDistance')}</th>
+            <th className="py-1.5 pr-2 font-semibold">{t('predictions.colRange')}</th>
+            <th className="py-1.5 pr-2 font-semibold">{t('predictions.colRecord')}</th>
+            <th className="py-1.5 font-semibold">{t('predictions.colBase')}</th>
           </tr>
         </thead>
         <tbody>

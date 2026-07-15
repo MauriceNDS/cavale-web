@@ -9,6 +9,7 @@ import {
   useRouterState,
 } from '@tanstack/react-router'
 import { useState, type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import { LogoMark } from './components/LogoMark'
 import { ThemeToggle } from './components/ThemeToggle'
 import type { UserResponse } from './features/auth/api'
@@ -107,10 +108,10 @@ function IconUser({ className }: IconProps) {
 }
 
 interface NavItem {
+  /** shell-namespace translation key. */
   label: string
   to?: '/' | '/calendrier' | '/objectif' | '/renfo' | '/activites' | '/stats'
   icon?: (props: IconProps) => ReactNode
-  soon?: boolean
   /** In the mobile bottom bar; the rest lives in the account menu. */
   mobileTab?: boolean
   /** Hidden entirely when the athlete uses Cavale for running only. */
@@ -118,46 +119,34 @@ interface NavItem {
 }
 
 const NAV: NavItem[] = [
-  { label: 'Accueil', to: '/', icon: IconHome, mobileTab: true },
-  { label: 'Calendrier', to: '/calendrier', icon: IconCalendar, mobileTab: true },
-  { label: 'Renfo', to: '/renfo', icon: IconDumbbell, mobileTab: true, needsGym: true },
-  { label: 'Activités', to: '/activites', icon: IconPulse, mobileTab: true },
-  { label: 'Statistiques', to: '/stats', icon: IconChart },
-  { label: 'Objectif', to: '/objectif', icon: IconTarget },
+  { label: 'nav.home', to: '/', icon: IconHome, mobileTab: true },
+  { label: 'nav.calendar', to: '/calendrier', icon: IconCalendar, mobileTab: true },
+  { label: 'nav.gym', to: '/renfo', icon: IconDumbbell, mobileTab: true, needsGym: true },
+  { label: 'nav.activities', to: '/activites', icon: IconPulse, mobileTab: true },
+  { label: 'nav.stats', to: '/stats', icon: IconChart },
+  { label: 'nav.objective', to: '/objectif', icon: IconTarget },
 ]
 
 function visibleNav(gymEnabled: boolean): NavItem[] {
   return NAV.filter((item) => gymEnabled || !item.needsGym)
 }
 
-/** Desktop sidebar entries — the full map, "bientôt" items included. */
+/** Desktop sidebar entries. */
 function SidebarLinks({ gymEnabled }: { gymEnabled: boolean }) {
+  const { t } = useTranslation('shell')
   return (
     <>
-      {visibleNav(gymEnabled).map((item) =>
-        item.soon ? (
-          <span
-            key={item.label}
-            title="Bientôt"
-            className="flex cursor-default items-center gap-2 rounded-lg px-3 py-2 text-sm text-moss-400 dark:text-moss-500"
-          >
-            {item.label}
-            <span className="ml-auto rounded-full bg-moss-100 px-1.5 py-0.5 text-[10px] font-medium text-moss-500 dark:bg-moss-800 dark:text-moss-400">
-              bientôt
-            </span>
-          </span>
-        ) : (
-          <Link
-            key={item.label}
-            to={item.to ?? '/'}
-            activeOptions={{ exact: item.to === '/' }}
-            className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-ink transition hover:bg-moss-100 dark:text-linen dark:hover:bg-moss-800 [&.active]:bg-pine-100 dark:[&.active]:bg-pine-900"
-          >
-            {item.icon && <item.icon className="h-4.5 w-4.5 text-moss-500 dark:text-moss-400" />}
-            {item.label}
-          </Link>
-        ),
-      )}
+      {visibleNav(gymEnabled).map((item) => (
+        <Link
+          key={item.label}
+          to={item.to ?? '/'}
+          activeOptions={{ exact: item.to === '/' }}
+          className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-ink transition hover:bg-moss-100 dark:text-linen dark:hover:bg-moss-800 [&.active]:bg-pine-100 dark:[&.active]:bg-pine-900"
+        >
+          {item.icon && <item.icon className="h-4.5 w-4.5 text-moss-500 dark:text-moss-400" />}
+          {t(item.label)}
+        </Link>
+      ))}
     </>
   )
 }
@@ -173,6 +162,7 @@ function AccountMenuItems({
   onNavigate: () => void
   onLogout: () => void
 }) {
+  const { t } = useTranslation('shell')
   const itemCls =
     'flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-ink transition hover:bg-moss-100 dark:text-linen dark:hover:bg-moss-800'
   const iconCls = 'h-4.5 w-4.5 text-moss-500 dark:text-moss-400'
@@ -182,23 +172,23 @@ function AccountMenuItems({
       {extraNav?.map((item) => (
         <Link key={item.label} to={item.to!} role="menuitem" onClick={onNavigate} className={itemCls}>
           {item.icon && <item.icon className={iconCls} />}
-          {item.label}
+          {t(item.label)}
         </Link>
       ))}
       <Link to="/profil" role="menuitem" onClick={onNavigate} className={itemCls}>
         <IconUser className={iconCls} />
-        Voir le profil
+        {t('account.viewProfile')}
       </Link>
       <Link to="/parametres" role="menuitem" onClick={onNavigate} className={itemCls}>
         <IconSettings className={iconCls} />
-        Paramètres
+        {t('account.parameters')}
       </Link>
       <button
         role="menuitem"
         onClick={onLogout}
         className="w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-clay-500 transition hover:bg-moss-100 dark:text-clay-300 dark:hover:bg-moss-800"
       >
-        Se déconnecter
+        {t('account.logout')}
       </button>
     </>
   )
@@ -206,6 +196,7 @@ function AccountMenuItems({
 
 /** Desktop sidebar footer: identity button opening the account menu. */
 function SidebarAccount({ user, onLogout }: { user: UserResponse; onLogout: () => void }) {
+  const { t } = useTranslation('shell')
   const [open, setOpen] = useState(false)
 
   return (
@@ -214,6 +205,7 @@ function SidebarAccount({ user, onLogout }: { user: UserResponse; onLogout: () =
         onClick={() => setOpen(!open)}
         aria-expanded={open}
         aria-haspopup="menu"
+        aria-label={t('account.label')}
         className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition hover:bg-moss-100 dark:hover:bg-moss-800"
       >
         <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-pine-600 text-sm font-semibold text-moss-25 dark:bg-pine-350 dark:text-moss-950">
@@ -242,6 +234,7 @@ function SidebarAccount({ user, onLogout }: { user: UserResponse; onLogout: () =
 /** Mobile bottom bar: the daily destinations, plus a Profil tab that opens
  *  the account sheet — identity, remaining destinations, theme and logout. */
 function TabBar({ user, onLogout }: { user: UserResponse; onLogout: () => void }) {
+  const { t } = useTranslation('shell')
   const [menuOpen, setMenuOpen] = useState(false)
   const pathname = useRouterState({ select: (state) => state.location.pathname })
   const tabs = visibleNav(user.gymEnabled).filter((item) => item.to && item.mobileTab)
@@ -262,7 +255,7 @@ function TabBar({ user, onLogout }: { user: UserResponse; onLogout: () => void }
             <span className="tab-pill grid h-7 w-12 place-items-center rounded-full transition">
               {item.icon && <item.icon className="h-5.5 w-5.5" />}
             </span>
-            {item.label}
+            {t(item.label)}
           </Link>
         ))}
         <button
@@ -282,7 +275,7 @@ function TabBar({ user, onLogout }: { user: UserResponse; onLogout: () => void }
               {(user.displayName || user.email).charAt(0).toUpperCase()}
             </span>
           </span>
-          Profil
+          {t('account.tab')}
         </button>
       </nav>
       {menuOpen && (
@@ -319,12 +312,13 @@ function TabBar({ user, onLogout }: { user: UserResponse; onLogout: () => void }
 function Shell({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const { t } = useTranslation('shell')
 
   // Session still restoring: render neither chrome. Mounting pages now and
   // remounting them once the user arrives would run mount effects twice —
   // the Strava OAuth banner consumes its ?strava=… query on first mount.
   if (user === undefined) {
-    return <p className="mt-16 text-center text-moss-500 dark:text-moss-400">Chargement…</p>
+    return <p className="mt-16 text-center text-moss-500 dark:text-moss-400">{t('common:loading')}</p>
   }
 
   if (!user) {
@@ -346,13 +340,13 @@ function Shell({ children }: { children: ReactNode }) {
                 to="/login"
                 className="rounded-lg px-3 py-1.5 text-sm font-medium text-moss-500 transition hover:text-ink dark:text-moss-400 dark:hover:text-linen [&.active]:text-ink dark:[&.active]:text-linen"
               >
-                Se connecter
+                {t('public.signIn')}
               </Link>
               <Link
                 to="/register"
                 className="rounded-lg bg-pine-600 px-3.5 py-1.5 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
               >
-                Créer un compte
+                {t('public.createAccount')}
               </Link>
             </div>
           </nav>
@@ -398,9 +392,10 @@ function Shell({ children }: { children: ReactNode }) {
 
 function Home() {
   const { user } = useAuth()
+  const { t } = useTranslation('shell')
 
   if (user === undefined) {
-    return <p className="mt-16 text-center text-moss-500 dark:text-moss-400">Chargement…</p>
+    return <p className="mt-16 text-center text-moss-500 dark:text-moss-400">{t('common:loading')}</p>
   }
 
   if (user) {
@@ -413,14 +408,14 @@ function Home() {
         Cavale <span className="text-pine-600 dark:text-pine-350">/ka.val/</span>
       </h1>
       <p className="mx-auto mt-4 max-w-xl text-lg text-moss-500 dark:text-moss-400">
-        Compagnon d'entraînement ultra-trail — plans, renfo et progression, au même endroit.
+        {t('public.tagline')}
       </p>
       <div className="mt-10">
         <Link
           to="/register"
           className="rounded-lg bg-pine-600 px-6 py-3 font-semibold text-moss-25 transition hover:bg-pine-700 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
         >
-          Commencer l'entraînement
+          {t('public.cta')}
         </Link>
       </div>
     </div>

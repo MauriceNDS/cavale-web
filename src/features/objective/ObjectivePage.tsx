@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { differenceInCalendarDays, format, parseISO } from 'date-fns'
-import { fr } from 'date-fns/locale'
+import { useTranslation } from 'react-i18next'
+import { dateLocale, numberLocale } from '../../i18n'
 import { ApiError } from '../../lib/api'
 import { fetchPlans } from '../calendar/api'
-import { WEEK_TYPE_BADGE, WEEK_TYPE_LABEL } from '../calendar/labels'
+import { WEEK_TYPE_BADGE, weekTypeLabel } from '../calendar/labels'
 import {
   createObjective,
   deleteObjective,
@@ -17,12 +18,13 @@ import {
 } from './api'
 import { ObjectiveForm } from './ObjectiveForm'
 import { CumulativeChart, WeeklyChart, type Metric } from './charts'
-import { OBJECTIVE_TYPE_BADGE, OBJECTIVE_TYPE_LABEL, formatHours, formatTimeMin } from './labels'
+import { OBJECTIVE_TYPE_BADGE, formatHours, formatTimeMin, objectiveTypeLabel } from './labels'
 
 const card = 'rounded-xl border border-moss-200 bg-moss-25 p-5 dark:border-moss-750 dark:bg-moss-850'
 const muted = 'text-moss-500 dark:text-moss-400'
 
 export function ObjectivePage() {
+  const { t } = useTranslation('objective')
   const plans = useQuery({ queryKey: ['plans'], queryFn: fetchPlans })
   const activePlan = plans.data?.find((p) => p.status === 'ACTIVE') ?? plans.data?.[0]
 
@@ -33,29 +35,27 @@ export function ObjectivePage() {
   })
 
   if (plans.isLoading || progress.isLoading) {
-    return <p className={`mt-16 text-center ${muted}`}>Chargement…</p>
+    return <p className={`mt-16 text-center ${muted}`}>{t('common:loading')}</p>
   }
 
   if (!activePlan) {
     return (
       <div className="mt-16 text-center">
-        <h1 className="font-display text-3xl font-semibold">Objectif</h1>
-        <p className={`mx-auto mt-3 max-w-md ${muted}`}>
-          Aucun plan actif. Crée ou importe un plan d'entraînement pour définir ton objectif de
-          saison.
-        </p>
+        <h1 className="font-display text-3xl font-semibold">{t('page.title')}</h1>
+        <p className={`mx-auto mt-3 max-w-md ${muted}`}>{t('page.noPlan')}</p>
       </div>
     )
   }
 
   if (!progress.data) {
-    return <p className={`mt-16 text-center ${muted}`}>Impossible de charger la progression.</p>
+    return <p className={`mt-16 text-center ${muted}`}>{t('page.loadError')}</p>
   }
 
   return <ObjectiveContent progress={progress.data} />
 }
 
 function ObjectiveContent({ progress }: { progress: PlanProgressResponse }) {
+  const { t } = useTranslation('objective')
   const queryClient = useQueryClient()
   const [editing, setEditing] = useState<string | 'new' | null>(null)
   const [metric, setMetric] = useState<Metric>('volume')
@@ -110,7 +110,7 @@ function ObjectiveContent({ progress }: { progress: PlanProgressResponse }) {
       {weeks.length > 0 ? (
         <section className={card}>
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="font-display text-lg font-semibold">Semaine par semaine</h2>
+            <h2 className="font-display text-lg font-semibold">{t('weekly.title')}</h2>
             <div className="flex gap-1 rounded-lg bg-moss-100 p-0.5 dark:bg-moss-800">
               {(['volume', 'elevation'] as const).map((m) => (
                 <button
@@ -122,7 +122,7 @@ function ObjectiveContent({ progress }: { progress: PlanProgressResponse }) {
                       : `${muted} hover:text-ink dark:hover:text-linen`
                   }`}
                 >
-                  {m === 'volume' ? 'Volume (km)' : 'D+ (m)'}
+                  {m === 'volume' ? t('weekly.volumeKm') : t('weekly.elevationM')}
                 </button>
               ))}
             </div>
@@ -130,7 +130,7 @@ function ObjectiveContent({ progress }: { progress: PlanProgressResponse }) {
           <div className="mt-4">
             <WeeklyChart weeks={weeks} metric={metric} races={races} />
           </div>
-          <h2 className="mt-6 font-display text-lg font-semibold">Cumul sur la saison</h2>
+          <h2 className="mt-6 font-display text-lg font-semibold">{t('weekly.cumulativeTitle')}</h2>
           <div className="mt-4">
             <CumulativeChart weeks={weeks} metric={metric} />
           </div>
@@ -138,10 +138,7 @@ function ObjectiveContent({ progress }: { progress: PlanProgressResponse }) {
         </section>
       ) : (
         <section className={`${card} text-center`}>
-          <p className={muted}>
-            Ce plan n'a pas encore de semaines — importe ou construis ton programme pour suivre ta
-            progression ici.
-          </p>
+          <p className={muted}>{t('weekly.emptyWeeks')}</p>
         </section>
       )}
 
@@ -174,14 +171,18 @@ interface MainCardProps {
 }
 
 function MainObjectiveCard({ progress, editing, onEdit, onCancel, onSubmit, pending, error }: MainCardProps) {
+  const { t } = useTranslation('objective')
   const { plan, mainObjective, currentWeekNumber, totalWeeks, daysToObjective, secondaryObjectives } = progress
   if (!mainObjective) return null
 
   const chips = [
     mainObjective.distanceKm != null && `${mainObjective.distanceKm} km`,
-    mainObjective.elevationGainM != null && `${mainObjective.elevationGainM.toLocaleString('fr-FR')} m D+`,
-    mainObjective.targetTimeMin != null && `objectif ${formatTimeMin(mainObjective.targetTimeMin)}`,
-    mainObjective.resultTimeMin != null && `réalisé ${formatTimeMin(mainObjective.resultTimeMin)}`,
+    mainObjective.elevationGainM != null &&
+      `${mainObjective.elevationGainM.toLocaleString(numberLocale())} m D+`,
+    mainObjective.targetTimeMin != null &&
+      t('main.targetChip', { time: formatTimeMin(mainObjective.targetTimeMin) }),
+    mainObjective.resultTimeMin != null &&
+      t('main.doneChip', { time: formatTimeMin(mainObjective.resultTimeMin) }),
   ].filter(Boolean) as string[]
 
   const seasonStart = parseISO(plan.startDate)
@@ -198,15 +199,15 @@ function MainObjectiveCard({ progress, editing, onEdit, onCancel, onSubmit, pend
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-full bg-pine-100 px-2 py-0.5 text-[11px] font-semibold tracking-wide text-pine-700 uppercase dark:bg-pine-900 dark:text-pine-300">
-              Objectif principal
+              {t('main.badge')}
             </span>
             <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${OBJECTIVE_TYPE_BADGE[mainObjective.type]}`}>
-              {OBJECTIVE_TYPE_LABEL[mainObjective.type]}
+              {objectiveTypeLabel(mainObjective.type)}
             </span>
           </div>
           <h1 className="mt-2 font-display text-3xl font-semibold text-balance">{mainObjective.name}</h1>
           <p className={`mt-1 text-sm ${muted}`}>
-            {format(parseISO(objectiveDate), 'EEEE d MMMM yyyy', { locale: fr })}
+            {format(parseISO(objectiveDate), 'EEEE d MMMM yyyy', { locale: dateLocale() })}
             {mainObjective.location && ` · ${mainObjective.location}`}
           </p>
           {chips.length > 0 && (
@@ -229,7 +230,7 @@ function MainObjectiveCard({ progress, editing, onEdit, onCancel, onSubmit, pend
             onClick={onEdit}
             className={`mt-2 block w-full rounded-lg px-3 py-1 text-sm font-medium ${muted} transition hover:text-ink dark:hover:text-linen`}
           >
-            Modifier
+            {t('common:edit')}
           </button>
         </div>
       </div>
@@ -255,14 +256,14 @@ function MainObjectiveCard({ progress, editing, onEdit, onCancel, onSubmit, pend
         <div className="flex items-baseline justify-between text-sm">
           <span className="font-medium">
             {currentWeekNumber != null
-              ? `Semaine ${currentWeekNumber} sur ${totalWeeks}`
+              ? t('main.weekOfTotal', { current: currentWeekNumber, total: totalWeeks })
               : daysToObjective > 0
-                ? 'Saison à venir'
-                : 'Saison terminée'}
+                ? t('main.seasonUpcoming')
+                : t('main.seasonFinished')}
           </span>
           <span className={muted}>
-            {format(seasonStart, 'd MMM', { locale: fr })} →{' '}
-            {format(seasonEnd, 'd MMM yyyy', { locale: fr })}
+            {format(seasonStart, 'd MMM', { locale: dateLocale() })} →{' '}
+            {format(seasonEnd, 'd MMM yyyy', { locale: dateLocale() })}
           </span>
         </div>
         <div className="relative mt-2 h-2 rounded-full bg-moss-100 dark:bg-moss-800">
@@ -292,16 +293,17 @@ function MainObjectiveCard({ progress, editing, onEdit, onCancel, onSubmit, pend
 }
 
 function Countdown({ days, done }: { days: number; done: boolean }) {
+  const { t } = useTranslation('objective')
   if (done || days < 0) {
     return (
       <p className="font-display text-2xl font-semibold text-pine-700 dark:text-pine-300">
-        {done ? 'Objectif couru' : 'Terminé'}
+        {done ? t('main.raceDone') : t('main.over')}
       </p>
     )
   }
   return (
     <p className="font-display text-4xl font-semibold text-pine-700 dark:text-pine-300">
-      {days === 0 ? "C'est aujourd'hui" : `J−${days}`}
+      {days === 0 ? t('main.today') : t('main.countdown', { count: days })}
     </p>
   )
 }
@@ -309,6 +311,7 @@ function Countdown({ days, done }: { days: number; done: boolean }) {
 /* ── Stat tiles ────────────────────────────────────────────────────── */
 
 function StatTiles({ progress }: { progress: PlanProgressResponse }) {
+  const { t } = useTranslation('objective')
   const { totals } = progress
   const adherence =
     totals.sessionsDuePast > 0
@@ -317,29 +320,37 @@ function StatTiles({ progress }: { progress: PlanProgressResponse }) {
 
   const tiles = [
     {
-      label: 'Assiduité',
+      label: t('tiles.adherence'),
       value: adherence != null ? `${adherence} %` : '—',
-      detail: `${totals.sessionsDonePast}/${totals.sessionsDuePast} séances passées`,
+      detail: t('tiles.adherenceDetail', {
+        done: totals.sessionsDonePast,
+        due: totals.sessionsDuePast,
+      }),
     },
     {
-      label: 'Séances',
+      label: t('tiles.sessions'),
       value: `${totals.sessionsDone}/${totals.sessionsPlanned}`,
-      detail: totals.sessionsSkipped > 0 ? `${totals.sessionsSkipped} manquées` : 'sur la saison',
+      detail:
+        totals.sessionsSkipped > 0
+          ? t('tiles.missed', { count: totals.sessionsSkipped })
+          : t('tiles.overSeason'),
     },
     {
-      label: 'Volume',
+      label: t('tiles.volume'),
       value: `${Math.round(totals.actualVolumeKm)} km`,
-      detail: `prévu à ce jour : ${Math.round(totals.plannedVolumeKmToDate)} km`,
+      detail: t('tiles.plannedVolumeToDate', { value: Math.round(totals.plannedVolumeKmToDate) }),
     },
     {
-      label: 'Dénivelé',
-      value: `${totals.actualElevationM.toLocaleString('fr-FR')} m`,
-      detail: `prévu à ce jour : ${totals.plannedElevationMToDate.toLocaleString('fr-FR')} m`,
+      label: t('tiles.elevation'),
+      value: `${totals.actualElevationM.toLocaleString(numberLocale())} m`,
+      detail: t('tiles.plannedElevationToDate', {
+        value: totals.plannedElevationMToDate.toLocaleString(numberLocale()),
+      }),
     },
     {
-      label: 'Temps d’entraînement',
+      label: t('tiles.trainingTime'),
       value: formatHours(totals.actualDurationMin),
-      detail: 'séances validées',
+      detail: t('tiles.validatedSessions'),
     },
   ]
 
@@ -359,20 +370,21 @@ function StatTiles({ progress }: { progress: PlanProgressResponse }) {
 /* ── Weeks table (accessible fallback for the charts) ──────────────── */
 
 function WeeksTable({ weeks }: { weeks: WeekProgress[] }) {
+  const { t } = useTranslation('objective')
   return (
     <details className="mt-4">
       <summary className={`cursor-pointer text-sm ${muted} transition hover:text-ink dark:hover:text-linen`}>
-        Voir le détail en tableau
+        {t('table.show')}
       </summary>
       <div className="mt-3 overflow-x-auto">
         <table className="w-full min-w-[560px] text-sm">
           <thead>
             <tr className={`border-b border-moss-200 text-left dark:border-moss-750 ${muted}`}>
-              <th className="py-1.5 pr-2 font-medium">Semaine</th>
-              <th className="py-1.5 pr-2 font-medium">Type</th>
-              <th className="py-1.5 pr-2 text-right font-medium">Volume</th>
-              <th className="py-1.5 pr-2 text-right font-medium">D+</th>
-              <th className="py-1.5 text-right font-medium">Séances</th>
+              <th className="py-1.5 pr-2 font-medium">{t('table.week')}</th>
+              <th className="py-1.5 pr-2 font-medium">{t('table.type')}</th>
+              <th className="py-1.5 pr-2 text-right font-medium">{t('table.volume')}</th>
+              <th className="py-1.5 pr-2 text-right font-medium">{t('table.elevation')}</th>
+              <th className="py-1.5 text-right font-medium">{t('table.sessions')}</th>
             </tr>
           </thead>
           <tbody className="tabular-nums">
@@ -384,14 +396,14 @@ function WeeksTable({ weeks }: { weeks: WeekProgress[] }) {
                 }`}
               >
                 <td className="py-1.5 pr-2">
-                  S{week.weekNumber}
+                  {t('charts.weekShort', { number: week.weekNumber })}
                   <span className={`ml-2 text-xs ${muted}`}>
-                    {format(parseISO(week.startDate), 'd MMM', { locale: fr })}
+                    {format(parseISO(week.startDate), 'd MMM', { locale: dateLocale() })}
                   </span>
                 </td>
                 <td className="py-1.5 pr-2">
                   <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${WEEK_TYPE_BADGE[week.weekType]}`}>
-                    {WEEK_TYPE_LABEL[week.weekType]}
+                    {weekTypeLabel(week.weekType)}
                   </span>
                 </td>
                 <td className="py-1.5 pr-2 text-right">
@@ -399,9 +411,9 @@ function WeeksTable({ weeks }: { weeks: WeekProgress[] }) {
                   <span className={muted}> / {week.targetVolumeKm ?? '—'} km</span>
                 </td>
                 <td className="py-1.5 pr-2 text-right">
-                  {week.actualElevationM.toLocaleString('fr-FR')}
+                  {week.actualElevationM.toLocaleString(numberLocale())}
                   <span className={muted}>
-                    {' '}/ {week.targetElevationM?.toLocaleString('fr-FR') ?? '—'} m
+                    {' '}/ {week.targetElevationM?.toLocaleString(numberLocale()) ?? '—'} m
                   </span>
                 </td>
                 <td className="py-1.5 text-right">
@@ -443,22 +455,21 @@ function SecondaryObjectives({
   createError,
   updateError,
 }: SecondaryProps) {
+  const { t } = useTranslation('objective')
   return (
     <section className={card}>
       <div className="flex items-center justify-between">
-        <h2 className="font-display text-lg font-semibold">Objectifs secondaires</h2>
+        <h2 className="font-display text-lg font-semibold">{t('secondary.title')}</h2>
         {editing !== 'new' && (
           <button
             onClick={() => setEditing('new')}
             className="rounded-lg bg-pine-600 px-3 py-1.5 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
           >
-            Ajouter
+            {t('common:add')}
           </button>
         )}
       </div>
-      <p className={`mt-1 text-sm ${muted}`}>
-        Courses intermédiaires et jalons pris en compte dans la préparation.
-      </p>
+      <p className={`mt-1 text-sm ${muted}`}>{t('secondary.intro')}</p>
 
       {editing === 'new' && (
         <ObjectiveForm
@@ -470,9 +481,7 @@ function SecondaryObjectives({
       )}
 
       {objectives.length === 0 && editing !== 'new' && (
-        <p className={`mt-4 text-sm ${muted}`}>
-          Aucun objectif secondaire pour l'instant — ajoute une course de préparation.
-        </p>
+        <p className={`mt-4 text-sm ${muted}`}>{t('secondary.empty')}</p>
       )}
 
       <ul className="mt-3 space-y-2">
@@ -495,19 +504,19 @@ function SecondaryObjectives({
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium">{objective.name}</span>
                     <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${OBJECTIVE_TYPE_BADGE[objective.type]}`}>
-                      {OBJECTIVE_TYPE_LABEL[objective.type]}
+                      {objectiveTypeLabel(objective.type)}
                     </span>
                   </div>
                   <p className={`mt-0.5 text-sm ${muted}`}>
                     {[
                       objective.date &&
-                        format(parseISO(objective.date), 'EEEE d MMMM', { locale: fr }),
+                        format(parseISO(objective.date), 'EEEE d MMMM', { locale: dateLocale() }),
                       objective.distanceKm != null && `${objective.distanceKm} km`,
                       objective.elevationGainM != null && `${objective.elevationGainM} m D+`,
                       objective.targetTimeMin != null &&
-                        `objectif ${formatTimeMin(objective.targetTimeMin)}`,
+                        t('main.targetChip', { time: formatTimeMin(objective.targetTimeMin) }),
                       objective.resultTimeMin != null &&
-                        `réalisé ${formatTimeMin(objective.resultTimeMin)}`,
+                        t('main.doneChip', { time: formatTimeMin(objective.resultTimeMin) }),
                       objective.location,
                     ]
                       .filter(Boolean)
@@ -519,13 +528,13 @@ function SecondaryObjectives({
                     onClick={() => setEditing(objective.id)}
                     className={`rounded-lg px-2.5 py-1 text-sm font-medium ${muted} transition hover:text-ink dark:hover:text-linen`}
                   >
-                    Modifier
+                    {t('common:edit')}
                   </button>
                   <button
                     onClick={() => onDelete(objective.id)}
                     className="rounded-lg px-2.5 py-1 text-sm font-medium text-clay-500 transition hover:text-clay-600 dark:text-clay-300 dark:hover:text-clay-300/80"
                   >
-                    Supprimer
+                    {t('common:delete')}
                   </button>
                 </div>
               </div>

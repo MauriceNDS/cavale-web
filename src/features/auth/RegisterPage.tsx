@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import { z } from 'zod'
 import { AuthCard, ErrorAlert, Field, SubmitButton } from '../../components/form'
 import { ApiError } from '../../lib/api'
@@ -8,18 +9,22 @@ import { registerUser, type RegisterRequest } from './api'
 import { StravaButton } from './StravaButton'
 import { useAuth } from './session'
 
-const registerSchema = z.object({
-  email: z.email('Adresse email invalide'),
-  password: z.string().min(8, 'Au moins 8 caractères').max(72, 'Au plus 72 caractères'),
-  displayName: z.string().trim().min(1, 'Le nom est requis').max(100),
-})
-
 type FieldErrors = Partial<Record<'email' | 'password' | 'displayName', string>>
 
 export function RegisterPage() {
+  const { t } = useTranslation('auth')
   const { login } = useAuth()
   const navigate = useNavigate()
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
+
+  const registerSchema = z.object({
+    email: z.email(t('register.errors.emailInvalid')),
+    password: z
+      .string()
+      .min(8, t('register.errors.passwordMin'))
+      .max(72, t('register.errors.passwordMax')),
+    displayName: z.string().trim().min(1, t('register.errors.nameRequired')).max(100),
+  })
 
   const mutation = useMutation({
     mutationFn: async (request: RegisterRequest) => {
@@ -54,7 +59,7 @@ export function RegisterPage() {
   const serverProblem = mutation.error instanceof ApiError ? mutation.error.problem : undefined
 
   return (
-    <AuthCard title="Créer un compte" subtitle="Cours libre. Entraîne-toi avec intention.">
+    <AuthCard title={t('register.title')} subtitle={t('register.subtitle')}>
       {serverProblem && <ErrorAlert message={serverProblem.detail ?? serverProblem.title} />}
 
       <div className="mt-6">
@@ -63,35 +68,35 @@ export function RegisterPage() {
 
       <form onSubmit={handleSubmit} noValidate className="mt-4 space-y-4">
         <Field
-          label="Email"
+          label={t('register.email')}
           name="email"
           type="email"
           autoComplete="email"
           error={fieldErrors.email ?? serverProblem?.errors?.email}
         />
         <Field
-          label="Mot de passe"
+          label={t('register.password')}
           name="password"
           type="password"
           autoComplete="new-password"
           error={fieldErrors.password ?? serverProblem?.errors?.password}
         />
         <Field
-          label="Nom affiché"
+          label={t('register.displayName')}
           name="displayName"
           type="text"
           autoComplete="nickname"
           error={fieldErrors.displayName ?? serverProblem?.errors?.displayName}
         />
-        <SubmitButton pending={mutation.isPending} pendingText="Création…">
-          Créer mon compte
+        <SubmitButton pending={mutation.isPending} pendingText={t('common:creating')}>
+          {t('register.submit')}
         </SubmitButton>
       </form>
 
       <p className="mt-4 text-center text-sm text-moss-500 dark:text-moss-400">
-        Déjà un compte ?{' '}
+        {t('register.haveAccount')}{' '}
         <Link to="/login" className="font-medium text-pine-700 hover:underline dark:text-pine-300">
-          Se connecter
+          {t('register.signIn')}
         </Link>
       </p>
     </AuthCard>

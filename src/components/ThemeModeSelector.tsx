@@ -1,14 +1,16 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { getThemeMode, setThemeMode, type ThemeMode } from '../lib/theme'
 
 const MODES: { value: ThemeMode; label: string }[] = [
-  { value: 'light', label: 'Clair' },
-  { value: 'system', label: 'Auto' },
-  { value: 'dark', label: 'Sombre' },
+  { value: 'light', label: 'theme.light' },
+  { value: 'system', label: 'theme.auto' },
+  { value: 'dark', label: 'theme.dark' },
 ]
 
 /** Segmented light / auto / dark control for the account menus. */
 export function ThemeModeSelector() {
+  const { t } = useTranslation()
   const [mode, setMode] = useState<ThemeMode>(getThemeMode)
 
   function pick(value: ThemeMode) {
@@ -19,7 +21,7 @@ export function ThemeModeSelector() {
   return (
     <div
       role="radiogroup"
-      aria-label="Thème"
+      aria-label={t('theme.label')}
       className="flex gap-0.5 rounded-lg bg-moss-100 p-0.5 dark:bg-moss-800"
     >
       {MODES.map(({ value, label }) => (
@@ -34,7 +36,7 @@ export function ThemeModeSelector() {
               : 'text-moss-500 hover:text-ink dark:text-moss-400 dark:hover:text-linen'
           }`}
         >
-          {label}
+          {t(label)}
         </button>
       ))}
     </div>

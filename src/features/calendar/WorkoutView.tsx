@@ -1,5 +1,6 @@
+import { useTranslation } from 'react-i18next'
 import type { WorkoutNode } from './api'
-import { ALLURE_LABEL, TERRAIN_LABEL, allureStyle, formatSeconds } from './labels'
+import { allureLabel, terrainLabel, allureStyle, formatSeconds } from './labels'
 
 /**
  * Read-only workout tree: allure-titled blocks, times in letters, loop
@@ -16,6 +17,7 @@ export function WorkoutTree({ nodes }: { nodes: WorkoutNode[] }) {
 }
 
 function NodeView({ node }: { node: WorkoutNode }) {
+  const { t } = useTranslation('calendar')
   if (node.type === 'repeat') {
     return (
       <div className="flex overflow-hidden rounded-lg border border-moss-200 bg-moss-25 dark:border-moss-750 dark:bg-moss-850">
@@ -26,7 +28,7 @@ function NodeView({ node }: { node: WorkoutNode }) {
         </div>
         <div
           className="flex w-11 shrink-0 flex-col items-center justify-center border-l border-moss-200 bg-moss-100 text-moss-500 dark:border-moss-750 dark:bg-moss-800 dark:text-moss-400"
-          title={`À répéter ${node.count} fois`}
+          title={t('workout.repeatTimes', { count: node.count ?? 0 })}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
@@ -46,8 +48,8 @@ function NodeView({ node }: { node: WorkoutNode }) {
   const time = formatSeconds(node.seconds)
   const body = [
     time,
-    node.allure === 'LENTE' && time ? 'de récupération' : null,
-    node.terrain && node.terrain !== 'PLAT' ? TERRAIN_LABEL[node.terrain] : null,
+    node.allure === 'LENTE' && time ? t('workout.recovery') : null,
+    node.terrain && node.terrain !== 'PLAT' ? terrainLabel(node.terrain) : null,
   ]
     .filter(Boolean)
     .join(' ')
@@ -56,7 +58,7 @@ function NodeView({ node }: { node: WorkoutNode }) {
       className={`rounded-lg border border-l-4 border-moss-200 bg-moss-50 px-3 py-2 dark:border-moss-750 dark:bg-moss-800 ${style.edge}`}
     >
       <p className={`text-xs font-semibold ${style.title}`}>
-        {node.allure ? ALLURE_LABEL[node.allure] : 'Étape'}
+        {node.allure ? allureLabel(node.allure) : t('workout.step')}
       </p>
       <p className="font-display text-base font-semibold tabular-nums">{body || '—'}</p>
     </div>

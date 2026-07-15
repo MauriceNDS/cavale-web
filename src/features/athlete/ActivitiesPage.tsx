@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { format, parseISO } from 'date-fns'
-import { fr } from 'date-fns/locale'
+import { useTranslation } from 'react-i18next'
+import { dateLocale } from '../../i18n'
 import { useAuth } from '../auth/session'
 import { fetchActivities, type FeedFilters, type FeedItem, type FeedType } from './api'
 
@@ -25,6 +26,7 @@ function formatDuration(min: number): string {
 
 /** The whole history: searchable by name and date range, page by page. */
 export function ActivitiesPage() {
+  const { t } = useTranslation('athlete')
   const { user } = useAuth()
   const [type, setType] = useState<FeedType>('ALL')
   const [page, setPage] = useState(0)
@@ -43,9 +45,9 @@ export function ActivitiesPage() {
   const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1
 
   const filterTypes: { value: FeedType; label: string }[] = [
-    { value: 'ALL', label: 'Tout' },
-    { value: 'RUN', label: 'Course' },
-    ...(user?.gymEnabled ? [{ value: 'GYM' as FeedType, label: 'Renfo' }] : []),
+    { value: 'ALL', label: t('activities.filterAll') },
+    { value: 'RUN', label: t('activities.filterRun') },
+    ...(user?.gymEnabled ? [{ value: 'GYM' as FeedType, label: t('activities.filterGym') }] : []),
   ]
 
   function resetPage<T>(setter: (value: T) => void) {
@@ -57,14 +59,14 @@ export function ActivitiesPage() {
 
   const byMonth = new Map<string, FeedItem[]>()
   for (const item of data?.items ?? []) {
-    const key = format(parseISO(item.date), 'MMMM yyyy', { locale: fr })
+    const key = format(parseISO(item.date), 'MMMM yyyy', { locale: dateLocale() })
     byMonth.set(key, [...(byMonth.get(key) ?? []), item])
   }
 
   return (
     <div className="mx-auto mt-6 max-w-3xl pb-10">
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="font-display text-2xl font-semibold">Activités</h1>
+        <h1 className="font-display text-2xl font-semibold">{t('activities.title')}</h1>
         <div className="flex gap-1 rounded-lg bg-moss-100 p-0.5 dark:bg-moss-800">
           {filterTypes.map((filter) => (
             <button
@@ -87,18 +89,18 @@ export function ActivitiesPage() {
         <input
           value={q}
           onChange={(event) => resetPage(setQ)(event.target.value)}
-          placeholder="Rechercher par nom…"
-          aria-label="Rechercher une activité"
+          placeholder={t('activities.searchPlaceholder')}
+          aria-label={t('activities.searchAria')}
           className={`${fieldClass} w-full sm:w-56`}
         />
         <label className={`flex items-center gap-1.5 text-xs ${muted}`}>
-          du
-          <input type="date" value={from} aria-label="Date de début"
+          {t('activities.from')}
+          <input type="date" value={from} aria-label={t('activities.fromAria')}
             onChange={(event) => resetPage(setFrom)(event.target.value)} className={fieldClass} />
         </label>
         <label className={`flex items-center gap-1.5 text-xs ${muted}`}>
-          au
-          <input type="date" value={to} aria-label="Date de fin"
+          {t('activities.to')}
+          <input type="date" value={to} aria-label={t('activities.toAria')}
             onChange={(event) => resetPage(setTo)(event.target.value)} className={fieldClass} />
         </label>
         {(q || from || to) && (
@@ -111,24 +113,24 @@ export function ActivitiesPage() {
             }}
             className="text-xs font-medium text-pine-700 underline dark:text-pine-300"
           >
-            effacer
+            {t('activities.clear')}
           </button>
         )}
         {data && (
           <span className={`ml-auto text-xs ${muted}`}>
-            {data.total} activité{data.total > 1 ? 's' : ''}
+            {t('activities.count', { count: data.total })}
           </span>
         )}
       </div>
 
       {query.isError && (
         <p className="mt-8 text-center text-clay-500 dark:text-clay-300">
-          Impossible de charger les activités.
+          {t('activities.loadError')}
         </p>
       )}
-      {query.isLoading && <p className={`mt-8 text-center ${muted}`}>Chargement…</p>}
+      {query.isLoading && <p className={`mt-8 text-center ${muted}`}>{t('common:loading')}</p>}
       {data && data.items.length === 0 && (
-        <p className={`mt-8 text-center ${muted}`}>Aucune activité ne correspond.</p>
+        <p className={`mt-8 text-center ${muted}`}>{t('activities.empty')}</p>
       )}
 
       {[...byMonth.entries()].map(([month, monthItems]) => (
@@ -143,23 +145,23 @@ export function ActivitiesPage() {
       ))}
 
       {data && totalPages > 1 && (
-        <nav className="mt-5 flex items-center justify-center gap-3" aria-label="Pagination">
+        <nav className="mt-5 flex items-center justify-center gap-3" aria-label={t('activities.paginationAria')}>
           <button
             onClick={() => setPage(page - 1)}
             disabled={page === 0}
             className="rounded-lg border border-moss-200 px-3.5 py-1.5 text-sm font-medium transition hover:bg-moss-100 disabled:opacity-40 dark:border-moss-750 dark:hover:bg-moss-800"
           >
-            ← Précédent
+            {t('activities.previous')}
           </button>
           <span className={`text-sm tabular-nums ${muted}`}>
-            page {page + 1} / {totalPages}
+            {t('activities.pageOf', { page: page + 1, total: totalPages })}
           </span>
           <button
             onClick={() => setPage(page + 1)}
             disabled={!data.hasMore}
             className="rounded-lg border border-moss-200 px-3.5 py-1.5 text-sm font-medium transition hover:bg-moss-100 disabled:opacity-40 dark:border-moss-750 dark:hover:bg-moss-800"
           >
-            Suivant →
+            {t('activities.next')}
           </button>
         </nav>
       )}
@@ -168,6 +170,7 @@ export function ActivitiesPage() {
 }
 
 function FeedRow({ item }: { item: FeedItem }) {
+  const { t } = useTranslation('athlete')
   const isRun = item.type === 'RUN'
   const facts = isRun
     ? [
@@ -179,8 +182,8 @@ function FeedRow({ item }: { item: FeedItem }) {
       ]
     : [
         item.durationMin != null ? formatDuration(item.durationMin) : null,
-        item.tonnageKg != null && item.tonnageKg > 0 ? `${item.tonnageKg} kg soulevés` : null,
-        item.sets ? `${item.sets} séries` : null,
+        item.tonnageKg != null && item.tonnageKg > 0 ? t('activities.lifted', { count: item.tonnageKg }) : null,
+        item.sets ? t('activities.sets', { count: item.sets }) : null,
       ]
 
   const content = (
@@ -195,16 +198,16 @@ function FeedRow({ item }: { item: FeedItem }) {
       </span>
       <div className="min-w-0 flex-1">
         <p className="truncate font-medium">
-          {item.title ?? (isRun ? 'Sortie' : 'Renfo')}
+          {item.title ?? (isRun ? t('activities.runFallback') : t('activities.gymFallback'))}
           {item.painFlag && (
-            <span className="ml-1.5 text-xs text-clay-500 dark:text-clay-300" title="Douleur signalée">
-              ⚠ douleur
+            <span className="ml-1.5 text-xs text-clay-500 dark:text-clay-300" title={t('activities.painTitle')}>
+              {t('activities.pain')}
             </span>
           )}
         </p>
         <p className={`truncate text-xs ${muted}`}>
-          {format(parseISO(item.date), 'EEE d MMM', { locale: fr })}
-          {isRun && item.source === 'STRAVA' && !item.sessionId && ' · Strava (hors plan)'}
+          {format(parseISO(item.date), 'EEE d MMM', { locale: dateLocale() })}
+          {isRun && item.source === 'STRAVA' && !item.sessionId && ` · ${t('activities.offPlan')}`}
           {facts.filter(Boolean).length > 0 && ` · ${facts.filter(Boolean).join(' · ')}`}
         </p>
       </div>
