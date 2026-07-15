@@ -1,30 +1,37 @@
-/** Theme management: light / dark, persisted, class-based (.dark on <html>).
- *  First visit follows the OS preference; after the first toggle the choice sticks. */
+/** Theme management: light / dark / system, persisted, class-based (.dark on <html>).
+ *  "system" (the default) follows the OS preference live; an explicit choice sticks. */
 
-export type Theme = 'light' | 'dark'
+export type ThemeMode = 'light' | 'dark' | 'system'
 
 const THEME_KEY = 'cavale.theme'
 const media = window.matchMedia('(prefers-color-scheme: dark)')
 
-export function getTheme(): Theme {
+export function getThemeMode(): ThemeMode {
   const stored = localStorage.getItem(THEME_KEY)
   if (stored === 'light' || stored === 'dark') return stored
-  return media.matches ? 'dark' : 'light'
+  return 'system'
 }
 
-function apply(theme: Theme) {
-  document.documentElement.classList.toggle('dark', theme === 'dark')
+/** The concrete theme a mode renders as right now. */
+export function resolvedTheme(mode: ThemeMode = getThemeMode()): 'light' | 'dark' {
+  if (mode === 'system') return media.matches ? 'dark' : 'light'
+  return mode
 }
 
-export function setTheme(theme: Theme) {
-  localStorage.setItem(THEME_KEY, theme)
-  apply(theme)
+function apply() {
+  document.documentElement.classList.toggle('dark', resolvedTheme() === 'dark')
 }
 
-/** Call once before render. Follows OS changes only until the user has chosen. */
+export function setThemeMode(mode: ThemeMode) {
+  if (mode === 'system') localStorage.removeItem(THEME_KEY)
+  else localStorage.setItem(THEME_KEY, mode)
+  apply()
+}
+
+/** Call once before render. Follows OS changes while in system mode. */
 export function initTheme() {
-  apply(getTheme())
+  apply()
   media.addEventListener('change', () => {
-    if (!localStorage.getItem(THEME_KEY)) apply(getTheme())
+    if (getThemeMode() === 'system') apply()
   })
 }

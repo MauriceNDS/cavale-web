@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { getTheme, setTheme, type Theme } from '../lib/theme'
+import { resolvedTheme, setThemeMode } from '../lib/theme'
 
-function Icon({ theme }: { theme: Theme }) {
+function Icon({ theme }: { theme: 'light' | 'dark' }) {
   if (theme === 'light') {
     return (
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
@@ -17,12 +17,14 @@ function Icon({ theme }: { theme: Theme }) {
   )
 }
 
+/** Quick binary toggle for the public header — the signed-in account menus
+ *  expose the full light / dark / system choice instead. */
 export function ThemeToggle() {
-  const [theme, setCurrent] = useState<Theme>(getTheme)
+  const [theme, setCurrent] = useState<'light' | 'dark'>(() => resolvedTheme())
 
   function toggle() {
-    const next: Theme = theme === 'light' ? 'dark' : 'light'
-    setTheme(next)
+    const next = theme === 'light' ? 'dark' : 'light'
+    setThemeMode(next)
     setCurrent(next)
   }
 
