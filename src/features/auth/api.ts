@@ -13,6 +13,10 @@ export interface LoginRequest {
 
 export type AthleteStatus = 'AVAILABLE' | 'INJURED' | 'RECOVERING' | 'SICK'
 
+/** Admin-controlled account access, distinct from athlete availability. */
+export type AccountStatus = 'PENDING' | 'ACTIVE' | 'DISABLED'
+export type UserRole = 'USER' | 'ADMIN'
+
 export interface UserResponse {
   id: string
   email: string
@@ -27,6 +31,8 @@ export interface UserResponse {
   athleteStatus: AthleteStatus
   statusNote: string | null
   statusSince: string | null
+  accountStatus: AccountStatus
+  role: UserRole
   createdAt: string
 }
 

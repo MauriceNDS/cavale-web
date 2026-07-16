@@ -6,6 +6,7 @@ export default {
     activities: 'Activités',
     stats: 'Statistiques',
     objective: 'Objectif',
+    admin: 'Utilisateurs',
   },
   account: {
     label: 'Compte',

@@ -1,3 +1,4 @@
+import admin from './admin'
 import athlete from './athlete'
 import auth from './auth'
 import calendar from './calendar'
@@ -9,4 +10,4 @@ import settings from './settings'
 import shell from './shell'
 import stats from './stats'
 
-export default { athlete, auth, calendar, common, glossary, gym, objective, settings, shell, stats }
+export default { admin, athlete, auth, calendar, common, glossary, gym, objective, settings, shell, stats }

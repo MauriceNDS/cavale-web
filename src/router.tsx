@@ -28,8 +28,10 @@ import { ActivitiesPage } from './features/athlete/ActivitiesPage'
 import { StatsPage } from './features/stats/StatsPage'
 import { ObjectivePage } from './features/objective/ObjectivePage'
 import { OnboardingPage } from './features/auth/OnboardingPage'
+import { PendingApprovalPage } from './features/auth/PendingApprovalPage'
 import { ParametersPage } from './features/settings/ParametersPage'
 import { ProfilePage } from './features/settings/ProfilePage'
+import { UsersAdminPage } from './features/admin/UsersAdminPage'
 
 /* ── Navigation model ──────────────────────────────────────────────── */
 
@@ -107,6 +109,16 @@ function IconUser({ className }: IconProps) {
   )
 }
 
+function IconUsers({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="9" cy="8" r="3.5" />
+      <path d="M2.5 20c1-3 3.5-4.5 6.5-4.5s5.5 1.5 6.5 4.5" />
+      <path d="M16 5.5a3.5 3.5 0 0 1 0 6.8M18.5 20c-.4-1.4-1.1-2.6-2-3.5" />
+    </svg>
+  )
+}
+
 interface NavItem {
   /** shell-namespace translation key. */
   label: string
@@ -154,11 +166,14 @@ function SidebarLinks({ gymEnabled }: { gymEnabled: boolean }) {
 /** Shared body of the account menus: profile, parameters, theme mode, logout. */
 function AccountMenuItems({
   extraNav,
+  showAdmin,
   onNavigate,
   onLogout,
 }: {
   /** Destinations that have no tab of their own (mobile sheet only). */
   extraNav?: NavItem[]
+  /** Admins get a link to the user-management console. */
+  showAdmin?: boolean
   onNavigate: () => void
   onLogout: () => void
 }) {
@@ -175,6 +190,12 @@ function AccountMenuItems({
           {t(item.label)}
         </Link>
       ))}
+      {showAdmin && (
+        <Link to="/admin" role="menuitem" onClick={onNavigate} className={itemCls}>
+          <IconUsers className={iconCls} />
+          {t('nav.admin')}
+        </Link>
+      )}
       <Link to="/profil" role="menuitem" onClick={onNavigate} className={itemCls}>
         <IconUser className={iconCls} />
         {t('account.viewProfile')}
@@ -223,7 +244,11 @@ function SidebarAccount({ user, onLogout }: { user: UserResponse; onLogout: () =
             role="menu"
             className="absolute inset-x-0 bottom-full z-50 mb-2 rounded-xl border border-moss-200 bg-moss-25 p-2 shadow-lg dark:border-moss-750 dark:bg-moss-850"
           >
-            <AccountMenuItems onNavigate={() => setOpen(false)} onLogout={onLogout} />
+            <AccountMenuItems
+              showAdmin={user.role === 'ADMIN'}
+              onNavigate={() => setOpen(false)}
+              onLogout={onLogout}
+            />
           </div>
         </>
       )}
@@ -296,6 +321,7 @@ function TabBar({ user, onLogout }: { user: UserResponse; onLogout: () => void }
             <div className="mt-1">
               <AccountMenuItems
                 extraNav={extraNav}
+                showAdmin={user.role === 'ADMIN'}
                 onNavigate={() => setMenuOpen(false)}
                 onLogout={onLogout}
               />
@@ -352,6 +378,30 @@ function Shell({ children }: { children: ReactNode }) {
           </nav>
         </header>
         <main className="mx-auto max-w-5xl px-4 pb-16">{children}</main>
+      </div>
+    )
+  }
+
+  // Signed in but not yet activated (or since deactivated): the whole app is
+  // off-limits — the account gate on the API refuses every call anyway. Show
+  // the approval screen instead of any requested route.
+  if (user.accountStatus !== 'ACTIVE') {
+    return (
+      <div className="min-h-screen">
+        <header className="border-b border-moss-200 bg-moss-25 dark:border-moss-750 dark:bg-moss-850">
+          <nav className="mx-auto flex max-w-5xl items-center gap-4 px-4 py-3">
+            <span className="flex items-center gap-2 font-display text-xl font-semibold text-pine-700 dark:text-pine-300">
+              <LogoMark className="h-4 w-auto" />
+              Cavale
+            </span>
+            <div className="ml-auto">
+              <ThemeToggle />
+            </div>
+          </nav>
+        </header>
+        <main className="mx-auto max-w-5xl px-4 pb-16">
+          <PendingApprovalPage status={user.accountStatus} email={user.email} />
+        </main>
       </div>
     )
   }
@@ -550,6 +600,14 @@ const onboardingRoute = createRoute({
   component: OnboardingPage,
 })
 
+const adminRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/admin',
+  component: UsersAdminPage,
+  validateSearch: (search: Record<string, unknown>): { status?: string } =>
+    typeof search.status === 'string' ? { status: search.status } : {},
+})
+
 const stravaCallbackRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/auth/strava',
@@ -574,6 +632,7 @@ const routeTree = rootRoute.addChildren([
   profilRoute,
   parametresRoute,
   onboardingRoute,
+  adminRoute,
   stravaCallbackRoute,
 ])
 

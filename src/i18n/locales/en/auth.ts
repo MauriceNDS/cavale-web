@@ -71,4 +71,15 @@ export default {
     unavailable: 'Strava sign-in unavailable. Try again.',
     orEmail: 'or with email',
   },
+  pending: {
+    pendingTitle: 'Account awaiting approval',
+    pendingBody:
+      'Your account has been created. An administrator needs to activate it before you can start training — you’ll get in as soon as it’s approved.',
+    disabledTitle: 'Account deactivated',
+    disabledBody:
+      'Your access has been turned off. Reach out to an administrator if you think this is a mistake.',
+    signedInAs: 'Signed in as {{email}}',
+    recheck: 'Check again',
+    signOut: 'Sign out',
+  },
 }

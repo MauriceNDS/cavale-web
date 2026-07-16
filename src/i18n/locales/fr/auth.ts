@@ -71,4 +71,15 @@ export default {
     unavailable: 'Connexion Strava indisponible. Réessaie.',
     orEmail: 'ou par email',
   },
+  pending: {
+    pendingTitle: 'Compte en attente de validation',
+    pendingBody:
+      "Ton compte a bien été créé. Un administrateur doit l'activer avant que tu puisses commencer à t'entraîner — tu y auras accès dès qu'il sera validé.",
+    disabledTitle: 'Compte désactivé',
+    disabledBody:
+      "Ton accès a été coupé. Contacte un administrateur si tu penses qu'il s'agit d'une erreur.",
+    signedInAs: 'Connecté en tant que {{email}}',
+    recheck: 'Vérifier à nouveau',
+    signOut: 'Se déconnecter',
+  },
 }
