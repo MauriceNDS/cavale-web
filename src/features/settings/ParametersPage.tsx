@@ -7,7 +7,6 @@ import { applyLanguage, dateLocale, type Language } from '../../i18n'
 import { ApiError } from '../../lib/api'
 import { issuePat, updateProfile, type IssuedToken } from '../athlete/api'
 import { useAuth } from '../auth/session'
-import { ShoesCard } from '../shoes/ShoesCard'
 import { disconnectStrava, fetchAuthorizeUrl, fetchStravaStatus } from '../strava/api'
 
 /** App behaviour and integrations — general athlete info lives in Profil. */
@@ -44,7 +43,6 @@ export function ParametersPage() {
       <UsageCard />
       <LanguageCard />
       <ThemeCard />
-      <ShoesCard />
       {/* Strava OAuth and MCP tokens don't apply to a throwaway demo account. */}
       {!user?.demo && <StravaCard />}
       {!user?.demo && <McpCard />}

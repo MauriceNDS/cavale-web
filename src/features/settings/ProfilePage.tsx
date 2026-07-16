@@ -6,6 +6,7 @@ import { dateLocale } from '../../i18n'
 import { ApiError } from '../../lib/api'
 import { updateProfile, updateStatus } from '../athlete/api'
 import { fetchMe, type AthleteStatus } from '../auth/api'
+import { ShoesCard } from '../shoes/ShoesCard'
 
 const STATUSES: AthleteStatus[] = ['AVAILABLE', 'INJURED', 'RECOVERING', 'SICK']
 
@@ -18,6 +19,7 @@ export function ProfilePage() {
 
       <ProfileCard />
       <StatusCard />
+      <ShoesCard />
     </div>
   )
 }

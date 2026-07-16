@@ -6,9 +6,11 @@ export interface ShoeResponse {
   id: string
   name: string
   brand: string | null
+  color: string | null
   purpose: ShoePurpose | null
   retirementKm: number | null
   retired: boolean
+  isDefault: boolean
   mileageKm: number
   needsRetirement: boolean
 }
@@ -16,9 +18,11 @@ export interface ShoeResponse {
 export interface ShoePayload {
   name: string
   brand?: string | null
+  color?: string | null
   purpose?: ShoePurpose | null
   retirementKm?: number | null
   retired?: boolean
+  isDefault?: boolean
 }
 
 export function fetchShoes(): Promise<ShoeResponse[]> {
