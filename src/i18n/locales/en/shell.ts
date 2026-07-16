@@ -21,4 +21,8 @@ export default {
     tagline: 'The ultra-trail training companion — plans, strength work and progress, in one place.',
     cta: 'Start training',
   },
+  demo: {
+    banner: 'Demo mode — this is a temporary sandbox. Explore freely; it resets and deletes itself automatically.',
+    exit: 'Leave demo',
+  },
 }

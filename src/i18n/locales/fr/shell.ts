@@ -21,4 +21,8 @@ export default {
     tagline: "Compagnon d'entraînement ultra-trail — plans, renfo et progression, au même endroit.",
     cta: "Commencer l'entraînement",
   },
+  demo: {
+    banner: 'Mode démo — espace temporaire. Explore librement : il se réinitialise et se supprime automatiquement.',
+    exit: 'Quitter la démo',
+  },
 }

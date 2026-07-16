@@ -33,6 +33,8 @@ export interface UserResponse {
   statusSince: string | null
   accountStatus: AccountStatus
   role: UserRole
+  /** Ephemeral portfolio demo account — sandboxed, auto-deleted. */
+  demo: boolean
   createdAt: string
 }
 
@@ -51,4 +53,9 @@ export function loginUser(request: LoginRequest): Promise<AuthResponse> {
 
 export function fetchMe(): Promise<UserResponse> {
   return api.get<UserResponse>('/api/users/me')
+}
+
+/** Provision a throwaway, fully-seeded demo session (no sign-up). */
+export function startDemo(): Promise<AuthResponse> {
+  return api.post<AuthResponse>('/api/auth/demo', {})
 }

@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { AuthCard, ErrorAlert, Field, SubmitButton } from '../../components/form'
 import { ApiError } from '../../lib/api'
 import { registerUser, type RegisterRequest } from './api'
+import { DemoButton } from './DemoButton'
 import { StravaButton } from './StravaButton'
 import { useAuth } from './session'
 
@@ -92,6 +93,15 @@ export function RegisterPage() {
           {t('register.submit')}
         </SubmitButton>
       </form>
+
+      <div className="mt-6 flex items-center gap-3 text-xs text-moss-400 dark:text-moss-500">
+        <span className="h-px flex-1 bg-moss-200 dark:bg-moss-750" />
+        {t('demo.orDemo')}
+        <span className="h-px flex-1 bg-moss-200 dark:bg-moss-750" />
+      </div>
+      <div className="mt-4">
+        <DemoButton />
+      </div>
 
       <p className="mt-4 text-center text-sm text-moss-500 dark:text-moss-400">
         {t('register.haveAccount')}{' '}

@@ -71,6 +71,12 @@ export default {
     unavailable: 'Strava sign-in unavailable. Try again.',
     orEmail: 'or with email',
   },
+  demo: {
+    cta: 'Explore the live demo',
+    starting: 'Preparing your demo…',
+    error: 'The demo is momentarily unavailable — please try again.',
+    orDemo: 'just exploring?',
+  },
   pending: {
     pendingTitle: 'Account awaiting approval',
     pendingBody:

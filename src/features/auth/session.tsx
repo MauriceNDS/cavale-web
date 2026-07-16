@@ -9,12 +9,14 @@ import {
 } from 'react'
 import { applyLanguage } from '../../i18n'
 import { ApiError, clearToken, getToken, setToken } from '../../lib/api'
-import { fetchMe, loginUser, type UserResponse } from './api'
+import { fetchMe, loginUser, startDemo, type UserResponse } from './api'
 
 interface AuthState {
   /** undefined = session still being restored; null = signed out */
   user: UserResponse | null | undefined
   login: (email: string, password: string) => Promise<UserResponse>
+  /** Spin up a throwaway demo session and sign into it. */
+  loginWithDemo: () => Promise<UserResponse>
   logout: () => void
   /** Re-fetch /me after a profile change so the shell reflects it. */
   refresh: () => Promise<void>
@@ -65,6 +67,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return auth.user
   }, [])
 
+  const loginWithDemo = useCallback(async () => {
+    const auth = await startDemo()
+    setToken(auth.token)
+    setUser(auth.user)
+    return auth.user
+  }, [])
+
   const logout = useCallback(() => {
     clearToken()
     setUser(null)
@@ -81,7 +90,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (preferredLanguage) applyLanguage(preferredLanguage)
   }, [preferredLanguage])
 
-  const value = useMemo(() => ({ user, login, logout, refresh }), [user, login, logout, refresh])
+  const value = useMemo(
+    () => ({ user, login, loginWithDemo, logout, refresh }),
+    [user, login, loginWithDemo, logout, refresh],
+  )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

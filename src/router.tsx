@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next'
 import { LogoMark } from './components/LogoMark'
 import { ThemeToggle } from './components/ThemeToggle'
 import type { UserResponse } from './features/auth/api'
+import { DemoButton } from './features/auth/DemoButton'
 import { LoginPage } from './features/auth/LoginPage'
 import { RegisterPage } from './features/auth/RegisterPage'
 import { StravaCallbackPage } from './features/auth/StravaCallbackPage'
@@ -335,6 +336,19 @@ function TabBar({ user, onLogout }: { user: UserResponse; onLogout: () => void }
 
 /* ── App shell ─────────────────────────────────────────────────────── */
 
+/** Persistent notice while signed into a throwaway demo sandbox. */
+function DemoBanner({ onExit }: { onExit: () => void }) {
+  const { t } = useTranslation('shell')
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-copper-600/30 bg-copper-600/10 px-4 py-2 text-sm text-copper-600 md:px-8 dark:border-copper-300/30 dark:bg-copper-300/10 dark:text-copper-300">
+      <span className="min-w-0 flex-1">{t('demo.banner')}</span>
+      <button onClick={onExit} className="shrink-0 font-semibold underline underline-offset-2">
+        {t('demo.exit')}
+      </button>
+    </div>
+  )
+}
+
 function Shell({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
@@ -431,6 +445,7 @@ function Shell({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="flex min-h-screen flex-1 flex-col">
+        {user.demo && <DemoBanner onExit={handleLogout} />}
         <main className="flex-1 px-4 pb-24 md:px-8 md:pb-10">{children}</main>
         <TabBar user={user} onLogout={handleLogout} />
       </div>
@@ -460,13 +475,16 @@ function Home() {
       <p className="mx-auto mt-4 max-w-xl text-lg text-moss-500 dark:text-moss-400">
         {t('public.tagline')}
       </p>
-      <div className="mt-10">
+      <div className="mx-auto mt-10 flex max-w-xs flex-col items-center gap-3">
         <Link
           to="/register"
-          className="rounded-lg bg-pine-600 px-6 py-3 font-semibold text-moss-25 transition hover:bg-pine-700 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
+          className="w-full rounded-lg bg-pine-600 px-6 py-3 font-semibold text-moss-25 transition hover:bg-pine-700 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
         >
           {t('public.cta')}
         </Link>
+        <div className="w-full">
+          <DemoButton />
+        </div>
       </div>
     </div>
   )

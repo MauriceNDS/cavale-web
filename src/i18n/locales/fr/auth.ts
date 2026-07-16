@@ -71,6 +71,12 @@ export default {
     unavailable: 'Connexion Strava indisponible. Réessaie.',
     orEmail: 'ou par email',
   },
+  demo: {
+    cta: 'Découvrir la démo',
+    starting: 'Préparation de la démo…',
+    error: 'La démo est momentanément indisponible — réessaie.',
+    orDemo: 'juste curieux ?',
+  },
   pending: {
     pendingTitle: 'Compte en attente de validation',
     pendingBody:

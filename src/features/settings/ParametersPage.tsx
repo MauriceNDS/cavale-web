@@ -13,6 +13,7 @@ import { disconnectStrava, fetchAuthorizeUrl, fetchStravaStatus } from '../strav
 /** App behaviour and integrations — general athlete info lives in Profil. */
 export function ParametersPage() {
   const { t } = useTranslation('settings')
+  const { user } = useAuth()
   const [banner, setBanner] = useState<'connected' | 'error' | null>(null)
 
   // Result of the OAuth round-trip (backend redirects here with ?strava=…)
@@ -44,8 +45,9 @@ export function ParametersPage() {
       <LanguageCard />
       <ThemeCard />
       <ShoesCard />
-      <StravaCard />
-      <McpCard />
+      {/* Strava OAuth and MCP tokens don't apply to a throwaway demo account. */}
+      {!user?.demo && <StravaCard />}
+      {!user?.demo && <McpCard />}
     </div>
   )
 }
