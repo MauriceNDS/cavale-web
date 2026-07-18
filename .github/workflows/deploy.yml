@@ -1,0 +1,39 @@
+name: deploy
+
+on:
+  push:
+    branches: [develop, main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, cavale]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select target environment
+        run: |
+          if [ "${GITHUB_REF_NAME}" = "main" ]; then
+            echo "DEPLOY_HOST=192.168.1.102" >> "$GITHUB_ENV"   # production
+          else
+            echo "DEPLOY_HOST=192.168.1.101" >> "$GITHUB_ENV"   # develop
+          fi
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Deploy
+        run: rsync -az --delete dist/ "root@${DEPLOY_HOST}:/srv/cavale-web/"
+
+      - name: Smoke check
+        run: curl -fsS -o /dev/null "http://${DEPLOY_HOST}/" && echo "web serving OK"
