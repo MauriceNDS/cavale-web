@@ -228,7 +228,10 @@ export interface WorkoutLogResponse {
 }
 
 export interface WorkoutBlockResponse {
-  templateExerciseId: string
+  /** Programmed block — null for a mid-workout addition. */
+  templateExerciseId: string | null
+  /** Mid-workout addition — null for a programmed block. */
+  extraBlockId: string | null
   /** The EFFECTIVE exercise — a swap shows the replacement. */
   exercise: ExerciseResponse
   /** The prescribed exercise when a swap is active, null otherwise. */
@@ -278,6 +281,33 @@ export interface LogSetRequest {
 
 export function logSet(workoutLogId: string, body: LogSetRequest): Promise<SetLogResponse> {
   return api.put<SetLogResponse>(`/api/workouts/${workoutLogId}/sets`, body)
+}
+
+/** Un-tick a set logged by mistake. */
+export function deleteSet(setLogId: string): Promise<void> {
+  return api.delete(`/api/workouts/sets/${setLogId}`)
+}
+
+export interface AddExtraBlockRequest {
+  exerciseId: string
+  sets: number
+  reps?: number
+  seconds?: number
+  restSec?: number
+  note?: string
+}
+
+/** Add an exercise to this workout only — the program is untouched. */
+export function addExtraBlock(
+  workoutLogId: string,
+  body: AddExtraBlockRequest,
+): Promise<WorkoutBlockResponse> {
+  return api.post<WorkoutBlockResponse>(`/api/workouts/${workoutLogId}/extra-blocks`, body)
+}
+
+/** Remove a mid-workout addition — its logged sets go with it. */
+export function removeExtraBlock(workoutLogId: string, extraBlockId: string): Promise<void> {
+  return api.delete(`/api/workouts/${workoutLogId}/extra-blocks/${extraBlockId}`)
 }
 
 export function finishWorkout(

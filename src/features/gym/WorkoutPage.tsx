@@ -6,9 +6,13 @@ import { ApiError } from '../../lib/api'
 import { muted } from '../../lib/ui'
 import {
   abandonWorkout,
+  addExtraBlock,
+  deleteSet,
+  fetchExercises,
   fetchWorkout,
   finishWorkout,
   logSet,
+  removeExtraBlock,
   restoreWorkoutBlock,
   skipWorkoutBlock,
   swapWorkoutBlock,
@@ -89,14 +93,15 @@ export function WorkoutPage() {
 
       <div className="mt-4 space-y-3">
         {detail.blocks.map((block) => (
-          <BlockCard key={block.templateExerciseId} workoutId={workoutId} block={block}
-            loggedSets={detail.log.sets} readOnly={finished} />
+          <BlockCard key={block.templateExerciseId ?? block.extraBlockId} workoutId={workoutId}
+            block={block} loggedSets={detail.log.sets} readOnly={finished} />
         ))}
         {detail.blocks.length === 0 && (
           <p className={`text-center text-sm ${muted}`}>
             {t('workout.templateGone')}
           </p>
         )}
+        {!finished && <AddExercisePanel workoutId={workoutId} blocks={detail.blocks} />}
       </div>
 
       {finishing && !finished && (
@@ -194,26 +199,40 @@ function BlockCard({
   const queryClient = useQueryClient()
   const [showAlternatives, setShowAlternatives] = useState(false)
   const [restLeft, setRestLeft] = useState<number | null>(null)
+  const [extraRows, setExtraRows] = useState(0)
 
-  // Swaps and skips are persisted server-side — a phone reload keeps them.
+  // Swaps, skips and additions are persisted server-side — a reload keeps them.
   const exercise = block.exercise
   const swapped = block.swappedFrom != null
+  const isExtra = block.extraBlockId != null
   const invalidate = () =>
     void queryClient.invalidateQueries({ queryKey: ['workout', workoutId] })
 
   const swapMutation = useMutation({
     mutationFn: (exerciseId: string) =>
-      swapWorkoutBlock(workoutId, block.templateExerciseId, exerciseId),
+      swapWorkoutBlock(workoutId, block.templateExerciseId!, exerciseId),
     onSuccess: invalidate,
   })
   const skipMutation = useMutation({
-    mutationFn: () => skipWorkoutBlock(workoutId, block.templateExerciseId),
+    mutationFn: () => skipWorkoutBlock(workoutId, block.templateExerciseId!),
     onSuccess: invalidate,
   })
   const restoreMutation = useMutation({
-    mutationFn: () => restoreWorkoutBlock(workoutId, block.templateExerciseId),
+    mutationFn: () => restoreWorkoutBlock(workoutId, block.templateExerciseId!),
     onSuccess: invalidate,
   })
+  const removeExtraMutation = useMutation({
+    mutationFn: () => removeExtraBlock(workoutId, block.extraBlockId!),
+    onSuccess: invalidate,
+  })
+
+  // Sets are elastic: the prescription is a starting point, logged sets never
+  // disappear, and « + série » opens extra rows for this workout.
+  const maxLogged = loggedSets
+    .filter((s) => s.exerciseId === exercise.id)
+    .reduce((max, s) => Math.max(max, s.setNumber), 0)
+  const totalRows = Math.max(block.sets + extraRows, maxLogged)
+  const canRemoveRow = extraRows > 0 && totalRows > block.sets && totalRows > maxLogged
 
   useEffect(() => {
     if (restLeft == null || restLeft <= 0) return
@@ -278,9 +297,14 @@ function BlockCard({
         <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${CATEGORY_BADGE[exercise.category]}`}>
           {categoryLabel(exercise.category)}
         </span>
+        {isExtra && (
+          <span className={`rounded-full bg-copper-600/15 px-2 py-0.5 text-[11px] font-medium text-copper-600 dark:bg-copper-300/15 dark:text-copper-300`}>
+            {t('workout.extraTag')}
+          </span>
+        )}
         {!readOnly && (
           <span className="ml-auto flex items-center gap-2.5">
-            {(block.alternatives.length > 0 || swapped) && (
+            {!isExtra && (block.alternatives.length > 0 || swapped) && (
               <button
                 onClick={() => setShowAlternatives(!showAlternatives)}
                 className="text-xs font-medium text-pine-700 underline dark:text-pine-300"
@@ -289,8 +313,14 @@ function BlockCard({
               </button>
             )}
             <button
-              onClick={() => skipMutation.mutate()}
-              disabled={skipMutation.isPending}
+              onClick={() => {
+                if (isExtra) {
+                  if (window.confirm(t('workout.removeExtraConfirm'))) removeExtraMutation.mutate()
+                } else {
+                  skipMutation.mutate()
+                }
+              }}
+              disabled={skipMutation.isPending || removeExtraMutation.isPending}
               className="text-xs font-medium text-clay-500 underline disabled:opacity-50 dark:text-clay-300"
             >
               {t('workout.skipBlock')}
@@ -340,7 +370,7 @@ function BlockCard({
       )}
 
       <div className="mt-2 space-y-1.5">
-        {Array.from({ length: block.sets }, (_, i) => i + 1).map((setNumber) => (
+        {Array.from({ length: totalRows }, (_, i) => i + 1).map((setNumber) => (
           <SetRow
             key={`${exercise.id}-${setNumber}`}
             workoutId={workoutId}
@@ -352,11 +382,29 @@ function BlockCard({
             )}
             readOnly={readOnly}
             onSaved={() => {
-              if (block.restSec != null && setNumber < block.sets) setRestLeft(block.restSec)
+              if (block.restSec != null && setNumber < totalRows) setRestLeft(block.restSec)
             }}
           />
         ))}
       </div>
+      {!readOnly && (
+        <div className="mt-1.5 flex gap-3">
+          <button
+            onClick={() => setExtraRows(totalRows + 1 - block.sets)}
+            className={`text-xs font-medium underline ${muted} hover:text-ink dark:hover:text-linen`}
+          >
+            {t('workout.addSet')}
+          </button>
+          {canRemoveRow && (
+            <button
+              onClick={() => setExtraRows(extraRows - 1)}
+              className={`text-xs font-medium underline ${muted} hover:text-ink dark:hover:text-linen`}
+            >
+              {t('workout.removeSet')}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -382,15 +430,21 @@ function SetRow({
 }) {
   const { t } = useTranslation('gym')
   const queryClient = useQueryClient()
-  const [saved, setSaved] = useState(logged != null)
   const weightRef = useRef<HTMLInputElement>(null)
   const repsRef = useRef<HTMLInputElement>(null)
   const secondsRef = useRef<HTMLInputElement>(null)
+
+  // Saved = the server has it: the tick reflects detail.log.sets, so a
+  // second tap can honestly undo (delete) a set logged by mistake.
+  const saved = logged != null
 
   const seconds = exercise.measure === 'SECONDS'
   const bodyweight = exercise.measure === 'BODYWEIGHT_REPS'
   // prefill: what I did on this set LAST time, else the prescription target
   const lastSame = block.lastSets.find((s) => s.setNumber === setNumber)
+
+  const invalidate = () =>
+    void queryClient.invalidateQueries({ queryKey: ['workout', workoutId] })
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -407,11 +461,14 @@ function SetRow({
         seconds: seconds ? Number(secondsRef.current?.value) || undefined : undefined,
       }),
     onSuccess: () => {
-      setSaved(true)
       onSaved()
       // Refresh the workout so detail.log.sets (loggedSets) reflects this save.
-      void queryClient.invalidateQueries({ queryKey: ['workout', workoutId] })
+      invalidate()
     },
+  })
+  const unsaveMutation = useMutation({
+    mutationFn: () => deleteSet(logged!.id),
+    onSuccess: invalidate,
   })
 
   return (
@@ -463,9 +520,12 @@ function SetRow({
       )}
       {!readOnly && (
         <button
-          onClick={() => mutation.mutate()}
-          disabled={mutation.isPending}
-          aria-label={t('workout.saveSetAria', { n: setNumber })}
+          onClick={() => (saved ? unsaveMutation.mutate() : mutation.mutate())}
+          disabled={mutation.isPending || unsaveMutation.isPending}
+          aria-label={saved
+            ? t('workout.unsaveSetAria', { n: setNumber })
+            : t('workout.saveSetAria', { n: setNumber })}
+          aria-pressed={saved}
           className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg text-lg font-semibold transition disabled:opacity-50 ${
             saved
               ? 'bg-pine-600 text-moss-25 dark:bg-pine-350 dark:text-moss-950'
@@ -475,12 +535,141 @@ function SetRow({
           ✓
         </button>
       )}
-      {mutation.error instanceof ApiError && (
+      {(mutation.error ?? unsaveMutation.error) instanceof ApiError && (
         <span role="alert" className="text-xs text-clay-500 dark:text-clay-300">
           {t('workout.saveFailed')}
         </span>
       )}
     </div>
+  )
+}
+
+/* ── Add an exercise mid-workout (this session only) ───────────────── */
+
+function AddExercisePanel({
+  workoutId,
+  blocks,
+}: {
+  workoutId: string
+  blocks: WorkoutBlockResponse[]
+}) {
+  const { t } = useTranslation('gym')
+  const queryClient = useQueryClient()
+  const [open, setOpen] = useState(false)
+  const [exerciseId, setExerciseId] = useState('')
+
+  const exercisesQuery = useQuery({
+    queryKey: ['exercises'],
+    queryFn: fetchExercises,
+    enabled: open,
+  })
+  // an exercise already on screen (prescribed, swapped-in or added) can't be added twice
+  const taken = new Set(
+    blocks.flatMap((b) => [b.exercise.id, b.swappedFrom?.id]).filter(Boolean) as string[],
+  )
+  const candidates = (exercisesQuery.data ?? []).filter((e) => !e.archived && !taken.has(e.id))
+  const chosen = candidates.find((e) => e.id === exerciseId)
+  const seconds = chosen?.measure === 'SECONDS'
+
+  const mutation = useMutation({
+    mutationFn: (body: { sets: number; reps?: number; seconds?: number; restSec?: number }) =>
+      addExtraBlock(workoutId, { exerciseId, ...body }),
+    onSuccess: () => {
+      setOpen(false)
+      setExerciseId('')
+      void queryClient.invalidateQueries({ queryKey: ['workout', workoutId] })
+    },
+  })
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className={`w-full rounded-xl border border-dashed border-moss-200 px-3 py-2.5 text-sm font-medium ${muted} transition hover:bg-moss-100 dark:border-moss-750 dark:hover:bg-moss-800`}
+      >
+        {t('workout.addExercise')}
+      </button>
+    )
+  }
+
+  return (
+    <form
+      className="space-y-2.5 rounded-xl border border-moss-200 bg-moss-25 p-3 dark:border-moss-750 dark:bg-moss-850"
+      onSubmit={(event) => {
+        event.preventDefault()
+        if (!exerciseId) return
+        const data = new FormData(event.currentTarget)
+        mutation.mutate({
+          sets: Number(data.get('sets')) || 3,
+          reps: seconds ? undefined : Number(data.get('reps')) || undefined,
+          seconds: seconds ? Number(data.get('seconds')) || undefined : undefined,
+          restSec: Number(data.get('restSec')) || undefined,
+        })
+      }}
+    >
+      <p className="text-sm font-semibold">{t('workout.addExerciseTitle')}</p>
+      <select
+        value={exerciseId}
+        onChange={(event) => setExerciseId(event.target.value)}
+        aria-label={t('workout.exerciseLabel')}
+        className={`${inputCls} text-left font-normal`}
+      >
+        <option value="">{t('workout.pickExercise')}</option>
+        {candidates.map((e) => (
+          <option key={e.id} value={e.id}>
+            {e.name}
+          </option>
+        ))}
+      </select>
+      {chosen && (
+        <div className="flex gap-2">
+          <label className="flex-1 text-xs font-medium">
+            {t('workout.setsLabel')}
+            <input name="sets" type="number" inputMode="numeric" min={1} defaultValue={3}
+              className={`${inputCls} mt-1`} />
+          </label>
+          {seconds ? (
+            <label className="flex-1 text-xs font-medium">
+              {t('workout.secondsLabel')}
+              <input name="seconds" type="number" inputMode="numeric" min={1} defaultValue={30}
+                className={`${inputCls} mt-1`} />
+            </label>
+          ) : (
+            <label className="flex-1 text-xs font-medium">
+              {t('workout.repsLabel')}
+              <input name="reps" type="number" inputMode="numeric" min={1} defaultValue={10}
+                className={`${inputCls} mt-1`} />
+            </label>
+          )}
+          <label className="flex-1 text-xs font-medium">
+            {t('workout.restLabel')}
+            <input name="restSec" type="number" inputMode="numeric" min={0} step={15}
+              className={`${inputCls} mt-1`} />
+          </label>
+        </div>
+      )}
+      {mutation.error instanceof ApiError && (
+        <p role="alert" className="text-xs text-clay-500 dark:text-clay-300">
+          {mutation.error.message}
+        </p>
+      )}
+      <div className="flex gap-2">
+        <button
+          type="submit"
+          disabled={!chosen || mutation.isPending}
+          className="rounded-lg bg-pine-600 px-3 py-1.5 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
+        >
+          {t('workout.addBlock')}
+        </button>
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          className={`px-2 py-1.5 text-sm font-medium ${muted}`}
+        >
+          {t('common:cancel')}
+        </button>
+      </div>
+    </form>
   )
 }
 
