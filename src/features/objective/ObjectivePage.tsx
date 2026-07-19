@@ -4,7 +4,7 @@ import { differenceInCalendarDays, format, parseISO } from 'date-fns'
 import { useTranslation } from 'react-i18next'
 import { dateLocale, numberLocale } from '../../i18n'
 import { ApiError } from '../../lib/api'
-import { fetchPlans } from '../calendar/api'
+import { deletePlan, fetchPlans } from '../calendar/api'
 import { WEEK_TYPE_BADGE, weekTypeLabel } from '../calendar/labels'
 import {
   createObjective,
@@ -17,6 +17,7 @@ import {
   type WeekProgress,
 } from './api'
 import { ObjectiveForm } from './ObjectiveForm'
+import { SeasonForm } from './SeasonForm'
 import { CourseSection } from './CourseSection'
 import { CumulativeChart, WeeklyChart, type Metric } from './charts'
 import {
@@ -52,12 +53,7 @@ export function ObjectivePage() {
   }
 
   if (!activePlan) {
-    return (
-      <div className="mt-16 text-center">
-        <h1 className="font-display text-3xl font-semibold">{t('page.title')}</h1>
-        <p className={`mx-auto mt-3 max-w-md ${muted}`}>{t('page.noPlan')}</p>
-      </div>
-    )
+    return <NoPlanState />
   }
 
   if (!progress.data) {
@@ -65,6 +61,32 @@ export function ObjectivePage() {
   }
 
   return <ObjectiveContent progress={progress.data} />
+}
+
+/** Fresh account, no season yet — the page IS the way to create the first one. */
+function NoPlanState() {
+  const { t } = useTranslation('objective')
+  const [creating, setCreating] = useState(false)
+
+  return (
+    <div className="mx-auto mt-16 max-w-2xl text-center">
+      <h1 className="font-display text-3xl font-semibold">{t('page.title')}</h1>
+      <p className={`mx-auto mt-3 max-w-md ${muted}`}>{t('page.noPlan')}</p>
+      {creating ? (
+        <section className={`${card} mt-6 text-left`}>
+          <h2 className="font-display text-lg font-semibold">{t('season.createTitle')}</h2>
+          <SeasonForm onDone={() => setCreating(false)} onCancel={() => setCreating(false)} />
+        </section>
+      ) : (
+        <button
+          onClick={() => setCreating(true)}
+          className="mt-6 rounded-lg bg-pine-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
+        >
+          {t('page.createFirst')}
+        </button>
+      )}
+    </div>
+  )
 }
 
 function ObjectiveContent({ progress }: { progress: PlanProgressResponse }) {
@@ -189,7 +211,17 @@ interface MainCardProps {
 
 function MainObjectiveCard({ progress, editing, onEdit, onCancel, onSubmit, pending, error }: MainCardProps) {
   const { t } = useTranslation('objective')
+  const queryClient = useQueryClient()
   const { plan, mainObjective, currentWeekNumber, totalWeeks, daysToObjective, secondaryObjectives } = progress
+
+  const deleteSeasonMutation = useMutation({
+    mutationFn: () => deletePlan(plan.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['plans'] })
+      queryClient.invalidateQueries({ queryKey: ['hub'] })
+    },
+  })
+
   if (!mainObjective) return null
 
   const pace = objectivePaceSecPerKm(mainObjective)
@@ -262,6 +294,22 @@ function MainObjectiveCard({ progress, editing, onEdit, onCancel, onSubmit, pend
           >
             {t('common:edit')}
           </button>
+          <button
+            onClick={() => {
+              if (window.confirm(t('main.deleteSeasonConfirm', { name: plan.name }))) {
+                deleteSeasonMutation.mutate()
+              }
+            }}
+            disabled={deleteSeasonMutation.isPending}
+            className="mt-1 block w-full rounded-lg px-3 py-1 text-xs font-medium text-clay-500 transition hover:text-clay-600 disabled:opacity-50 dark:text-clay-300 dark:hover:text-clay-300/80"
+          >
+            {t('main.deleteSeason')}
+          </button>
+          {deleteSeasonMutation.error instanceof ApiError && (
+            <p role="alert" className="mt-1 text-xs text-clay-500 dark:text-clay-300">
+              {deleteSeasonMutation.error.message}
+            </p>
+          )}
         </div>
       </div>
 

@@ -15,11 +15,24 @@ export default {
   },
   page: {
     title: 'Goal',
-    noPlan: 'No active plan. Create or import a training plan to set your season goal.',
+    noPlan: 'No season yet. Set your main goal — a race, injury recovery, getting back in shape — and the season that goes with it.',
+    createFirst: 'Set my goal',
     loadError: 'Could not load progress.',
+  },
+  season: {
+    createTitle: 'New season',
+    sectionSeason: 'Season',
+    sectionObjective: 'Main goal',
+    name: 'Season name',
+    namePlaceholder: 'UTMB 2027 season',
+    start: 'Start',
+    end: 'End',
   },
   main: {
     badge: 'Main goal',
+    deleteSeason: 'Delete season',
+    deleteSeasonConfirm:
+      'Delete season "{{name}}" and everything in it (weeks, sessions, objectives)?',
     targetChip: 'target {{time}}',
     paceChip: 'target {{pace}}',
     kmEffortChip: '{{value}} km-effort',

@@ -1,4 +1,5 @@
 import { api, getToken } from '../../lib/api'
+import type { ObjectivePayload } from '../objective/api'
 
 export type Discipline = 'RUN' | 'GYM' | 'REST' | 'CROSS'
 export type SessionStatus = 'PLANNED' | 'DONE' | 'SKIPPED' | 'MOVED'
@@ -109,10 +110,17 @@ export interface CreatePlanRequest {
   goal?: string
   startDate: string
   endDate: string
+  /** Full MAIN objective details; the API builds a placeholder when omitted. */
+  objective?: ObjectivePayload
 }
 
 export function createPlan(body: CreatePlanRequest): Promise<PlanResponse> {
   return api.post<PlanResponse>('/api/plans', body)
+}
+
+/** Deletes the season and everything in it (weeks, sessions, objectives). */
+export function deletePlan(planId: string): Promise<void> {
+  return api.delete(`/api/plans/${planId}`)
 }
 
 export function fetchPlanDetail(planId: string): Promise<PlanDetailResponse> {

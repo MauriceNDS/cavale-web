@@ -6,9 +6,10 @@ import { Trans, useTranslation } from 'react-i18next'
 import { dateLocale, numberLocale } from '../../i18n'
 import { ApiError } from '../../lib/api'
 import { fetchMe } from '../auth/api'
-import { createPlan } from '../calendar/api'
+import { deletePlan } from '../calendar/api'
 import { TodayCard } from '../calendar/TodayCard'
 import { OBJECTIVE_TYPE_BADGE, formatTimeMin, objectiveTypeLabel } from '../objective/labels'
+import { SeasonForm } from '../objective/SeasonForm'
 import {
   analyzeStravaRecords,
   fetchHub,
@@ -273,14 +274,22 @@ function ObjectivesRail({ seasons }: { seasons: Season[] }) {
             {current ? (
               <SeasonCard season={current} showLink />
             ) : (
-              <EmptyNote>{t('home.objectives.noActive')}</EmptyNote>
+              <>
+                <EmptyNote>{t('home.objectives.noActive')}</EmptyNote>
+                <Link
+                  to="/objectif"
+                  className="inline-block text-sm font-medium text-pine-700 underline dark:text-pine-300"
+                >
+                  {t('home.objectives.createFirst')}
+                </Link>
+              </>
             )}
           </ObjectiveColumn>
         </div>
         <div className={hiddenColumn}>
           <ObjectiveColumn title={t('home.objectives.upcoming')}>
             {future.map((season) => (
-              <SeasonCard key={season.planId} season={season} />
+              <SeasonCard key={season.planId} season={season} deletable />
             ))}
             <NextObjectiveForm hasFuture={future.length > 0} />
           </ObjectiveColumn>
@@ -315,11 +324,20 @@ function EmptyNote({ children }: { children: React.ReactNode }) {
   return <p className={`text-sm ${muted}`}>{children}</p>
 }
 
-function SeasonCard({ season, showLink }: { season: Season; showLink?: boolean }) {
+function SeasonCard({ season, showLink, deletable }: { season: Season; showLink?: boolean; deletable?: boolean }) {
   const { t } = useTranslation('athlete')
+  const queryClient = useQueryClient()
   const objective = season.objective
   const date = objective?.date ?? season.endDate
   const days = differenceInCalendarDays(parseISO(date), new Date())
+
+  const deleteMutation = useMutation({
+    mutationFn: deletePlan,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['hub'] })
+      queryClient.invalidateQueries({ queryKey: ['plans'] })
+    },
+  })
 
   return (
     <div className="rounded-lg border border-moss-200 bg-moss-25 p-3 dark:border-moss-750 dark:bg-moss-850">
@@ -353,24 +371,32 @@ function SeasonCard({ season, showLink }: { season: Season; showLink?: boolean }
           {t('home.objectives.seeProgress')}
         </Link>
       )}
+      {deletable && (
+        <button
+          onClick={() => {
+            if (window.confirm(t('home.objectives.deleteConfirm', { name: objective?.name ?? season.planName }))) {
+              deleteMutation.mutate(season.planId)
+            }
+          }}
+          disabled={deleteMutation.isPending}
+          className="mt-1 text-xs font-medium text-clay-500 transition hover:text-clay-600 disabled:opacity-50 dark:text-clay-300 dark:hover:text-clay-300/80"
+        >
+          {t('common:delete')}
+        </button>
+      )}
+      {deleteMutation.error instanceof ApiError && (
+        <p role="alert" className="mt-1 text-xs text-clay-500 dark:text-clay-300">
+          {deleteMutation.error.message}
+        </p>
+      )}
     </div>
   )
 }
 
-/** Plan the next season: creates a DRAFT plan whose MAIN objective is the goal. */
+/** Plan the next season — full details, same form as the main objective. */
 function NextObjectiveForm({ hasFuture }: { hasFuture: boolean }) {
   const { t } = useTranslation('athlete')
-  const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
-
-  const mutation = useMutation({
-    mutationFn: createPlan,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['hub'] })
-      queryClient.invalidateQueries({ queryKey: ['plans'] })
-      setOpen(false)
-    },
-  })
 
   if (!open) {
     return (
@@ -383,70 +409,10 @@ function NextObjectiveForm({ hasFuture }: { hasFuture: boolean }) {
     )
   }
 
-  const fieldClass =
-    'mt-1 w-full rounded-lg border border-moss-200 bg-moss-100 px-3 py-1.5 text-sm transition outline-none focus:border-pine-600 focus:ring-2 focus:ring-pine-600/25 dark:border-moss-750 dark:bg-moss-800 dark:focus:border-pine-350 dark:focus:ring-pine-350/25'
-
   return (
-    <form
-      className="space-y-2 rounded-lg border border-moss-200 bg-moss-25 p-3 dark:border-moss-750 dark:bg-moss-850"
-      onSubmit={(event) => {
-        event.preventDefault()
-        const data = new FormData(event.currentTarget)
-        mutation.mutate({
-          name: (data.get('name') as string).trim(),
-          goal: ((data.get('goal') as string) || '').trim() || undefined,
-          startDate: data.get('startDate') as string,
-          endDate: data.get('endDate') as string,
-        })
-      }}
-    >
-      <label className="block">
-        <span className="text-sm font-medium">{t('home.objectives.form.seasonName')}</span>
-        <input
-          name="name"
-          required
-          maxLength={150}
-          placeholder={t('home.objectives.form.seasonPlaceholder')}
-          className={fieldClass}
-        />
-      </label>
-      <label className="block">
-        <span className="text-sm font-medium">{t('home.objectives.form.goal')}</span>
-        <input
-          name="goal"
-          maxLength={500}
-          placeholder={t('home.objectives.form.goalPlaceholder')}
-          className={fieldClass}
-        />
-      </label>
-      <div className="grid grid-cols-2 gap-2">
-        <label className="block">
-          <span className="text-sm font-medium">{t('home.objectives.form.start')}</span>
-          <input name="startDate" type="date" required className={fieldClass} />
-        </label>
-        <label className="block">
-          <span className="text-sm font-medium">{t('home.objectives.form.end')}</span>
-          <input name="endDate" type="date" required className={fieldClass} />
-        </label>
-      </div>
-      {mutation.error instanceof ApiError && (
-        <p role="alert" className="text-xs text-clay-500 dark:text-clay-300">
-          {mutation.error.message}
-        </p>
-      )}
-      <div className="flex gap-2">
-        <button
-          type="submit"
-          disabled={mutation.isPending}
-          className="rounded-lg bg-pine-600 px-3 py-1.5 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
-        >
-          {mutation.isPending ? t('common:creating') : t('common:create')}
-        </button>
-        <button type="button" onClick={() => setOpen(false)} className={`px-3 py-1.5 text-sm font-medium ${muted}`}>
-          {t('common:cancel')}
-        </button>
-      </div>
-    </form>
+    <div className="rounded-lg border border-moss-200 bg-moss-25 p-3 dark:border-moss-750 dark:bg-moss-850">
+      <SeasonForm onDone={() => setOpen(false)} onCancel={() => setOpen(false)} />
+    </div>
   )
 }
 

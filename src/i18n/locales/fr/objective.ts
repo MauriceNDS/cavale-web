@@ -15,11 +15,24 @@ export default {
   },
   page: {
     title: 'Objectif',
-    noPlan: "Aucun plan actif. Crée ou importe un plan d'entraînement pour définir ton objectif de saison.",
+    noPlan: 'Aucune saison pour l’instant. Définis ton objectif principal — course, retour de blessure, remise en forme — et la saison qui va avec.',
+    createFirst: 'Définir mon objectif',
     loadError: 'Impossible de charger la progression.',
+  },
+  season: {
+    createTitle: 'Nouvelle saison',
+    sectionSeason: 'Saison',
+    sectionObjective: 'Objectif principal',
+    name: 'Nom de la saison',
+    namePlaceholder: 'Saison UTMB 2027',
+    start: 'Début',
+    end: 'Fin',
   },
   main: {
     badge: 'Objectif principal',
+    deleteSeason: 'Supprimer la saison',
+    deleteSeasonConfirm:
+      'Supprimer la saison « {{name}} » et tout son contenu (semaines, séances, objectifs) ?',
     targetChip: 'objectif {{time}}',
     paceChip: 'objectif {{pace}}',
     kmEffortChip: '{{value}} km-effort',
