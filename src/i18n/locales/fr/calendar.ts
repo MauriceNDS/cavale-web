@@ -110,6 +110,8 @@ export default {
     saveStructure: 'Enregistrer la structure',
     exportFit: '⌚ Exporter .fit',
     exporting: 'Export…',
+    exportFitHint:
+      "Le fichier est un entraînement structuré : importe-le sur Garmin Connect (ordinateur) via Entraînements → Importer, puis « Envoyer à l'appareil ». L'app mobile ne sait importer que des parcours.",
     validate: '✓ Valider',
     skip: 'Passer',
     move: 'Déplacer',

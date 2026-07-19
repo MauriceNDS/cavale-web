@@ -119,6 +119,7 @@ function SessionView({
   const { t } = useTranslation('calendar')
   const [editingStructure, setEditingStructure] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [exported, setExported] = useState(false)
 
   const totalSec =
     session.workout.length > 0
@@ -131,6 +132,7 @@ function SessionView({
     setExporting(true)
     try {
       await downloadSessionFit(session)
+      setExported(true) // surface the "how to get it onto the watch" hint
     } finally {
       setExporting(false)
     }
@@ -228,6 +230,7 @@ function SessionView({
             <SessionActions
               session={session}
               exporting={exporting}
+              exported={exported}
               onExport={handleExport}
               statusMutation={statusMutation}
               onValidated={onDone}
@@ -262,12 +265,14 @@ type WizardStep =
 function SessionActions({
   session,
   exporting,
+  exported,
   onExport,
   statusMutation,
   onValidated,
 }: {
   session: SessionResponse
   exporting: boolean
+  exported: boolean
   onExport: () => void
   statusMutation: { mutate: (b: { status?: SessionResponse['status']; date?: string }) => void; isPending: boolean }
   onValidated: () => void
@@ -440,6 +445,11 @@ function SessionActions({
         >
           {exporting ? t('session.exporting') : t('session.exportFit')}
         </button>
+      )}
+      {exported && (
+        <p className="w-full text-xs text-moss-500 dark:text-moss-400">
+          {t('session.exportFitHint')}
+        </p>
       )}
       {session.discipline === 'GYM' && session.status === 'PLANNED' && session.templateVariantId && (
         <StartWorkoutButton sessionId={session.id} />

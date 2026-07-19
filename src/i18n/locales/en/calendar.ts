@@ -110,6 +110,8 @@ export default {
     saveStructure: 'Save structure',
     exportFit: '⌚ Export .fit',
     exporting: 'Exporting…',
+    exportFitHint:
+      'The file is a structured workout: import it on Garmin Connect (desktop) via Training → Workouts → Import, then "Send to device". The mobile app can only import courses.',
     validate: '✓ Validate',
     skip: 'Skip',
     move: 'Move',
