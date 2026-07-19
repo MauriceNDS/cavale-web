@@ -280,7 +280,8 @@ function McpCard() {
     },
   })
 
-  const mcpUrl = `${window.location.protocol}//${window.location.hostname}:8080/mcp`
+  // Same origin as the app: Caddy (and the Vite dev proxy) forward /mcp to the API
+  const mcpUrl = `${window.location.protocol}//${window.location.host}/mcp`
   const claudeCommand = issued
     ? `claude mcp add --transport http cavale ${mcpUrl} --header "Authorization: Bearer ${issued.token}"`
     : ''
