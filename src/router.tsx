@@ -26,6 +26,7 @@ import { TemplateEditorPage } from './features/gym/TemplateEditorPage'
 import { TemplatesPage } from './features/gym/TemplatesPage'
 import { WorkoutPage } from './features/gym/WorkoutPage'
 import { ActivitiesPage } from './features/athlete/ActivitiesPage'
+import { ActivityDetailPage } from './features/athlete/ActivityDetailPage'
 import { StatsPage } from './features/stats/StatsPage'
 import { ObjectivePage } from './features/objective/ObjectivePage'
 import { OnboardingPage } from './features/auth/OnboardingPage'
@@ -573,6 +574,12 @@ const activitiesRoute = createRoute({
   component: ActivitiesPage,
 })
 
+const activityDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/activite/$activityId',
+  component: ActivityDetailPage,
+})
+
 const registerRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/register',
@@ -642,6 +649,7 @@ const routeTree = rootRoute.addChildren([
   gymStatsRoute,
   statsRoute,
   activitiesRoute,
+  activityDetailRoute,
   registerRoute,
   loginRoute,
   settingsRoute,

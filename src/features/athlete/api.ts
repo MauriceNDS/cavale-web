@@ -1,5 +1,6 @@
 import { api } from '../../lib/api'
 import type { AthleteStatus, UserResponse } from '../auth/api'
+import type { ActivityStreams } from '../calendar/api'
 import type { ObjectiveResponse } from '../objective/api'
 
 export type Timeframe = 'PAST' | 'CURRENT' | 'FUTURE'
@@ -171,6 +172,35 @@ export function fetchActivities(
   if (filters.from) params.set('from', filters.from)
   if (filters.to) params.set('to', filters.to)
   return api.get<ActivityFeedResponse>(`/api/athlete/activities?${params}`)
+}
+
+/* ── Single activity detail ────────────────────────────────────────── */
+
+export interface ActivityDetail {
+  id: string
+  source: 'MANUAL' | 'STRAVA' | null
+  name: string | null
+  date: string
+  sessionId: string | null
+  durationMin: number
+  distanceKm: number | null
+  elevationM: number | null
+  avgHr: number | null
+  maxHr: number | null
+  avgCadenceSpm: number | null
+  relativeEffort: number | null
+  perceivedEffort: string | null
+  painFlag: boolean
+  comment: string | null
+  hasStreams: boolean
+}
+
+export function fetchActivityDetail(activityId: string): Promise<ActivityDetail> {
+  return api.get<ActivityDetail>(`/api/athlete/activities/${activityId}`)
+}
+
+export function fetchActivityStreams(activityId: string): Promise<ActivityStreams> {
+  return api.get<ActivityStreams>(`/api/athlete/activities/${activityId}/streams`)
 }
 
 /* ── Deep running statistics ───────────────────────────────────────── */

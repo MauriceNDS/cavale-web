@@ -249,5 +249,10 @@ function FeedRow({ item }: { item: FeedItem }) {
       </Link>
     )
   }
-  return <div className={className}>{content}</div>
+  // A standalone (off-plan) run/ride: open its own detail page.
+  return (
+    <Link to="/activite/$activityId" params={{ activityId: item.id }} className={className}>
+      {content}
+    </Link>
+  )
 }
