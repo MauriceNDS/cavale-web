@@ -3,6 +3,7 @@ import {
   createRoute,
   createRouter,
   Link,
+  Navigate,
   Outlet,
   redirect,
   useNavigate,
@@ -350,10 +351,14 @@ function DemoBanner({ onExit }: { onExit: () => void }) {
   )
 }
 
+/** Paths reachable while signed out. Every other route requires a session. */
+const PUBLIC_PATHS = new Set(['/', '/login', '/register', '/auth/strava'])
+
 function Shell({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const { t } = useTranslation('shell')
+  const pathname = useRouterState({ select: (state) => state.location.pathname })
 
   // Session still restoring: render neither chrome. Mounting pages now and
   // remounting them once the user arrives would run mount effects twice —
@@ -363,6 +368,12 @@ function Shell({ children }: { children: ReactNode }) {
   }
 
   if (!user) {
+    // Signed out: only public routes render — any protected page (parametres,
+    // profil, objectif, admin, …) sends the visitor to login instead of
+    // exposing its shell.
+    if (!PUBLIC_PATHS.has(pathname)) {
+      return <Navigate to="/login" />
+    }
     // Signed-out chrome: slim public header
     return (
       <div className="min-h-screen">
