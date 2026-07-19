@@ -3,10 +3,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { ApiError } from '../../lib/api'
+import { muted } from '../../lib/ui'
 import { RenfoTabs } from './RenfoTabs'
 import { createTemplate, fetchTemplates } from './api'
 
-const muted = 'text-moss-500 dark:text-moss-400'
 const fieldClass =
   'mt-1 w-full rounded-lg border border-moss-200 bg-moss-100 px-3 py-1.5 text-sm transition outline-none focus:border-pine-600 focus:ring-2 focus:ring-pine-600/25 dark:border-moss-750 dark:bg-moss-800 dark:focus:border-pine-350 dark:focus:ring-pine-350/25'
 

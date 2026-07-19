@@ -4,6 +4,7 @@ import { useNavigate, useSearch } from '@tanstack/react-router'
 import { format, parseISO, subMonths } from 'date-fns'
 import { useTranslation } from 'react-i18next'
 import { dateLocale, numberLocale } from '../../i18n'
+import { card, muted } from '../../lib/ui'
 import {
   fetchRunningStats,
   type Acwr,
@@ -21,9 +22,6 @@ import {
 } from '../athlete/api'
 import { useAuth } from '../auth/session'
 import { GymStatsSection } from '../gym/GymStatsSection'
-
-const muted = 'text-moss-500 dark:text-moss-400'
-const card = 'rounded-xl border border-moss-200 bg-moss-25 p-5 dark:border-moss-750 dark:bg-moss-850'
 
 const RANGES = [1, 3, 6, 12] as const
 type RangeMonths = (typeof RANGES)[number]

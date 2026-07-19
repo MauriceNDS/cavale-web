@@ -4,6 +4,7 @@ import { Link, useNavigate } from '@tanstack/react-router'
 import { addDays, format, parseISO } from 'date-fns'
 import { useTranslation } from 'react-i18next'
 import { dateLocale } from '../../i18n'
+import { muted } from '../../lib/ui'
 import { fetchActiveWorkout, startWorkout } from '../gym/api'
 import {
   downloadSessionFit,
@@ -18,8 +19,6 @@ import {
   formatDuration,
   trainingKind,
 } from './labels'
-
-const muted = 'text-moss-500 dark:text-moss-400'
 
 const STATUS_BADGE: Partial<Record<SessionResponse['status'], string>> = {
   DONE: 'bg-pine-100 text-pine-700 dark:bg-pine-900 dark:text-pine-300',

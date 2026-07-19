@@ -1,5 +1,12 @@
 import type { ReactNode } from 'react'
 
+/**
+ * The standard text-input styling. Import this instead of copying the class
+ * string — a single source keeps every form field visually in sync.
+ */
+export const fieldClass =
+  'mt-1 w-full rounded-lg border border-moss-200 bg-moss-100 px-3 py-2 text-sm transition outline-none focus:border-pine-600 focus:ring-2 focus:ring-pine-600/25 dark:border-moss-750 dark:bg-moss-800 dark:focus:border-pine-350 dark:focus:ring-pine-350/25'
+
 export function AuthCard({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
   return (
     <div className="mx-auto mt-16 max-w-md rounded-xl border border-moss-200 bg-moss-25 p-8 dark:border-moss-750 dark:bg-moss-850">

@@ -35,6 +35,19 @@ export class ApiError extends Error {
   }
 }
 
+let onUnauthorized: (() => void) | null = null
+
+/**
+ * Register a handler for when an authenticated request is rejected with 401
+ * (an expired or revoked token mid-session). The stored token is already
+ * cleared by the time this fires; the handler resets in-app auth state so the
+ * router drops back to the signed-out view. Auth endpoints are exempt — a bad
+ * login must surface as a normal error, not trigger a logout.
+ */
+export function setUnauthorizedHandler(handler: (() => void) | null): void {
+  onUnauthorized = handler
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const token = getToken()
 
@@ -52,6 +65,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       .json()
       .catch(() => ({ title: response.statusText, status: response.status }))
     problem.status ??= response.status
+    // A token we sent was rejected: it's stale — drop it and sign out. Skip the
+    // auth endpoints (login/register/demo run signed-out; their 401s are normal).
+    if (response.status === 401 && token && !path.startsWith('/api/auth/')) {
+      clearToken()
+      onUnauthorized?.()
+    }
     throw new ApiError(problem)
   }
 

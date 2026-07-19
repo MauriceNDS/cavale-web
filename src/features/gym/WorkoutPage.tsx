@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { ApiError } from '../../lib/api'
+import { muted } from '../../lib/ui'
 import {
   abandonWorkout,
   fetchWorkout,
@@ -16,7 +17,6 @@ import {
 } from './api'
 import { CATEGORY_BADGE, CATEGORY_EDGE, categoryLabel, formatRest } from './labels'
 
-const muted = 'text-moss-500 dark:text-moss-400'
 const inputCls =
   'w-full rounded-lg border border-moss-200 bg-moss-100 px-2 py-2 text-center text-base font-semibold tabular-nums outline-none focus:border-pine-600 focus:ring-2 focus:ring-pine-600/25 dark:border-moss-750 dark:bg-moss-800 dark:focus:border-pine-350 dark:focus:ring-pine-350/25'
 
@@ -325,6 +325,7 @@ function SetRow({
   onSaved: () => void
 }) {
   const { t } = useTranslation('gym')
+  const queryClient = useQueryClient()
   const [saved, setSaved] = useState(logged != null)
   const weightRef = useRef<HTMLInputElement>(null)
   const repsRef = useRef<HTMLInputElement>(null)
@@ -352,6 +353,8 @@ function SetRow({
     onSuccess: () => {
       setSaved(true)
       onSaved()
+      // Refresh the workout so detail.log.sets (loggedSets) reflects this save.
+      void queryClient.invalidateQueries({ queryKey: ['workout', workoutId] })
     },
   })
 

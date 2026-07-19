@@ -9,10 +9,8 @@ import {
   type WeekTonnage,
 } from './api'
 import { useTranslation } from 'react-i18next'
+import { card, muted } from '../../lib/ui'
 import { CATEGORY_BADGE, muscleLabel } from './labels'
-
-const muted = 'text-moss-500 dark:text-moss-400'
-const card = 'rounded-xl border border-moss-200 bg-moss-25 p-5 dark:border-moss-750 dark:bg-moss-850'
 
 /** Gym progression: 1RM trends, tonnage, balance, fresh PRs, adherence. */
 export function GymStatsSection() {
@@ -20,13 +18,13 @@ export function GymStatsSection() {
   const query = useQuery({ queryKey: ['gym-stats'], queryFn: fetchGymStats })
 
   if (query.isLoading) {
-    return <p className={`mt-10 text-center ${muted}`}>Chargement…</p>
+    return <p className={`mt-10 text-center ${muted}`}>{t('common:loading')}</p>
   }
   const stats = query.data
   if (!stats) {
     return (
       <p className="mt-10 text-center text-clay-500 dark:text-clay-300">
-        Impossible de charger les statistiques.
+        {t('stats.loadError')}
       </p>
     )
   }

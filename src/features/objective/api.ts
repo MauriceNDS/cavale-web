@@ -88,10 +88,6 @@ export function fetchProgress(planId: string): Promise<PlanProgressResponse> {
   return api.get<PlanProgressResponse>(`/api/plans/${planId}/progress`)
 }
 
-export function fetchObjectives(planId: string): Promise<ObjectiveResponse[]> {
-  return api.get<ObjectiveResponse[]>(`/api/plans/${planId}/objectives`)
-}
-
 export function createObjective(planId: string, body: ObjectivePayload): Promise<ObjectiveResponse> {
   return api.post<ObjectiveResponse>(`/api/plans/${planId}/objectives`, body)
 }
@@ -150,14 +146,6 @@ export interface CourseResponse {
   finishHighSec: number | null
 }
 
-export interface WaypointPayload {
-  name: string
-  kind: WaypointKind
-  distanceKm: number
-  elevationM?: number | null
-  note?: string | null
-}
-
 export function fetchCourse(objectiveId: string): Promise<CourseResponse> {
   return api.get<CourseResponse>(`/api/objectives/${objectiveId}/course`)
 }
@@ -168,10 +156,6 @@ export function importCourse(objectiveId: string, gpx: string, name?: string): P
 
 export function deleteCourse(objectiveId: string): Promise<void> {
   return api.delete(`/api/objectives/${objectiveId}/course`)
-}
-
-export function addCourseWaypoint(objectiveId: string, body: WaypointPayload): Promise<CourseResponse> {
-  return api.post<CourseResponse>(`/api/objectives/${objectiveId}/course/waypoints`, body)
 }
 
 export function deleteCourseWaypoint(objectiveId: string, waypointId: string): Promise<void> {

@@ -4,10 +4,10 @@ import { Link } from '@tanstack/react-router'
 import { format, parseISO } from 'date-fns'
 import { useTranslation } from 'react-i18next'
 import { dateLocale } from '../../i18n'
+import { muted } from '../../lib/ui'
 import { useAuth } from '../auth/session'
 import { fetchActivities, type FeedFilters, type FeedItem, type FeedType } from './api'
 
-const muted = 'text-moss-500 dark:text-moss-400'
 const fieldClass =
   'rounded-lg border border-moss-200 bg-moss-100 px-3 py-1.5 text-sm transition outline-none focus:border-pine-600 focus:ring-2 focus:ring-pine-600/25 dark:border-moss-750 dark:bg-moss-800 dark:focus:border-pine-350 dark:focus:ring-pine-350/25'
 

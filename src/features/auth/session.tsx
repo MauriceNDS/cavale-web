@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from 'react'
 import { applyLanguage } from '../../i18n'
-import { ApiError, clearToken, getToken, setToken } from '../../lib/api'
+import { ApiError, clearToken, getToken, setToken, setUnauthorizedHandler } from '../../lib/api'
 import { fetchMe, loginUser, startDemo, type UserResponse } from './api'
 
 interface AuthState {
@@ -58,6 +58,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true
     }
+  }, [])
+
+  // Any authenticated request that comes back 401 (expired/revoked token) drops
+  // us to signed-out; lib/api has already cleared the stale token by now.
+  useEffect(() => {
+    setUnauthorizedHandler(() => setUser(null))
+    return () => setUnauthorizedHandler(null)
   }, [])
 
   const login = useCallback(async (email: string, password: string) => {

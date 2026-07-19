@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { ErrorAlert } from '../../components/form'
+import { ErrorAlert, fieldClass } from '../../components/form'
 import { ApiError } from '../../lib/api'
 import { createPlan } from '../calendar/api'
-import { ObjectiveFields, buildObjectiveSchema, fieldClass, readObjectiveFields } from './ObjectiveForm'
+import { ObjectiveFields, buildObjectiveSchema, readObjectiveFields } from './ObjectiveForm'
 
 /**
  * Creates a season (training plan) together with its fully-specified MAIN

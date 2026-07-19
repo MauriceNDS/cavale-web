@@ -2,10 +2,13 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format, parseISO } from 'date-fns'
 import { useTranslation } from 'react-i18next'
+import { fieldClass } from '../../components/form'
 import { dateLocale } from '../../i18n'
 import { ApiError } from '../../lib/api'
+import { useRovingRadioGroup } from '../../lib/useRovingRadioGroup'
 import { updateProfile, updateStatus } from '../athlete/api'
 import { fetchMe, type AthleteStatus } from '../auth/api'
+import { useAuth } from '../auth/session'
 import { ShoesCard } from '../shoes/ShoesCard'
 
 const STATUSES: AthleteStatus[] = ['AVAILABLE', 'INJURED', 'RECOVERING', 'SICK']
@@ -27,6 +30,7 @@ export function ProfilePage() {
 /** Availability — the one signal plan creation (manual or MCP) must respect. */
 function StatusCard() {
   const { t } = useTranslation('settings')
+  const { refresh } = useAuth()
   const queryClient = useQueryClient()
   const me = useQuery({ queryKey: ['me'], queryFn: fetchMe })
   const [status, setStatus] = useState<AthleteStatus | null>(null)
@@ -38,10 +42,21 @@ function StatusCard() {
       setSaved(true)
       queryClient.invalidateQueries({ queryKey: ['me'] })
       queryClient.invalidateQueries({ queryKey: ['hub'] })
+      // Also refresh the auth session so the shell (sidebar/tab-bar) updates.
+      void refresh()
     },
   })
 
   const user = me.data
+  const current = status ?? user?.athleteStatus
+  const radioProps = useRovingRadioGroup(
+    STATUSES.length,
+    current ? STATUSES.indexOf(current) : -1,
+    (index) => {
+      setStatus(STATUSES[index])
+      setSaved(false)
+    },
+  )
   if (!user) return null
   const selected = status ?? user.athleteStatus
 
@@ -78,7 +93,7 @@ function StatusCard() {
         }}
       >
         <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={t('profile.status.title')}>
-          {STATUSES.map((value) => (
+          {STATUSES.map((value, index) => (
             <button
               key={value}
               type="button"
@@ -88,6 +103,7 @@ function StatusCard() {
                 setStatus(value)
                 setSaved(false)
               }}
+              {...radioProps(index)}
               className={chip(value)}
             >
               {t(`profile.status.${value}`)}
@@ -127,6 +143,7 @@ function StatusCard() {
 
 function ProfileCard() {
   const { t } = useTranslation('settings')
+  const { refresh } = useAuth()
   const queryClient = useQueryClient()
   const me = useQuery({ queryKey: ['me'], queryFn: fetchMe })
   const [saved, setSaved] = useState(false)
@@ -137,12 +154,12 @@ function ProfileCard() {
       setSaved(true)
       queryClient.invalidateQueries({ queryKey: ['me'] })
       queryClient.invalidateQueries({ queryKey: ['hub'] })
+      // Also refresh the auth session so the shell (sidebar/tab-bar) updates.
+      void refresh()
     },
   })
 
   const user = me.data
-  const fieldClass =
-    'mt-1 w-full rounded-lg border border-moss-200 bg-moss-100 px-3 py-2 text-sm transition outline-none focus:border-pine-600 focus:ring-2 focus:ring-pine-600/25 dark:border-moss-750 dark:bg-moss-800 dark:focus:border-pine-350 dark:focus:ring-pine-350/25'
 
   return (
     <section className="mt-6 rounded-xl border border-moss-200 bg-moss-25 p-6 dark:border-moss-750 dark:bg-moss-850">

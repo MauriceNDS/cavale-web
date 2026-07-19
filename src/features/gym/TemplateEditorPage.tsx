@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { ApiError } from '../../lib/api'
+import { muted } from '../../lib/ui'
 import { ExerciseForm } from './ExerciseForm'
 import {
   addAlternative,
@@ -31,7 +32,6 @@ import {
   formatRest,
 } from './labels'
 
-const muted = 'text-moss-500 dark:text-moss-400'
 const fieldClass =
   'mt-1 w-full rounded-lg border border-moss-200 bg-moss-100 px-3 py-1.5 text-sm transition outline-none focus:border-pine-600 focus:ring-2 focus:ring-pine-600/25 dark:border-moss-750 dark:bg-moss-800 dark:focus:border-pine-350 dark:focus:ring-pine-350/25'
 const actionBtn =
@@ -183,6 +183,7 @@ function TemplateHeader({
   onSaved: () => void
   onDelete: () => void
 }) {
+  const { t } = useTranslation('gym')
   const [editing, setEditing] = useState(false)
   const mutation = useMutation({
     mutationFn: (body: { name: string; goal?: string }) => updateTemplate(template.id, body),
@@ -198,10 +199,10 @@ function TemplateHeader({
         <h1 className="font-display text-3xl font-semibold">{template.name}</h1>
         {template.goal && <p className={`text-sm ${muted}`}>{template.goal}</p>}
         <button onClick={() => setEditing(true)} className={`text-sm font-medium text-pine-700 underline dark:text-pine-300`}>
-          modifier
+          {t('editor.editLower')}
         </button>
         <button onClick={onDelete} className="text-sm font-medium text-clay-500 underline dark:text-clay-300">
-          supprimer
+          {t('editor.deleteLower')}
         </button>
       </div>
     )
@@ -220,11 +221,11 @@ function TemplateHeader({
       }}
     >
       <label className="block">
-        <span className="text-sm font-medium">Nom</span>
+        <span className="text-sm font-medium">{t('editor.name')}</span>
         <input name="name" required defaultValue={template.name} className={fieldClass} />
       </label>
       <label className="block grow">
-        <span className="text-sm font-medium">Objectif</span>
+        <span className="text-sm font-medium">{t('editor.goal')}</span>
         <input name="goal" defaultValue={template.goal ?? ''} className={fieldClass} />
       </label>
       <button
@@ -232,10 +233,10 @@ function TemplateHeader({
         disabled={mutation.isPending}
         className="rounded-lg bg-pine-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
       >
-        OK
+        {t('editor.ok')}
       </button>
       <button type="button" onClick={() => setEditing(false)} className={`px-2 py-2 text-sm ${muted}`}>
-        Annuler
+        {t('common:cancel')}
       </button>
     </form>
   )
@@ -250,6 +251,7 @@ type PanelState =
   | { kind: 'alternative'; te: TemplateExerciseResponse }
 
 function VariantEditor({ variantId }: { variantId: string }) {
+  const { t } = useTranslation('gym')
   const queryClient = useQueryClient()
   const [panel, setPanel] = useState<PanelState>({ kind: 'closed' })
 
@@ -281,7 +283,7 @@ function VariantEditor({ variantId }: { variantId: string }) {
 
   const detail = query.data
   if (query.isLoading || !detail) {
-    return <p className={`mt-6 text-center ${muted}`}>Chargement…</p>
+    return <p className={`mt-6 text-center ${muted}`}>{t('common:loading')}</p>
   }
 
   function move(index: number, delta: number) {
@@ -296,7 +298,7 @@ function VariantEditor({ variantId }: { variantId: string }) {
     <div className="mt-4">
       {detail.exercises.length === 0 && panel.kind === 'closed' && (
         <p className={`my-6 text-center ${muted}`}>
-          Variante vide — ajoute le premier exercice.
+          {t('editor.emptyVariant')}
         </p>
       )}
 
@@ -308,8 +310,8 @@ function VariantEditor({ variantId }: { variantId: string }) {
           >
             <div className="flex flex-wrap items-center gap-2">
               <div className="flex flex-col">
-                <button onClick={() => move(index, -1)} disabled={index === 0} aria-label="Monter" className="text-xs text-moss-500 disabled:opacity-30 dark:text-moss-400">▲</button>
-                <button onClick={() => move(index, 1)} disabled={index === detail.exercises.length - 1} aria-label="Descendre" className="text-xs text-moss-500 disabled:opacity-30 dark:text-moss-400">▼</button>
+                <button onClick={() => move(index, -1)} disabled={index === 0} aria-label={t('editor.moveUp')} className="text-xs text-moss-500 disabled:opacity-30 dark:text-moss-400">▲</button>
+                <button onClick={() => move(index, 1)} disabled={index === detail.exercises.length - 1} aria-label={t('editor.moveDown')} className="text-xs text-moss-500 disabled:opacity-30 dark:text-moss-400">▼</button>
               </div>
               <div className="min-w-0 flex-1">
                 <p className="font-medium">
@@ -326,18 +328,18 @@ function VariantEditor({ variantId }: { variantId: string }) {
                 </p>
               </div>
               <button onClick={() => setPanel({ kind: 'edit', te })} className={actionBtn}>
-                modifier
+                {t('editor.editLower')}
               </button>
               <button
                 onClick={() => removeMutation.mutate(te.id)}
                 className={`${actionBtn} text-clay-500 dark:text-clay-300`}
               >
-                retirer
+                {t('editor.remove')}
               </button>
             </div>
 
             <div className="mt-2 flex flex-wrap items-center gap-1.5 pl-6">
-              <span className={`text-[11px] uppercase tracking-wide ${muted}`}>Alternatives :</span>
+              <span className={`text-[11px] uppercase tracking-wide ${muted}`}>{t('editor.alternatives')}</span>
               {te.alternatives.map((alt) => (
                 <span
                   key={alt.id}
@@ -346,7 +348,7 @@ function VariantEditor({ variantId }: { variantId: string }) {
                   {alt.exercise.name}
                   <button
                     onClick={() => removeAltMutation.mutate(alt.id)}
-                    aria-label={`Retirer l'alternative ${alt.exercise.name}`}
+                    aria-label={t('editor.removeAlternativeAria', { name: alt.exercise.name })}
                     className="text-moss-500 hover:text-clay-500 dark:text-moss-400"
                   >
                     ✕
@@ -357,7 +359,7 @@ function VariantEditor({ variantId }: { variantId: string }) {
                 onClick={() => setPanel({ kind: 'alternative', te })}
                 className="text-xs font-medium text-pine-700 underline dark:text-pine-300"
               >
-                + ajouter
+                {t('editor.addAlternative')}
               </button>
             </div>
           </div>
@@ -369,13 +371,13 @@ function VariantEditor({ variantId }: { variantId: string }) {
           onClick={() => setPanel({ kind: 'add' })}
           className="mt-3 w-full rounded-lg border border-dashed border-moss-300 px-3 py-2.5 text-sm font-medium text-moss-500 transition hover:border-pine-600 hover:text-pine-700 dark:border-moss-700 dark:text-moss-400 dark:hover:border-pine-350 dark:hover:text-pine-300"
         >
-          + Ajouter un exercice
+          {t('editor.addExercise')}
         </button>
       )}
 
       {panel.kind === 'add' && (
         <PrescriptionPanel
-          title="Ajouter un exercice"
+          title={t('editor.addExerciseTitle')}
           onSubmit={(body) => addTemplateExercise(variantId, body)}
           onDone={() => {
             invalidate()
@@ -386,7 +388,7 @@ function VariantEditor({ variantId }: { variantId: string }) {
       )}
       {panel.kind === 'edit' && (
         <PrescriptionPanel
-          title={`Modifier « ${panel.te.exercise.name} »`}
+          title={t('editor.editExerciseTitle', { name: panel.te.exercise.name })}
           existing={panel.te}
           onSubmit={(body) => updateTemplateExercise(panel.te.id, body)}
           onDone={() => {
@@ -449,14 +451,14 @@ function ExercisePicker({
   if (selected) {
     return (
       <p className="text-sm">
-        Exercice : <span className="font-medium">{selected.name}</span>
+        {t('editor.picker.exercise')} <span className="font-medium">{selected.name}</span>
         {onClear && (
           <button
             type="button"
             onClick={onClear}
             className="ml-2 text-xs font-medium text-pine-700 underline dark:text-pine-300"
           >
-            changer
+            {t('editor.picker.change')}
           </button>
         )}
       </p>
@@ -469,7 +471,7 @@ function ExercisePicker({
         value={search}
         onChange={(event) => setSearch(event.target.value)}
         placeholder={t('editor.picker.searchPlaceholder')}
-        aria-label="Chercher un exercice"
+        aria-label={t('editor.picker.searchAria')}
         className={fieldClass}
       />
       <div className="mt-2 flex flex-wrap gap-1.5">
@@ -549,26 +551,26 @@ function PrescriptionPanel({
             </label>
             {seconds ? (
               <label className="block">
-                <span className="text-sm font-medium">Secondes</span>
+                <span className="text-sm font-medium">{t('editor.fields.seconds')}</span>
                 <input name="seconds" type="number" min={1} required defaultValue={existing?.seconds ?? 45} className={fieldClass} />
               </label>
             ) : (
               <label className="block">
-                <span className="text-sm font-medium">Reps</span>
+                <span className="text-sm font-medium">{t('editor.fields.reps')}</span>
                 <input name="reps" type="number" min={1} required defaultValue={existing?.reps ?? 6} className={fieldClass} />
               </label>
             )}
             <label className="block">
-              <span className="text-sm font-medium">Repos (sec)</span>
+              <span className="text-sm font-medium">{t('editor.fields.rest')}</span>
               <input name="restSec" type="number" min={0} defaultValue={existing?.restSec ?? ''} className={fieldClass} />
             </label>
             <label className="block">
-              <span className="text-sm font-medium">% 1RM</span>
+              <span className="text-sm font-medium">{t('editor.fields.intensity')}</span>
               <input name="intensityPct" type="number" min={1} max={200} defaultValue={existing?.intensityPct ?? ''} className={fieldClass} />
             </label>
           </div>
           <label className="block">
-            <span className="text-sm font-medium">Note</span>
+            <span className="text-sm font-medium">{t('editor.fields.note')}</span>
             <input name="note" maxLength={300} defaultValue={existing?.note ?? ''} placeholder={t('editor.fields.notePlaceholder')} className={fieldClass} />
           </label>
         </>
@@ -586,10 +588,10 @@ function PrescriptionPanel({
           disabled={!exercise || mutation.isPending}
           className="rounded-lg bg-pine-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
         >
-          {mutation.isPending ? 'Enregistrement…' : 'Enregistrer'}
+          {mutation.isPending ? t('common:saving') : t('common:save')}
         </button>
         <button type="button" onClick={onCancel} className={`px-3 py-2 text-sm font-medium ${muted}`}>
-          Annuler
+          {t('common:cancel')}
         </button>
       </div>
     </form>
@@ -629,7 +631,7 @@ function AlternativePanel({
         </p>
       )}
       <button onClick={onCancel} className={`px-1 text-sm font-medium ${muted}`}>
-        Annuler
+        {t('common:cancel')}
       </button>
     </div>
   )

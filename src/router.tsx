@@ -459,10 +459,8 @@ function Home() {
   const { user } = useAuth()
   const { t } = useTranslation('shell')
 
-  if (user === undefined) {
-    return <p className="mt-16 text-center text-moss-500 dark:text-moss-400">{t('common:loading')}</p>
-  }
-
+  // Shell already renders a loading state (and no Outlet) while the session is
+  // restoring, so Home only mounts once `user` is resolved (a value or null).
   if (user) {
     return <HomePage />
   }

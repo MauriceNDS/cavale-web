@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ApiError } from '../../lib/api'
+import { muted } from '../../lib/ui'
 import { RenfoTabs } from './RenfoTabs'
 import { ExerciseForm } from './ExerciseForm'
 import {
@@ -24,8 +25,6 @@ import {
   MUSCLES,
   muscleLabel,
 } from './labels'
-
-const muted = 'text-moss-500 dark:text-moss-400'
 
 type FormState =
   | { kind: 'closed' }

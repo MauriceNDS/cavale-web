@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { format } from 'date-fns'
 import { dateLocale } from '../../i18n'
 import { ApiError } from '../../lib/api'
+import { muted } from '../../lib/ui'
 import type { AccountStatus } from '../auth/api'
 import { useAuth } from '../auth/session'
 import {
@@ -14,8 +15,6 @@ import {
   type AdminUser,
   type StatusFilter,
 } from './api'
-
-const muted = 'text-moss-500 dark:text-moss-400'
 
 const STATUS_BADGE: Record<AccountStatus, string> = {
   PENDING: 'bg-copper-600/15 text-copper-600 dark:bg-copper-300/15 dark:text-copper-300',

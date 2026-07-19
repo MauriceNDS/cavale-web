@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { numberLocale } from '../../i18n'
 import { ApiError } from '../../lib/api'
+import { card, muted } from '../../lib/ui'
 import {
   deleteCourse,
   deleteCourseWaypoint,
@@ -10,9 +11,6 @@ import {
   importCourse,
   type CourseResponse,
 } from './api'
-
-const card = 'rounded-xl border border-moss-200 bg-moss-25 p-5 dark:border-moss-750 dark:bg-moss-850'
-const muted = 'text-moss-500 dark:text-moss-400'
 
 /** Race times the runner's way: "8h25", "45 min". */
 function formatChrono(sec: number | null): string {

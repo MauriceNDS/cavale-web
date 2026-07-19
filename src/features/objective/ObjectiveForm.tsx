@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { z } from 'zod'
-import { ErrorAlert } from '../../components/form'
+import { ErrorAlert, fieldClass } from '../../components/form'
 import type {
   ObjectiveIntensity,
   ObjectiveKind,
@@ -77,9 +77,6 @@ export function readObjectiveFields(data: FormData, withResult: boolean) {
     notes: text('notes'),
   }
 }
-
-export const fieldClass =
-  'mt-1 w-full rounded-lg border border-moss-200 bg-moss-100 px-3 py-2 text-sm transition outline-none focus:border-pine-600 focus:ring-2 focus:ring-pine-600/25 dark:border-moss-750 dark:bg-moss-800 dark:focus:border-pine-350 dark:focus:ring-pine-350/25'
 
 /**
  * The full set of objective inputs, shared between editing an existing

@@ -5,6 +5,7 @@ import { Trans, useTranslation } from 'react-i18next'
 import { ThemeModeSelector } from '../../components/ThemeModeSelector'
 import { applyLanguage, dateLocale, type Language } from '../../i18n'
 import { ApiError } from '../../lib/api'
+import { useRovingRadioGroup } from '../../lib/useRovingRadioGroup'
 import { issuePat, updateProfile, type IssuedToken } from '../athlete/api'
 import { useAuth } from '../auth/session'
 import { disconnectStrava, fetchAuthorizeUrl, fetchStravaStatus } from '../strava/api'
@@ -61,6 +62,10 @@ function UsageCard() {
         restingHr: user!.restingHr, gymEnabled }),
     onSuccess: () => void refresh(),
   })
+  // Two-option segmented radiogroup: 0 = running only, 1 = running + strength.
+  const radioProps = useRovingRadioGroup(2, user?.gymEnabled ? 1 : 0, (index) =>
+    mutation.mutate(index === 1),
+  )
   if (!user) return null
 
   const cls = (active: boolean) =>
@@ -74,19 +79,23 @@ function UsageCard() {
     <section className="mt-6 rounded-xl border border-moss-200 bg-moss-25 p-6 dark:border-moss-750 dark:bg-moss-850">
       <h2 className="font-display text-lg font-semibold">{t('parameters.usage.title')}</h2>
       <p className="mt-0.5 text-sm text-moss-500 dark:text-moss-400">{t('parameters.usage.intro')}</p>
-      <div className="mt-3 flex gap-2">
+      <div className="mt-3 flex gap-2" role="radiogroup" aria-label={t('parameters.usage.title')}>
         <button
+          role="radio"
+          aria-checked={!user.gymEnabled}
           onClick={() => mutation.mutate(false)}
           disabled={mutation.isPending}
-          aria-pressed={!user.gymEnabled}
+          {...radioProps(0)}
           className={cls(!user.gymEnabled)}
         >
           {t('parameters.usage.runningOnly')}
         </button>
         <button
+          role="radio"
+          aria-checked={user.gymEnabled}
           onClick={() => mutation.mutate(true)}
           disabled={mutation.isPending}
-          aria-pressed={user.gymEnabled}
+          {...radioProps(1)}
           className={cls(user.gymEnabled)}
         >
           {t('parameters.usage.runningAndGym')}
@@ -110,26 +119,31 @@ function LanguageCard() {
       void refresh()
     },
   })
-  if (!user) return null
-
   // Language names stay in their own language — never translated.
   const options: { value: Language; label: string }[] = [
     { value: 'fr', label: 'Français' },
     { value: 'en', label: 'English' },
   ]
+  const radioProps = useRovingRadioGroup(
+    options.length,
+    options.findIndex((o) => o.value === user?.preferredLanguage),
+    (index) => mutation.mutate(options[index].value),
+  )
+  if (!user) return null
 
   return (
     <section className="mt-6 rounded-xl border border-moss-200 bg-moss-25 p-6 dark:border-moss-750 dark:bg-moss-850">
       <h2 className="font-display text-lg font-semibold">{t('parameters.language.title')}</h2>
       <p className="mt-0.5 text-sm text-moss-500 dark:text-moss-400">{t('parameters.language.intro')}</p>
       <div className="mt-3 flex gap-2" role="radiogroup" aria-label={t('parameters.language.title')}>
-        {options.map(({ value, label }) => (
+        {options.map(({ value, label }, index) => (
           <button
             key={value}
             role="radio"
             aria-checked={user.preferredLanguage === value}
             onClick={() => mutation.mutate(value)}
             disabled={mutation.isPending}
+            {...radioProps(index)}
             className={`flex-1 rounded-lg px-4 py-2 text-center text-sm font-semibold transition disabled:opacity-50 sm:flex-none ${
               user.preferredLanguage === value
                 ? 'bg-pine-600 text-moss-25 dark:bg-pine-350 dark:text-moss-950'

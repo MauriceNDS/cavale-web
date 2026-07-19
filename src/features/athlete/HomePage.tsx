@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { differenceInCalendarDays, differenceInYears, format, parseISO } from 'date-fns'
 import { Trans, useTranslation } from 'react-i18next'
 import { dateLocale, numberLocale } from '../../i18n'
 import { ApiError } from '../../lib/api'
+import { card, muted } from '../../lib/ui'
 import { fetchMe } from '../auth/api'
 import { deletePlan } from '../calendar/api'
 import { TodayCard } from '../calendar/TodayCard'
@@ -23,8 +24,10 @@ import {
 import { EffortChart, MonthlyBars, TrendLine } from './charts'
 import { formatChrono, formatHours, formatPace } from './labels'
 
-const card = 'rounded-xl border border-moss-200 bg-moss-25 p-5 dark:border-moss-750 dark:bg-moss-850'
-const muted = 'text-moss-500 dark:text-moss-400'
+// Safety cap on the self-chaining analyze drain: a backend that never reports
+// remaining === 0 must not spin up requests forever.
+const MAX_ANALYZE_BATCHES = 25
+
 const pill = (active: boolean) =>
   `rounded-md px-3 py-1 text-xs font-medium transition ${
     active
@@ -159,6 +162,7 @@ function SyncCard({ sync }: { sync: AthleteHub['sync'] }) {
   const { t } = useTranslation('athlete')
   const queryClient = useQueryClient()
   const [progress, setProgress] = useState<string | null>(null)
+  const analyzeBatches = useRef(0)
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['hub'] })
 
   const syncMutation = useMutation({
@@ -178,10 +182,18 @@ function SyncCard({ sync }: { sync: AthleteHub['sync'] }) {
   const analyzeMutation = useMutation({
     mutationFn: analyzeStravaRecords,
     onSuccess: (result) => {
-      if (result.remaining > 0 && result.analyzed > 0) {
+      // Chain the next batch only while progress is being made AND we're under
+      // the safety cap; otherwise stop and let the athlete re-trigger.
+      if (
+        result.remaining > 0 &&
+        result.analyzed > 0 &&
+        analyzeBatches.current < MAX_ANALYZE_BATCHES
+      ) {
+        analyzeBatches.current += 1
         setProgress(t('home.sync.analyzing', { count: result.remaining }))
-        analyzeMutation.mutate() // next batch, until done or rate-limited
+        analyzeMutation.mutate() // next batch, until done, rate-limited or capped
       } else {
+        analyzeBatches.current = 0
         setProgress(result.remaining === 0 ? t('home.sync.upToDate') : t('home.sync.rateLimited'))
         invalidate()
       }
@@ -224,7 +236,10 @@ function SyncCard({ sync }: { sync: AthleteHub['sync'] }) {
         </button>
         {sync.recordsPending > 0 && (
           <button
-            onClick={() => analyzeMutation.mutate()}
+            onClick={() => {
+              analyzeBatches.current = 0
+              analyzeMutation.mutate()
+            }}
             disabled={busy}
             className="rounded-lg bg-pine-600 px-3 py-1.5 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
           >

@@ -57,7 +57,6 @@ export function SessionPage() {
   const search = useSearch({ strict: false }) as { from?: string }
   const sessionId = params.sessionId!
   const queryClient = useQueryClient()
-  const navigate = useNavigate()
 
   const query = useQuery({
     queryKey: ['session', sessionId],
@@ -105,7 +104,6 @@ export function SessionPage() {
           {t('session.actionFailed')}
         </p>
       )}
-      {void navigate}
     </div>
   )
 }
@@ -441,7 +439,7 @@ function SessionActions({
           disabled={exporting}
           className="rounded-lg border border-moss-200 px-4 py-2 text-sm font-medium text-ink transition hover:bg-moss-100 disabled:opacity-50 dark:border-moss-750 dark:text-linen dark:hover:bg-moss-800"
         >
-          {exporting ? 'Export…' : '⌚ Exporter .fit'}
+          {exporting ? t('session.exporting') : t('session.exportFit')}
         </button>
       )}
       {session.discipline === 'GYM' && session.status === 'PLANNED' && session.templateVariantId && (
@@ -533,6 +531,7 @@ function ProposalBanner({
   onValidate: () => void
   onDismiss: () => void
 }) {
+  const { t } = useTranslation('calendar')
   const pace = formatPace(proposal.durationMin, proposal.distanceKm)
   const facts = [
     format(parseISO(proposal.date), 'EEEE d MMMM', { locale: dateLocale() }),
@@ -546,15 +545,15 @@ function ProposalBanner({
     <div className="mb-4 rounded-xl border border-[#fc4c02]/30 bg-[#fc4c02]/5 p-3 dark:bg-[#fc4c02]/10">
       <div className="flex items-start justify-between gap-2">
         <p className="text-sm">
-          <span className="font-semibold">Cette sortie Strava semble correspondre :</span>{' '}
-          {proposal.name ?? 'Sortie'}
+          <span className="font-semibold">{t('proposal.matches')}</span>{' '}
+          {proposal.name ?? t('proposal.run')}
           <span className="mt-0.5 block text-xs text-moss-500 dark:text-moss-400">
             {facts.join(' · ')}
           </span>
         </p>
         <button
           onClick={onDismiss}
-          aria-label="Ignorer la proposition"
+          aria-label={t('proposal.dismiss')}
           className="rounded p-1 text-xs text-moss-500 transition hover:bg-moss-100 dark:text-moss-400 dark:hover:bg-moss-800"
         >
           ✕
@@ -564,7 +563,7 @@ function ProposalBanner({
         onClick={onValidate}
         className="mt-2 rounded-lg bg-[#fc4c02] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#e04502]"
       >
-        ✓ Valider cette sortie
+        {t('proposal.validateRun')}
       </button>
     </div>
   )
@@ -579,6 +578,7 @@ function WizardShell({
   onCancel: () => void
   children: React.ReactNode
 }) {
+  const { t } = useTranslation('calendar')
   return (
     <div className="mt-6 border-t border-moss-200 pt-4 dark:border-moss-750">
       <div className="flex items-baseline justify-between">
@@ -587,7 +587,7 @@ function WizardShell({
           onClick={onCancel}
           className="text-xs font-medium text-moss-500 hover:underline dark:text-moss-400"
         >
-          Annuler
+          {t('common:cancel')}
         </button>
       </div>
       <div className="mt-2">{children}</div>
@@ -911,13 +911,13 @@ function StructureEditor({
           disabled={pending}
           className="rounded-lg bg-pine-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
         >
-          Enregistrer la structure
+          {t('session.saveStructure')}
         </button>
         <button
           onClick={onCancel}
           className="rounded-lg px-4 py-2 text-sm font-medium text-moss-500 transition hover:bg-moss-100 dark:text-moss-400 dark:hover:bg-moss-800"
         >
-          Annuler
+          {t('common:cancel')}
         </button>
       </div>
     </div>
@@ -944,16 +944,16 @@ function ActivityReport({
   })
 
   const tiles: { label: string; value: string }[] = [
-    activity.distanceKm != null && { label: 'Distance', value: `${activity.distanceKm} km` },
-    { label: 'Temps', value: formatDuration(activity.durationMin) ?? '—' },
+    activity.distanceKm != null && { label: t('report.distance'), value: `${activity.distanceKm} km` },
+    { label: t('report.time'), value: formatDuration(activity.durationMin) ?? '—' },
     activity.distanceKm != null && {
-      label: 'Allure moy.',
+      label: t('report.avgPace'),
       value: formatPace(activity.durationMin, activity.distanceKm) ?? '—',
     },
-    activity.elevationM != null && { label: 'D+', value: `${activity.elevationM} m` },
-    activity.avgHr != null && { label: 'FC moy.', value: `${activity.avgHr} bpm` },
+    activity.elevationM != null && { label: t('report.elevation'), value: `${activity.elevationM} m` },
+    activity.avgHr != null && { label: t('report.avgHr'), value: `${activity.avgHr} bpm` },
     activity.avgCadenceSpm != null && {
-      label: 'Cadence',
+      label: t('report.cadence'),
       value: `${Math.round(activity.avgCadenceSpm)} spm`,
     },
   ].filter(Boolean) as { label: string; value: string }[]
@@ -1005,7 +1005,7 @@ function ActivityReport({
       {/* charts */}
       {activity.hasStreams && streams.data && <StreamCharts streams={streams.data} />}
       {activity.hasStreams && streams.isLoading && (
-        <p className="mt-4 text-sm text-moss-500 dark:text-moss-400">Chargement des courbes…</p>
+        <p className="mt-4 text-sm text-moss-500 dark:text-moss-400">{t('report.loadingCharts')}</p>
       )}
 
       <div className="mt-6 flex gap-2 border-t border-moss-200 pt-4 dark:border-moss-750">

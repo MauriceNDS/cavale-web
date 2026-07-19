@@ -37,17 +37,28 @@ export function nodesToDrafts(nodes: WorkoutNode[]): ItemDraft[] {
       terrain: node.terrain ?? 'PLAT',
     }
   }
-  // loops flatten one nesting level for editing: 2×(8×[a,b]) → 16×[a,b]
+  // The flat draft model has no nested loops, so an inner repeat is folded into
+  // the parent WITHOUT dropping its count — every repetition the athlete runs
+  // survives a save/load round-trip. Only the visual grouping is flattened:
+  //   · sole child     2×(8×[a,b])              → 16×[a,b]  (counts multiply)
+  //   · with siblings  3×[warmup, 8×(30s/1min)] → 3×[warmup, (30s/1min) inlined 8×]
   const flattenLoop = (count: number, children: WorkoutNode[]): LoopDraft => {
     const steps: StepDraft[] = []
     let totalCount = count
     for (const child of children) {
       if (child.type === 'repeat' && child.children) {
+        const innerSteps = child.children.filter((inner) => inner.type === 'step')
         if (children.length === 1) {
+          // Sole child: fold its count into the loop's own repeat count.
           totalCount = count * (child.count ?? 1)
-          child.children.forEach((inner) => inner.type === 'step' && steps.push(toStep(inner)))
+          innerSteps.forEach((inner) => steps.push(toStep(inner)))
         } else {
-          child.children.forEach((inner) => inner.type === 'step' && steps.push(toStep(inner)))
+          // Beside siblings the count can't move to the parent, so expand the
+          // inner repeat inline (its steps, count× times) to preserve the data.
+          const times = child.count ?? 1
+          for (let i = 0; i < times; i++) {
+            innerSteps.forEach((inner) => steps.push(toStep(inner)))
+          }
         }
       } else {
         steps.push(toStep(child))

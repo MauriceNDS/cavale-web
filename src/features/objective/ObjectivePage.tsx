@@ -4,6 +4,7 @@ import { differenceInCalendarDays, format, parseISO } from 'date-fns'
 import { useTranslation } from 'react-i18next'
 import { dateLocale, numberLocale } from '../../i18n'
 import { ApiError } from '../../lib/api'
+import { card, muted } from '../../lib/ui'
 import { deletePlan, fetchPlans } from '../calendar/api'
 import { WEEK_TYPE_BADGE, weekTypeLabel } from '../calendar/labels'
 import {
@@ -33,9 +34,6 @@ import {
   objectivePaceSecPerKm,
   objectiveTypeLabel,
 } from './labels'
-
-const card = 'rounded-xl border border-moss-200 bg-moss-25 p-5 dark:border-moss-750 dark:bg-moss-850'
-const muted = 'text-moss-500 dark:text-moss-400'
 
 export function ObjectivePage() {
   const { t } = useTranslation('objective')
