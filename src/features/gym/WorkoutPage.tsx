@@ -9,6 +9,9 @@ import {
   fetchWorkout,
   finishWorkout,
   logSet,
+  restoreWorkoutBlock,
+  skipWorkoutBlock,
+  swapWorkoutBlock,
   type ExerciseResponse,
   type PerceivedEffort,
   type SetLogResponse,
@@ -188,10 +191,29 @@ function BlockCard({
   readOnly: boolean
 }) {
   const { t } = useTranslation('gym')
-  // Swap to an alternative: sets log against the replacement exercise.
-  const [exercise, setExercise] = useState<ExerciseResponse>(block.exercise)
+  const queryClient = useQueryClient()
   const [showAlternatives, setShowAlternatives] = useState(false)
   const [restLeft, setRestLeft] = useState<number | null>(null)
+
+  // Swaps and skips are persisted server-side — a phone reload keeps them.
+  const exercise = block.exercise
+  const swapped = block.swappedFrom != null
+  const invalidate = () =>
+    void queryClient.invalidateQueries({ queryKey: ['workout', workoutId] })
+
+  const swapMutation = useMutation({
+    mutationFn: (exerciseId: string) =>
+      swapWorkoutBlock(workoutId, block.templateExerciseId, exerciseId),
+    onSuccess: invalidate,
+  })
+  const skipMutation = useMutation({
+    mutationFn: () => skipWorkoutBlock(workoutId, block.templateExerciseId),
+    onSuccess: invalidate,
+  })
+  const restoreMutation = useMutation({
+    mutationFn: () => restoreWorkoutBlock(workoutId, block.templateExerciseId),
+    onSuccess: invalidate,
+  })
 
   useEffect(() => {
     if (restLeft == null || restLeft <= 0) return
@@ -203,8 +225,25 @@ function BlockCard({
     return () => clearTimeout(t)
   }, [restLeft])
 
+  if (block.skipped) {
+    return (
+      <div className="flex items-center gap-2 rounded-xl border border-dashed border-moss-200 bg-moss-25/60 px-3 py-2.5 dark:border-moss-750 dark:bg-moss-850/60">
+        <p className={`min-w-0 flex-1 truncate text-sm line-through ${muted}`}>{exercise.name}</p>
+        <span className={`shrink-0 text-xs ${muted}`}>{t('workout.skipped')}</span>
+        {!readOnly && (
+          <button
+            onClick={() => restoreMutation.mutate()}
+            disabled={restoreMutation.isPending}
+            className="shrink-0 text-xs font-medium text-pine-700 underline disabled:opacity-50 dark:text-pine-300"
+          >
+            {t('workout.restoreBlock')}
+          </button>
+        )}
+      </div>
+    )
+  }
+
   const seconds = exercise.measure === 'SECONDS'
-  const swapped = exercise.id !== block.exercise.id
 
   const target = seconds
     ? `${block.sets} × ${block.targetSeconds ?? '?'} sec`
@@ -234,18 +273,29 @@ function BlockCard({
       <div className="flex flex-wrap items-center gap-2">
         <p className="font-medium">
           {exercise.name}
-          {swapped && <span className={`ml-1 text-xs ${muted}`}>{t('workout.insteadOf', { name: block.exercise.name })}</span>}
+          {swapped && <span className={`ml-1 text-xs ${muted}`}>{t('workout.insteadOf', { name: block.swappedFrom!.name })}</span>}
         </p>
         <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${CATEGORY_BADGE[exercise.category]}`}>
           {categoryLabel(exercise.category)}
         </span>
-        {block.alternatives.length > 0 && !readOnly && (
-          <button
-            onClick={() => setShowAlternatives(!showAlternatives)}
-            className="ml-auto text-xs font-medium text-pine-700 underline dark:text-pine-300"
-          >
-            {t('workout.replace')}
-          </button>
+        {!readOnly && (
+          <span className="ml-auto flex items-center gap-2.5">
+            {(block.alternatives.length > 0 || swapped) && (
+              <button
+                onClick={() => setShowAlternatives(!showAlternatives)}
+                className="text-xs font-medium text-pine-700 underline dark:text-pine-300"
+              >
+                {t('workout.replace')}
+              </button>
+            )}
+            <button
+              onClick={() => skipMutation.mutate()}
+              disabled={skipMutation.isPending}
+              className="text-xs font-medium text-clay-500 underline disabled:opacity-50 dark:text-clay-300"
+            >
+              {t('workout.skipBlock')}
+            </button>
+          </span>
         )}
       </div>
       <p className={`mt-0.5 text-xs ${muted}`}>{prescription}</p>
@@ -257,15 +307,16 @@ function BlockCard({
 
       {showAlternatives && (
         <div className="mt-2 flex flex-wrap gap-1.5">
-          {[block.exercise, ...block.alternatives].map((alt) => (
+          {[block.swappedFrom ?? block.exercise, ...block.alternatives].map((alt) => (
             <button
               key={alt.id}
               onClick={() => {
-                setExercise(alt)
+                if (alt.id !== exercise.id) swapMutation.mutate(alt.id)
                 setShowAlternatives(false)
               }}
+              disabled={swapMutation.isPending}
               aria-pressed={alt.id === exercise.id}
-              className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${
+              className={`rounded-full px-2.5 py-1 text-xs font-medium transition disabled:opacity-50 ${
                 alt.id === exercise.id
                   ? 'bg-pine-600 text-moss-25 dark:bg-pine-350 dark:text-moss-950'
                   : 'bg-moss-100 text-moss-500 hover:text-ink dark:bg-moss-800 dark:text-moss-400 dark:hover:text-linen'
@@ -275,6 +326,11 @@ function BlockCard({
             </button>
           ))}
         </div>
+      )}
+      {(swapMutation.error ?? skipMutation.error) instanceof ApiError && (
+        <p role="alert" className="mt-1 text-xs text-clay-500 dark:text-clay-300">
+          {t('workout.adjustFailed')}
+        </p>
       )}
 
       {restLeft != null && (

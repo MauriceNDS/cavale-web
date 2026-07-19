@@ -229,7 +229,11 @@ export interface WorkoutLogResponse {
 
 export interface WorkoutBlockResponse {
   templateExerciseId: string
+  /** The EFFECTIVE exercise — a swap shows the replacement. */
   exercise: ExerciseResponse
+  /** The prescribed exercise when a swap is active, null otherwise. */
+  swappedFrom: ExerciseResponse | null
+  skipped: boolean
   alternatives: ExerciseResponse[]
   sets: number
   targetReps: number | null
@@ -285,6 +289,39 @@ export function finishWorkout(
 
 export function abandonWorkout(workoutLogId: string): Promise<void> {
   return api.delete(`/api/workouts/${workoutLogId}`)
+}
+
+/** Machine taken: swap a block to an alternative (or back to the prescribed one). */
+export function swapWorkoutBlock(
+  workoutLogId: string,
+  templateExerciseId: string,
+  exerciseId: string,
+): Promise<WorkoutBlockResponse> {
+  return api.put<WorkoutBlockResponse>(
+    `/api/workouts/${workoutLogId}/blocks/${templateExerciseId}/exercise`,
+    { exerciseId },
+  )
+}
+
+/** No time left: drop a block from this workout (undoable). */
+export function skipWorkoutBlock(
+  workoutLogId: string,
+  templateExerciseId: string,
+): Promise<WorkoutBlockResponse> {
+  return api.post<WorkoutBlockResponse>(
+    `/api/workouts/${workoutLogId}/blocks/${templateExerciseId}/skip`,
+    {},
+  )
+}
+
+export function restoreWorkoutBlock(
+  workoutLogId: string,
+  templateExerciseId: string,
+): Promise<WorkoutBlockResponse> {
+  return api.post<WorkoutBlockResponse>(
+    `/api/workouts/${workoutLogId}/blocks/${templateExerciseId}/restore`,
+    {},
+  )
 }
 
 /* ── Stats ─────────────────────────────────────────────────────────── */
