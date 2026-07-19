@@ -113,11 +113,11 @@ export function TemplatesPage() {
           >
             <div className="flex items-center justify-between gap-2">
               <p className="font-display text-lg font-semibold">{template.name}</p>
-              <div className="flex gap-1">
+              <div className="flex flex-wrap justify-end gap-1">
                 {template.variants.map((variant) => (
                   <span
                     key={variant.id}
-                    className="grid h-6 w-6 place-items-center rounded-full bg-copper-600/15 text-xs font-semibold text-copper-600 dark:bg-copper-300/15 dark:text-copper-300"
+                    className="rounded-full bg-copper-600/15 px-2 py-0.5 text-xs font-semibold text-copper-600 dark:bg-copper-300/15 dark:text-copper-300"
                   >
                     {variant.label}
                   </span>

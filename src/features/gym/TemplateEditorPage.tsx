@@ -130,7 +130,7 @@ export function TemplateEditorPage() {
             key={variant.id}
             onClick={() => setVariantId(variant.id)}
             aria-pressed={variant.id === activeVariantId}
-            className={`grid h-8 w-8 place-items-center rounded-full text-sm font-semibold transition ${
+            className={`rounded-full px-3 py-1.5 text-sm font-semibold transition ${
               variant.id === activeVariantId
                 ? 'bg-copper-600 text-moss-25 dark:bg-copper-300 dark:text-moss-950'
                 : 'bg-copper-600/15 text-copper-600 hover:bg-copper-600/25 dark:bg-copper-300/15 dark:text-copper-300'
