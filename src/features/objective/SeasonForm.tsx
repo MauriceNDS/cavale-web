@@ -4,17 +4,14 @@ import { useTranslation } from 'react-i18next'
 import { ErrorAlert } from '../../components/form'
 import { ApiError } from '../../lib/api'
 import { createPlan } from '../calendar/api'
-import { ObjectiveFields, buildObjectiveSchema, readObjectiveFields } from './ObjectiveForm'
-
-const fieldClass =
-  'mt-1 w-full rounded-lg border border-moss-200 bg-moss-100 px-3 py-2 text-sm transition outline-none focus:border-pine-600 focus:ring-2 focus:ring-pine-600/25 dark:border-moss-750 dark:bg-moss-800 dark:focus:border-pine-350 dark:focus:ring-pine-350/25'
+import { ObjectiveFields, buildObjectiveSchema, fieldClass, readObjectiveFields } from './ObjectiveForm'
 
 /**
  * Creates a season (training plan) together with its fully-specified MAIN
  * objective — the one flow behind "plan the next objective" on the home page
  * and the first-objective empty state on the objective page.
  */
-export function SeasonForm({ onDone, onCancel }: { onDone?: () => void; onCancel: () => void }) {
+export function SeasonForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => void }) {
   const { t } = useTranslation('objective')
   const queryClient = useQueryClient()
   const [validationError, setValidationError] = useState<string | null>(null)
@@ -24,7 +21,7 @@ export function SeasonForm({ onDone, onCancel }: { onDone?: () => void; onCancel
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['hub'] })
       queryClient.invalidateQueries({ queryKey: ['plans'] })
-      onDone?.()
+      onDone()
     },
   })
 
@@ -38,11 +35,13 @@ export function SeasonForm({ onDone, onCancel }: { onDone?: () => void; onCancel
       return
     }
     setValidationError(null)
+    // resultTimeMin only exists on the edit form; a season is created before its race.
+    const { resultTimeMin: _unused, ...objectivePayload } = parsed.data
     mutation.mutate({
       name: (data.get('seasonName') as string).trim(),
       startDate: data.get('startDate') as string,
       endDate: data.get('endDate') as string,
-      objective: parsed.data,
+      objective: objectivePayload,
     })
   }
 

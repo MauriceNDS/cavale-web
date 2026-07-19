@@ -28,9 +28,10 @@ const card = 'rounded-xl border border-moss-200 bg-moss-25 p-5 dark:border-moss-
 const RANGES = [1, 3, 6, 12] as const
 type RangeMonths = (typeof RANGES)[number]
 
-export function formatChrono(sec: number): string {
-  const h = Math.floor(sec / 3600)
-  const m = Math.round((sec % 3600) / 60)
+function formatChrono(sec: number): string {
+  const totalMin = Math.round(sec / 60)
+  const h = Math.floor(totalMin / 60)
+  const m = totalMin % 60
   if (h === 0) return `${m} min`
   return `${h}h${String(m).padStart(2, '0')}`
 }
