@@ -77,6 +77,12 @@ export default {
     error: 'The demo is momentarily unavailable — please try again.',
     orDemo: 'just exploring?',
   },
+  devLogin: {
+    title: 'Dev environment',
+    emailPlaceholder: 'account email',
+    submit: 'Enter',
+    submitting: 'Signing in…',
+  },
   pending: {
     pendingTitle: 'Account awaiting approval',
     pendingBody:

@@ -9,7 +9,7 @@ import {
 } from 'react'
 import { applyLanguage } from '../../i18n'
 import { ApiError, clearToken, getToken, setToken, setUnauthorizedHandler } from '../../lib/api'
-import { fetchMe, loginUser, startDemo, type UserResponse } from './api'
+import { devLogin, fetchMe, loginUser, startDemo, type UserResponse } from './api'
 
 interface AuthState {
   /** undefined = session still being restored; null = signed out */
@@ -17,6 +17,8 @@ interface AuthState {
   login: (email: string, password: string) => Promise<UserResponse>
   /** Spin up a throwaway demo session and sign into it. */
   loginWithDemo: () => Promise<UserResponse>
+  /** Dev-env door: sign in by email, no password (404s in production). */
+  loginWithDevEmail: (email: string) => Promise<UserResponse>
   logout: () => void
   /** Re-fetch /me after a profile change so the shell reflects it. */
   refresh: () => Promise<void>
@@ -81,6 +83,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return auth.user
   }, [])
 
+  const loginWithDevEmail = useCallback(async (email: string) => {
+    const auth = await devLogin(email)
+    setToken(auth.token)
+    setUser(auth.user)
+    return auth.user
+  }, [])
+
   const logout = useCallback(() => {
     clearToken()
     setUser(null)
@@ -98,8 +107,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [preferredLanguage])
 
   const value = useMemo(
-    () => ({ user, login, loginWithDemo, logout, refresh }),
-    [user, login, loginWithDemo, logout, refresh],
+    () => ({ user, login, loginWithDemo, loginWithDevEmail, logout, refresh }),
+    [user, login, loginWithDemo, loginWithDevEmail, logout, refresh],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

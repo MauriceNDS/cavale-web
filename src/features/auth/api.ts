@@ -59,3 +59,13 @@ export function fetchMe(): Promise<UserResponse> {
 export function startDemo(): Promise<AuthResponse> {
   return api.post<AuthResponse>('/api/auth/demo', {})
 }
+
+/** Whether this deployment's passwordless dev door is open (dev env only). */
+export function fetchDevLoginEnabled(): Promise<{ enabled: boolean }> {
+  return api.get<{ enabled: boolean }>('/api/auth/dev-login')
+}
+
+/** Dev only: exchange a known email for a session, no password. */
+export function devLogin(email: string): Promise<AuthResponse> {
+  return api.post<AuthResponse>('/api/auth/dev-login', { email })
+}

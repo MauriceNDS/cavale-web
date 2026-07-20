@@ -77,6 +77,12 @@ export default {
     error: 'La démo est momentanément indisponible — réessaie.',
     orDemo: 'juste curieux ?',
   },
+  devLogin: {
+    title: 'Environnement dev',
+    emailPlaceholder: 'email du compte',
+    submit: 'Entrer',
+    submitting: 'Connexion…',
+  },
   pending: {
     pendingTitle: 'Compte en attente de validation',
     pendingBody:
