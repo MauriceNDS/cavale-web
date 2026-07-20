@@ -90,9 +90,13 @@ export default {
       basedOn: "d'après ton {{record}}",
     },
     trends: {
-      volumeTitle: 'Volume mensuel',
+      volumeTitle: 'Volume',
       distanceKm: 'Distance (km)',
       elevationM: 'D+ (m)',
+      byWeek: 'Par semaine',
+      byMonth: 'Par mois',
+      rangeWeeks: '{{count}} sem.',
+      rangeMonths: '{{count}} mois',
       yearSummary: '{{duration}} et {{elevation}} m de D+ cette année.',
       evolutionTitle: 'Évolution',
       pace: 'Allure',
@@ -107,7 +111,7 @@ export default {
     },
   },
   charts: {
-    monthlyAria: 'Par mois ({{unit}})',
+    volumeAria: 'Volume par période ({{unit}})',
     noData: 'Pas encore de données.',
     runs: 'Sorties',
     weeklyEffortLegend: 'Effort hebdo',

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { differenceInCalendarDays, differenceInYears, format, parseISO } from 'date-fns'
@@ -21,8 +21,8 @@ import {
   type TrailIndex,
   type TrainingStatusLabel,
 } from './api'
-import { EffortChart, MonthlyBars, TrendLine } from './charts'
-import { formatChrono, formatHours, formatPace } from './labels'
+import { EffortChart, PeriodBars, TrendLine, type PeriodPoint } from './charts'
+import { formatChrono, formatHours, formatMonth, formatPace } from './labels'
 
 // Safety cap on the self-chaining analyze drain: a backend that never reports
 // remaining === 0 must not spin up requests forever.
@@ -544,31 +544,56 @@ function RecordsSection({ hub }: { hub: AthleteHub }) {
 
 type VolumeMetric = 'km' | 'dplus'
 type TrendMetric = 'pace' | 'hr' | 'cadence'
+type Granularity = 'week' | 'month'
+
+/** Zoom stops of the trend charts, per granularity. */
+const RANGES: Record<Granularity, number[]> = {
+  week: [8, 16, 26],
+  month: [6, 12, 24],
+}
 
 function TrendsSection({ hub }: { hub: AthleteHub }) {
   const { t } = useTranslation('athlete')
   const [volumeMetric, setVolumeMetric] = useState<VolumeMetric>('km')
   const [trendMetric, setTrendMetric] = useState<TrendMetric>('pace')
+  const [granularity, setGranularity] = useState<Granularity>('month')
+  const [range, setRange] = useState<Record<Granularity, number>>({ week: 16, month: 12 })
   const { monthly, weeklyEffort, totals } = hub
+  // Tolerate a hub payload from an API deployed moments before this build.
+  const weekly = hub.weekly ?? []
+
+  const periods = useMemo<PeriodPoint[]>(
+    () =>
+      granularity === 'month'
+        ? monthly
+            .slice(-range.month)
+            .map((m) => ({ ...m, key: m.month, label: formatMonth(m.month) }))
+        : weekly.slice(-range.week).map((w) => ({
+            ...w,
+            key: w.weekStart,
+            label: format(parseISO(w.weekStart), 'd MMM', { locale: dateLocale() }),
+          })),
+    [monthly, weekly, granularity, range],
+  )
 
   const trend = {
     pace: {
       label: t('home.trends.avgPace'),
-      value: (m: (typeof monthly)[number]) => m.avgPaceSecPerKm,
+      value: (p: PeriodPoint) => p.avgPaceSecPerKm,
       format: (v: number) => formatPace(v),
       tick: (v: number) => formatPace(v).replace('/km', ''),
       invert: true,
     },
     hr: {
       label: t('home.trends.avgHr'),
-      value: (m: (typeof monthly)[number]) => m.avgHr,
+      value: (p: PeriodPoint) => p.avgHr,
       format: (v: number) => `${Math.round(v)} bpm`,
       tick: (v: number) => `${Math.round(v)}`,
       invert: false,
     },
     cadence: {
       label: t('home.trends.avgCadence'),
-      value: (m: (typeof monthly)[number]) => m.avgCadenceSpm,
+      value: (p: PeriodPoint) => p.avgCadenceSpm,
       format: (v: number) => `${Math.round(v)} spm`,
       tick: (v: number) => `${Math.round(v)}`,
       invert: false,
@@ -594,10 +619,33 @@ function TrendsSection({ hub }: { hub: AthleteHub }) {
           elevation: totals.year.elevationM.toLocaleString(numberLocale()),
         })}
       </p>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <div className="flex gap-1 rounded-lg bg-moss-100 p-0.5 dark:bg-moss-800">
+          <button onClick={() => setGranularity('week')} className={pill(granularity === 'week')}>
+            {t('home.trends.byWeek')}
+          </button>
+          <button onClick={() => setGranularity('month')} className={pill(granularity === 'month')}>
+            {t('home.trends.byMonth')}
+          </button>
+        </div>
+        <div className="flex gap-1 rounded-lg bg-moss-100 p-0.5 dark:bg-moss-800">
+          {RANGES[granularity].map((n) => (
+            <button
+              key={n}
+              onClick={() => setRange({ ...range, [granularity]: n })}
+              className={pill(range[granularity] === n)}
+            >
+              {granularity === 'week'
+                ? t('home.trends.rangeWeeks', { count: n })
+                : t('home.trends.rangeMonths', { count: n })}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="mt-3">
-        <MonthlyBars
-          months={monthly}
-          value={(m) => (volumeMetric === 'km' ? Math.round(m.distanceKm) : m.elevationM)}
+        <PeriodBars
+          periods={periods}
+          value={(p) => (volumeMetric === 'km' ? Math.round(p.distanceKm) : p.elevationM)}
           unit={volumeMetric === 'km' ? 'km' : 'm D+'}
         />
       </div>
@@ -621,7 +669,7 @@ function TrendsSection({ hub }: { hub: AthleteHub }) {
       )}
       <div className="mt-3">
         <TrendLine
-          months={monthly}
+          periods={periods}
           value={trend.value}
           formatValue={trend.format}
           formatTick={trend.tick}

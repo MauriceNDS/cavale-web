@@ -4,8 +4,7 @@ import { format, parseISO } from 'date-fns'
 import { useTranslation } from 'react-i18next'
 import { dateLocale, numberLocale } from '../../i18n'
 import { useMeasuredWidth } from '../../lib/useMeasuredWidth'
-import type { MonthlyStat, WeeklyEffort } from './api'
-import { formatMonth } from './labels'
+import type { WeeklyEffort } from './api'
 
 /*
  * Hub trend charts, hand-rolled SVG on Massif tokens. Single series per
@@ -18,6 +17,21 @@ const FALLBACK_W = 720
 const H = 190
 const PAD = { top: 14, right: 12, bottom: 24, left: 44 }
 const PLOT_H = H - PAD.top - PAD.bottom
+
+/** One x-axis bucket of the volume/trend charts — a month or an ISO week. */
+export interface PeriodPoint {
+  key: string
+  /** Axis tick + tooltip header, already localized ("juil. 26", "6 juil."). */
+  label: string
+  runs: number
+  distanceKm: number
+  durationMin: number
+  elevationM: number
+  avgPaceSecPerKm: number | null
+  avgHr: number | null
+  avgCadenceSpm: number | null
+  relativeEffort: number
+}
 
 /** Label every Nth point so x-axis labels keep ~their designed footprint. */
 function labelStep(band: number, minPx: number): number {
@@ -87,35 +101,35 @@ function Grid({
   )
 }
 
-/* ── Monthly bars (volume / D+) ────────────────────────────────────── */
+/* ── Volume bars per period (km / D+) ──────────────────────────────── */
 
-interface MonthlyBarsProps {
-  months: MonthlyStat[]
-  value: (m: MonthlyStat) => number
+interface PeriodBarsProps {
+  periods: PeriodPoint[]
+  value: (p: PeriodPoint) => number
   unit: string
 }
 
-export function MonthlyBars({ months, value, unit }: MonthlyBarsProps) {
+export function PeriodBars({ periods, value, unit }: PeriodBarsProps) {
   const { t } = useTranslation('athlete')
   const { ref, width } = useMeasuredWidth<HTMLDivElement>(FALLBACK_W)
   const [hover, setHover] = useState<number | null>(null)
   const plotW = width - PAD.left - PAD.right
-  const max = Math.max(...months.map(value), 1)
+  const max = Math.max(...periods.map(value), 1)
   const ticks = niceTicks(max)
   const top = ticks[ticks.length - 1] || 1
   const y = (v: number) => PAD.top + PLOT_H - (v / top) * PLOT_H
-  const band = plotW / months.length
+  const band = plotW / periods.length
   const barWidth = Math.min(24, band * 0.6)
   const step = labelStep(band, 52)
 
   return (
-    <div ref={ref} className="relative">
-      <svg viewBox={`0 0 ${width} ${H}`} className="h-auto w-full" role="img" aria-label={t('charts.monthlyAria', { unit })}>
+    <div ref={ref} className="relative select-none">
+      <svg viewBox={`0 0 ${width} ${H}`} className="h-auto w-full" role="img" aria-label={t('charts.volumeAria', { unit })}>
         <Grid ticks={ticks} y={y} width={width} />
-        {months.map((month, i) => {
-          const v = value(month)
+        {periods.map((period, i) => {
+          const v = value(period)
           return (
-            <g key={month.month}>
+            <g key={period.key}>
               {v > 0 && (
                 <path
                   d={roundedTopBar(PAD.left + i * band + (band - barWidth) / 2, y(v), barWidth, y(0) - y(v))}
@@ -130,7 +144,7 @@ export function MonthlyBars({ months, value, unit }: MonthlyBarsProps) {
                   textAnchor="middle"
                   className="fill-moss-500 text-[10px] dark:fill-moss-400"
                 >
-                  {formatMonth(month.month)}
+                  {period.label}
                 </text>
               )}
               <rect
@@ -148,15 +162,15 @@ export function MonthlyBars({ months, value, unit }: MonthlyBarsProps) {
       </svg>
       {hover != null && (
         <Tooltip x={PAD.left + hover * band + band / 2} width={width}>
-          <p className="font-semibold">{formatMonth(months[hover].month)}</p>
+          <p className="font-semibold">{periods[hover].label}</p>
           <dl className="mt-1 space-y-0.5">
             <div className="flex justify-between">
               <dt className="text-moss-500 dark:text-moss-400">{unit}</dt>
-              <dd className="font-medium">{value(months[hover]).toLocaleString(numberLocale())}</dd>
+              <dd className="font-medium">{value(periods[hover]).toLocaleString(numberLocale())}</dd>
             </div>
             <div className="flex justify-between">
               <dt className="text-moss-500 dark:text-moss-400">{t('charts.runs')}</dt>
-              <dd>{months[hover].runs}</dd>
+              <dd>{periods[hover].runs}</dd>
             </div>
           </dl>
         </Tooltip>
@@ -165,11 +179,11 @@ export function MonthlyBars({ months, value, unit }: MonthlyBarsProps) {
   )
 }
 
-/* ── Monthly trend line (pace / HR / cadence) ──────────────────────── */
+/* ── Trend line per period (pace / HR / cadence) ───────────────────── */
 
 interface TrendLineProps {
-  months: MonthlyStat[]
-  value: (m: MonthlyStat) => number | null
+  periods: PeriodPoint[]
+  value: (p: PeriodPoint) => number | null
   formatValue: (v: number) => string
   /** Compact tick label for the y-axis (falls back to formatValue). */
   formatTick?: (v: number) => string
@@ -178,12 +192,12 @@ interface TrendLineProps {
   label: string
 }
 
-export function TrendLine({ months, value, formatValue, formatTick, invert, label }: TrendLineProps) {
+export function TrendLine({ periods, value, formatValue, formatTick, invert, label }: TrendLineProps) {
   const { t } = useTranslation('athlete')
   const { ref, width } = useMeasuredWidth<HTMLDivElement>(FALLBACK_W)
   const [hover, setHover] = useState<number | null>(null)
   const plotW = width - PAD.left - PAD.right
-  const points = months.map((m, i) => ({ i, v: value(m) })).filter((p) => p.v != null) as {
+  const points = periods.map((p, i) => ({ i, v: value(p) })).filter((p) => p.v != null) as {
     i: number
     v: number
   }[]
@@ -202,10 +216,10 @@ export function TrendLine({ months, value, formatValue, formatTick, invert, labe
     const t = (v - lo) / (hi - lo)
     return PAD.top + (invert ? t : 1 - t) * PLOT_H
   }
-  const x = (i: number) => PAD.left + (months.length === 1 ? plotW / 2 : (i / (months.length - 1)) * plotW)
-  const step = labelStep(plotW / months.length, 52)
+  const x = (i: number) => PAD.left + (periods.length === 1 ? plotW / 2 : (i / (periods.length - 1)) * plotW)
+  const step = labelStep(plotW / periods.length, 52)
 
-  // gap on missing months: restart the path after a hole
+  // gap on missing periods: restart the path after a hole
   let path = ''
   let previous = -2
   for (const p of points) {
@@ -216,7 +230,7 @@ export function TrendLine({ months, value, formatValue, formatTick, invert, labe
   const hovered = hover != null ? points.find((p) => p.i === hover) : undefined
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className="relative select-none">
       <svg viewBox={`0 0 ${width} ${H}`} className="h-auto w-full" role="img" aria-label={label}>
         {[...new Set([lo + (hi - lo) * 0.2, lo + (hi - lo) * 0.5, lo + (hi - lo) * 0.8])].map((t) => (
           <g key={t}>
@@ -272,8 +286,8 @@ export function TrendLine({ months, value, formatValue, formatTick, invert, labe
             />
           </>
         )}
-        {months.map((month, i) => (
-          <g key={month.month}>
+        {periods.map((period, i) => (
+          <g key={period.key}>
             {i % step === 0 && (
               <text
                 x={x(i)}
@@ -281,13 +295,13 @@ export function TrendLine({ months, value, formatValue, formatTick, invert, labe
                 textAnchor="middle"
                 className="fill-moss-500 text-[10px] dark:fill-moss-400"
               >
-                {formatMonth(month.month)}
+                {period.label}
               </text>
             )}
             <rect
-              x={x(i) - plotW / months.length / 2}
+              x={x(i) - plotW / periods.length / 2}
               y={PAD.top}
-              width={plotW / months.length}
+              width={plotW / periods.length}
               height={PLOT_H}
               fill="transparent"
               onMouseEnter={() => setHover(i)}
@@ -298,7 +312,7 @@ export function TrendLine({ months, value, formatValue, formatTick, invert, labe
       </svg>
       {hover != null && hovered && (
         <Tooltip x={x(hovered.i)} width={width}>
-          <p className="font-semibold">{formatMonth(months[hover].month)}</p>
+          <p className="font-semibold">{periods[hover].label}</p>
           <p className="mt-1 flex justify-between">
             <span className="text-moss-500 dark:text-moss-400">{label}</span>
             <span className="font-medium">{formatValue(hovered.v)}</span>
@@ -334,7 +348,7 @@ export function EffortChart({ weeks }: { weeks: WeeklyEffort[] }) {
     .join(' ')
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className="relative select-none">
       <div className="mb-2 flex items-center gap-4">
         <span className="flex items-center gap-1.5 text-xs text-moss-500 dark:text-moss-400">
           <span className="h-2.5 w-2.5 rounded-[3px] bg-pine-600 dark:bg-pine-350" aria-hidden />

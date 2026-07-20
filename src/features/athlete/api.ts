@@ -57,6 +57,19 @@ export interface MonthlyStat {
   relativeEffort: number
 }
 
+/** Same trend metrics as MonthlyStat, on ISO-week buckets. */
+export interface WeeklyStat {
+  weekStart: string
+  runs: number
+  distanceKm: number
+  durationMin: number
+  elevationM: number
+  avgPaceSecPerKm: number | null
+  avgHr: number | null
+  avgCadenceSpm: number | null
+  relativeEffort: number
+}
+
 export interface WeeklyEffort {
   weekStart: string
   relativeEffort: number
@@ -89,6 +102,7 @@ export interface AthleteHub {
   trailIndex: TrailIndex | null
   totals: { year: PeriodTotals; allTime: PeriodTotals }
   monthly: MonthlyStat[]
+  weekly: WeeklyStat[]
   weeklyEffort: WeeklyEffort[]
   sync: { stravaConnected: boolean; syncedActivities: number; recordsPending: number }
 }
