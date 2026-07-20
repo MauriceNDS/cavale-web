@@ -28,3 +28,8 @@ export function disconnectIntervals(): Promise<void> {
 export function pushIntervals(): Promise<PushResult> {
   return api.post<PushResult>('/api/intervals/push', {})
 }
+
+/** Export one session to the watch (Export → Garmin Connect). */
+export function pushSessionToGarmin(sessionId: string): Promise<PushResult> {
+  return api.post<PushResult>(`/api/intervals/push/${sessionId}`, {})
+}

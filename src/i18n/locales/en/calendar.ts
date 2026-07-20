@@ -108,7 +108,11 @@ export default {
     createStructure: '+ Create structure',
     structureTitle: 'Workout structure',
     saveStructure: 'Save structure',
-    exportFit: '⌚ Export .fit',
+    export: '⌚ Export',
+    exportFit: '.fit file',
+    exportGarmin: 'Garmin Connect',
+    exportGarminDone:
+      'Sent to Garmin Connect — sync your watch and the workout is in your trainings.',
     exporting: 'Exporting…',
     exportFitHint:
       'The file is a structured workout: import it on Garmin Connect (desktop) via Training → Workouts → Import, then "Send to device". The mobile app can only import courses.',

@@ -108,7 +108,11 @@ export default {
     createStructure: '+ Créer la structure',
     structureTitle: 'Structure de la séance',
     saveStructure: 'Enregistrer la structure',
-    exportFit: '⌚ Exporter .fit',
+    export: '⌚ Exporter',
+    exportFit: 'Fichier .fit',
+    exportGarmin: 'Garmin Connect',
+    exportGarminDone:
+      'Envoyé vers Garmin Connect — synchronise ta montre, la séance est dans tes entraînements.',
     exporting: 'Export…',
     exportFitHint:
       "Le fichier est un entraînement structuré : importe-le sur Garmin Connect (ordinateur) via Entraînements → Importer, puis « Envoyer à l'appareil ». L'app mobile ne sait importer que des parcours.",
