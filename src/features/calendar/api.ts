@@ -34,6 +34,8 @@ export interface ActivityStreams {
   hr: number[]
   alt: number[]
   vel: number[]
+  /** Steps per minute (both legs). Absent on streams stored before cadence support. */
+  cad?: number[]
 }
 
 export type Allure = 'LENTE' | 'EF' | 'COURSE' | 'SEUIL60' | 'SEUIL30' | 'VMA' | 'SPRINT'

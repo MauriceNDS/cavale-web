@@ -174,6 +174,13 @@ export default {
     chartElevation: 'Profil (m)',
     chartPace: 'Allure (min/km)',
     chartHr: 'Fréquence cardiaque (bpm)',
+    chartCadence: 'Cadence (ppm)',
+    splitsTitle: 'Temps par kilomètre',
+    splitsKm: 'Km',
+    splitsPace: 'Allure',
+    splitsHr: 'FC',
+    splitsDplus: 'D+',
+    splitsPartial: '{{km}} km',
   },
   today: {
     activeWorkout: '🏋 Séance en cours : {{name}}',

@@ -174,6 +174,13 @@ export default {
     chartElevation: 'Elevation (m)',
     chartPace: 'Pace (min/km)',
     chartHr: 'Heart rate (bpm)',
+    chartCadence: 'Cadence (spm)',
+    splitsTitle: 'Kilometre splits',
+    splitsKm: 'Km',
+    splitsPace: 'Pace',
+    splitsHr: 'HR',
+    splitsDplus: 'D+',
+    splitsPartial: '{{km}} km',
   },
   today: {
     activeWorkout: '🏋 Workout in progress: {{name}}',
