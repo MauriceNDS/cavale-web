@@ -278,7 +278,7 @@ function TabBar({ user, onLogout }: { user: UserResponse; onLogout: () => void }
             key={item.label}
             to={item.to!}
             activeOptions={{ exact: item.to === '/' }}
-            className="flex flex-col items-center gap-0.5 pt-1.5 pb-2 text-[10px] font-medium text-moss-500 transition dark:text-moss-400 [&.active]:text-pine-700 dark:[&.active]:text-pine-300 [&.active_.tab-pill]:bg-pine-100 dark:[&.active_.tab-pill]:bg-pine-900"
+            className="flex flex-col items-center gap-0.5 pt-2 pb-2.5 text-[10px] font-medium text-moss-500 transition dark:text-moss-400 [&.active]:text-pine-700 dark:[&.active]:text-pine-300 [&.active_.tab-pill]:bg-pine-100 dark:[&.active_.tab-pill]:bg-pine-900"
           >
             <span className="tab-pill grid h-7 w-12 place-items-center rounded-full transition">
               {item.icon && <item.icon className="h-5.5 w-5.5" />}
@@ -290,7 +290,7 @@ function TabBar({ user, onLogout }: { user: UserResponse; onLogout: () => void }
           onClick={() => setMenuOpen(true)}
           aria-haspopup="menu"
           aria-expanded={menuOpen}
-          className={`flex flex-col items-center gap-0.5 pt-1.5 pb-2 text-[10px] font-medium transition ${
+          className={`flex flex-col items-center gap-0.5 pt-2 pb-2.5 text-[10px] font-medium transition ${
             accountActive ? 'text-pine-700 dark:text-pine-300' : 'text-moss-500 dark:text-moss-400'
           }`}
         >
@@ -458,7 +458,7 @@ function Shell({ children }: { children: ReactNode }) {
 
       <div className="flex min-h-screen flex-1 flex-col">
         {user.demo && <DemoBanner onExit={handleLogout} />}
-        <main className="flex-1 px-4 pb-24 md:px-8 md:pb-10">{children}</main>
+        <main className="flex-1 px-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] md:px-8 md:pb-10">{children}</main>
         <TabBar user={user} onLogout={handleLogout} />
       </div>
     </div>

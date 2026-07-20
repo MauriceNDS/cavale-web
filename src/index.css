@@ -67,9 +67,14 @@
   html {
     font-family: var(--font-sans);
     @apply bg-moss-50 dark:bg-moss-900;
+    /* No grey/blue flash on tap — components style their own pressed states. */
+    -webkit-tap-highlight-color: transparent;
   }
   body {
     @apply text-ink dark:text-linen;
+    /* Keep scrolling and pinch-zoom, but drop double-tap-to-zoom: a quick
+       second tap while scrubbing a chart must not zoom the page. */
+    touch-action: manipulation;
   }
 
   /* When a button label must wrap on a narrow screen, wrap it evenly —
