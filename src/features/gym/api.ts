@@ -67,6 +67,9 @@ export interface VariantSummary {
   label: string
   note: string | null
   exerciseCount: number
+  /** Loops of a circuit variant — null for a classic sets×reps program. */
+  circuitLoops: number | null
+  circuitRestSec: number | null
 }
 
 export interface TemplateResponse {
@@ -101,6 +104,9 @@ export interface VariantDetailResponse {
   templateName: string
   label: string
   note: string | null
+  /** Loops of a circuit variant — null for a classic sets×reps program. */
+  circuitLoops: number | null
+  circuitRestSec: number | null
   exercises: TemplateExerciseResponse[]
 }
 
@@ -153,6 +159,14 @@ export function copyVariant(
   body: { label: string; note?: string },
 ): Promise<VariantSummary> {
   return api.post<VariantSummary>(`/api/gym/variants/${variantId}/copy`, body)
+}
+
+/** Configure circuit mode (loops + rest between loops); loops null reverts to sets×reps. */
+export function configureCircuit(
+  variantId: string,
+  body: { loops: number | null; restSec?: number | null },
+): Promise<VariantSummary> {
+  return api.put<VariantSummary>(`/api/gym/variants/${variantId}/circuit`, body)
 }
 
 export function deleteVariant(variantId: string): Promise<void> {
@@ -237,8 +251,14 @@ export interface WorkoutBlockResponse {
   /** The prescribed exercise when a swap is active, null otherwise. */
   swappedFrom: ExerciseResponse | null
   skipped: boolean
+  /** Alternatives declared on the template block. */
   alternatives: ExerciseResponse[]
+  /** Ranked same-category / same-muscles candidates computed by the API. */
+  suggestedAlternatives: ExerciseResponse[]
+  /** EFFECTIVE set count (live adjustment applied; loop count in a circuit). */
   sets: number
+  /** What the template prescribes — differs from sets when adjusted live. */
+  prescribedSets: number
   targetReps: number | null
   targetSeconds: number | null
   restSec: number | null
@@ -251,6 +271,9 @@ export interface WorkoutBlockResponse {
 export interface WorkoutDetailResponse {
   log: WorkoutLogResponse
   blocks: WorkoutBlockResponse[]
+  /** Set when the variant is a circuit: blocks run as loops. */
+  circuitLoops: number | null
+  circuitRestSec: number | null
 }
 
 export function startWorkout(body: {
@@ -330,6 +353,30 @@ export function swapWorkoutBlock(
   return api.put<WorkoutBlockResponse>(
     `/api/workouts/${workoutLogId}/blocks/${templateExerciseId}/exercise`,
     { exerciseId },
+  )
+}
+
+/** Adjust a block's set count for this workout only — down to 0. */
+export function adjustBlockSets(
+  workoutLogId: string,
+  templateExerciseId: string,
+  sets: number,
+): Promise<WorkoutBlockResponse> {
+  return api.put<WorkoutBlockResponse>(
+    `/api/workouts/${workoutLogId}/blocks/${templateExerciseId}/sets`,
+    { sets },
+  )
+}
+
+/** Same adjustment for a mid-workout addition. */
+export function adjustExtraBlockSets(
+  workoutLogId: string,
+  extraBlockId: string,
+  sets: number,
+): Promise<WorkoutBlockResponse> {
+  return api.put<WorkoutBlockResponse>(
+    `/api/workouts/${workoutLogId}/extra-blocks/${extraBlockId}/sets`,
+    { sets },
   )
 }
 
