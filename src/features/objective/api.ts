@@ -46,6 +46,8 @@ export interface WeekProgress {
   phase: string | null
   current: boolean
   targetVolumeKm: number | null
+  /** Km the prescribed session times should actually produce (personal pace model). */
+  estimatedVolumeKm: number | null
   targetElevationM: number | null
   targetLoadUa: number | null
   actualVolumeKm: number

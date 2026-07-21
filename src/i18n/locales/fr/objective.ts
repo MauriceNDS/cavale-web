@@ -74,6 +74,8 @@ export default {
     volume: 'Volume',
     elevation: 'D+',
     sessions: 'Séances',
+    volumeEstimateHint:
+      "Attendu pour les durées prescrites à tes allures ; l'objectif du plan entre parenthèses",
   },
   charts: {
     actual: 'Réalisé',

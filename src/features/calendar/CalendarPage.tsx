@@ -289,11 +289,40 @@ function WeekMetrics({ week, sessions }: { week: WeekResponse; sessions: Session
     return sum + rpe * (s.activity?.durationMin ?? s.durationMin ?? 0)
   }, 0)
 
-  const metrics: { label: string; actual: string | null; target: string | null }[] = [
+  // The estimate (personal pace model over the prescribed times) is the honest
+  // bar; the stored target stays visible in the tooltip, clay-tinted when the
+  // prescription drifts ≥10% from it.
+  const estimate = week.estimatedVolumeKm
+  const volumeDrifts =
+    estimate != null &&
+    week.targetVolumeKm != null &&
+    week.targetVolumeKm > 0 &&
+    Math.abs(estimate - week.targetVolumeKm) / week.targetVolumeKm >= 0.1
+
+  const metrics: {
+    label: string
+    actual: string | null
+    target: string | null
+    title?: string
+    alert?: boolean
+  }[] = [
     {
       label: t('header.metrics.volume'),
       actual: doneDistance > 0 ? `${Math.round(doneDistance * 10) / 10}` : '—',
-      target: week.targetVolumeKm != null ? `${week.targetVolumeKm} km` : null,
+      target:
+        estimate != null
+          ? `~${estimate} km`
+          : week.targetVolumeKm != null
+            ? `${week.targetVolumeKm} km`
+            : null,
+      title:
+        estimate != null && week.targetVolumeKm != null
+          ? t('header.metrics.volumeEstimateHint', {
+              target: week.targetVolumeKm,
+              estimate,
+            })
+          : undefined,
+      alert: volumeDrifts,
     },
     {
       label: t('header.metrics.elevation'),
@@ -321,11 +350,22 @@ function WeekMetrics({ week, sessions }: { week: WeekResponse; sessions: Session
         .map((m) => (
           <span
             key={m.label}
+            title={m.title}
             className="shrink-0 rounded-lg border border-moss-200 bg-moss-25 px-2.5 py-1 text-xs whitespace-nowrap tabular-nums dark:border-moss-750 dark:bg-moss-850"
           >
             <span className="text-moss-500 dark:text-moss-400">{m.label} </span>
             <span className="font-semibold">{m.actual ?? '—'}</span>
-            {m.target && <span className="text-moss-500 dark:text-moss-400"> / {m.target}</span>}
+            {m.target && (
+              <span
+                className={
+                  m.alert
+                    ? 'text-clay-500 dark:text-clay-300'
+                    : 'text-moss-500 dark:text-moss-400'
+                }
+              >
+                {' '}/ {m.target}
+              </span>
+            )}
           </span>
         ))}
     </div>

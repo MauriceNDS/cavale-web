@@ -73,6 +73,8 @@ export default {
     volume: 'Volume',
     elevation: 'D+',
     sessions: 'Sessions',
+    volumeEstimateHint:
+      'Expected from the prescribed times at your paces; the plan target in parentheses',
   },
   charts: {
     actual: 'Actual',

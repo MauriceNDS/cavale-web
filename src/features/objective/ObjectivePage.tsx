@@ -484,7 +484,19 @@ function WeeksTable({ weeks }: { weeks: WeekProgress[] }) {
                 </td>
                 <td className="py-1.5 pr-2 text-right">
                   {Math.round(week.actualVolumeKm * 10) / 10}
-                  <span className={muted}> / {week.targetVolumeKm ?? '—'} km</span>
+                  <span className={muted}>
+                    {' '}/ {week.estimatedVolumeKm != null
+                      ? `~${week.estimatedVolumeKm}`
+                      : (week.targetVolumeKm ?? '—')} km
+                  </span>
+                  {week.estimatedVolumeKm != null && week.targetVolumeKm != null && (
+                    <span
+                      className={`ml-1 text-xs ${muted}`}
+                      title={t('table.volumeEstimateHint')}
+                    >
+                      ({week.targetVolumeKm})
+                    </span>
+                  )}
                 </td>
                 <td className="py-1.5 pr-2 text-right">
                   {week.actualElevationM.toLocaleString(numberLocale())}

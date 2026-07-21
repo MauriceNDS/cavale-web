@@ -61,6 +61,8 @@ export default {
       elevation: 'D+',
       time: 'Temps',
       load: 'Charge',
+      volumeEstimateHint:
+        'Objectif du plan : {{target}} km · ~{{estimate}} km attendus pour les durées prescrites à tes allures',
     },
   },
   day: {

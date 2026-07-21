@@ -89,6 +89,8 @@ export interface WeekResponse {
   phase: string | null
   weekType: WeekType
   targetVolumeKm: number | null
+  /** Km the prescribed session times should actually produce (personal pace model). */
+  estimatedVolumeKm: number | null
   targetElevationM: number | null
   targetLoadUa: number | null
   focus: string | null
