@@ -164,6 +164,8 @@ export default {
     validateRun: '✓ Validate this run',
   },
   report: {
+    shoe: 'Shoe',
+    shoeRetired: 'retired',
     distance: 'Distance',
     time: 'Time',
     avgPace: 'Avg pace',

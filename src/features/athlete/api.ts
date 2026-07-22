@@ -207,6 +207,8 @@ export interface ActivityDetail {
   painFlag: boolean
   comment: string | null
   hasStreams: boolean
+  shoeId: string | null
+  discipline: 'RUN' | 'GYM' | 'REST' | 'CROSS'
 }
 
 export function fetchActivityDetail(activityId: string): Promise<ActivityDetail> {

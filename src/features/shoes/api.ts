@@ -40,3 +40,25 @@ export function updateShoe(id: string, body: ShoePayload): Promise<ShoeResponse>
 export function deleteShoe(id: string): Promise<void> {
   return api.delete(`/api/shoes/${id}`)
 }
+
+export interface ShoeStatsResponse {
+  runs: number
+  totalKm: number
+  totalElevationM: number
+  firstUsedOn: string | null
+  lastUsedOn: string | null
+  avgPaceSecPerKm: number | null
+  monthlyKm: { month: string; km: number }[]
+}
+
+export function fetchShoeStats(id: string): Promise<ShoeStatsResponse> {
+  return api.get<ShoeStatsResponse>(`/api/shoes/${id}/stats`)
+}
+
+/** Assign a pair to an activity after the fact — null clears it. */
+export function assignShoeToActivity(
+  activityId: string,
+  shoeId: string | null,
+): Promise<{ shoeId: string | null }> {
+  return api.put<{ shoeId: string | null }>(`/api/shoes/of-activity/${activityId}`, { shoeId })
+}

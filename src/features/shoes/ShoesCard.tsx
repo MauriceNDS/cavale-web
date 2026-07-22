@@ -1,12 +1,15 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { format, parseISO } from 'date-fns'
 import { useTranslation } from 'react-i18next'
-import { numberLocale } from '../../i18n'
+import { dateLocale, numberLocale } from '../../i18n'
 import { ApiError } from '../../lib/api'
+import { Modal } from '../../components/Modal'
 import {
   createShoe,
   deleteShoe,
   fetchShoes,
+  fetchShoeStats,
   updateShoe,
   type ShoePayload,
   type ShoePurpose,
@@ -43,6 +46,7 @@ export function ShoesCard() {
   const queryClient = useQueryClient()
   const shoesQuery = useQuery({ queryKey: ['shoes'], queryFn: fetchShoes })
   const [editing, setEditing] = useState<string | 'new' | null>(null)
+  const [statsOf, setStatsOf] = useState<ShoeResponse | null>(null)
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['shoes'] })
   const close = () => {
@@ -57,7 +61,8 @@ export function ShoesCard() {
   const deleteMut = useMutation({ mutationFn: deleteShoe, onSuccess: refresh })
 
   const shoes = shoesQuery.data ?? []
-  const error = createMut.error ?? updateMut.error
+  const editingShoe = shoes.find((s) => s.id === editing) ?? null
+  const error = createMut.error ?? updateMut.error ?? deleteMut.error
 
   return (
     <section className="mt-6 rounded-xl border border-moss-200 bg-moss-25 p-6 dark:border-moss-750 dark:bg-moss-850">
@@ -66,25 +71,13 @@ export function ShoesCard() {
           <h2 className="font-display text-lg font-semibold">{t('parameters.shoes.title')}</h2>
           <p className="mt-0.5 text-sm text-moss-500 dark:text-moss-400">{t('parameters.shoes.intro')}</p>
         </div>
-        {editing !== 'new' && (
-          <button
-            onClick={() => setEditing('new')}
-            className="shrink-0 rounded-lg bg-pine-600 px-3 py-1.5 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
-          >
-            {t('common:add')}
-          </button>
-        )}
+        <button
+          onClick={() => setEditing('new')}
+          className="shrink-0 rounded-lg bg-pine-600 px-3 py-1.5 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
+        >
+          {t('common:add')}
+        </button>
       </div>
-
-      {editing === 'new' && (
-        <div className="mt-4">
-          <ShoeForm
-            pending={createMut.isPending}
-            onSubmit={(body) => createMut.mutate(body)}
-            onCancel={() => setEditing(null)}
-          />
-        </div>
-      )}
 
       {error instanceof ApiError && (
         <p role="alert" className="mt-2 text-sm text-clay-500 dark:text-clay-300">
@@ -92,7 +85,7 @@ export function ShoesCard() {
         </p>
       )}
 
-      {shoes.length === 0 && editing !== 'new' && (
+      {shoes.length === 0 && (
         <p className="mt-4 text-sm text-moss-500 dark:text-moss-400">{t('parameters.shoes.empty')}</p>
       )}
 
@@ -104,44 +97,166 @@ export function ShoesCard() {
               shoe.retired ? 'opacity-60' : ''
             }`}
           >
-            {editing === shoe.id ? (
-              <ShoeForm
-                shoe={shoe}
-                pending={updateMut.isPending}
-                onSubmit={(body) => updateMut.mutate({ id: shoe.id, body })}
-                onCancel={() => setEditing(null)}
-              />
-            ) : (
-              <ShoeRow
-                shoe={shoe}
-                onEdit={() => setEditing(shoe.id)}
-                onDelete={() => deleteMut.mutate(shoe.id)}
-                onToggleRetired={() =>
-                  updateMut.mutate({
-                    id: shoe.id,
-                    body: { ...toPayload(shoe), retired: !shoe.retired, isDefault: false },
-                  })
+            <ShoeRow
+              shoe={shoe}
+              onStats={() => setStatsOf(shoe)}
+              onEdit={() => setEditing(shoe.id)}
+              onDelete={() => {
+                if (window.confirm(t('parameters.shoes.deleteConfirm', { name: shoe.name }))) {
+                  deleteMut.mutate(shoe.id)
                 }
-                onMakeDefault={() =>
-                  updateMut.mutate({ id: shoe.id, body: { ...toPayload(shoe), isDefault: true } })
-                }
-              />
-            )}
+              }}
+              onToggleRetired={() =>
+                updateMut.mutate({
+                  id: shoe.id,
+                  body: { ...toPayload(shoe), retired: !shoe.retired, isDefault: false },
+                })
+              }
+              onMakeDefault={() =>
+                updateMut.mutate({ id: shoe.id, body: { ...toPayload(shoe), isDefault: true } })
+              }
+            />
           </li>
         ))}
       </ul>
+
+      {editing === 'new' && (
+        <Modal title={t('parameters.shoes.addTitle')} onClose={() => setEditing(null)}>
+          <ShoeForm
+            pending={createMut.isPending}
+            onSubmit={(body) => createMut.mutate(body)}
+            onCancel={() => setEditing(null)}
+          />
+        </Modal>
+      )}
+      {editingShoe && (
+        <Modal
+          title={t('parameters.shoes.editTitle', { name: editingShoe.name })}
+          onClose={() => setEditing(null)}
+        >
+          <ShoeForm
+            shoe={editingShoe}
+            pending={updateMut.isPending}
+            onSubmit={(body) => updateMut.mutate({ id: editingShoe.id, body })}
+            onCancel={() => setEditing(null)}
+          />
+        </Modal>
+      )}
+      {statsOf && <ShoeStatsSheet shoe={statsOf} onClose={() => setStatsOf(null)} />}
     </section>
+  )
+}
+
+/* ── One pair's life in numbers ────────────────────────────────────── */
+
+function ShoeStatsSheet({ shoe, onClose }: { shoe: ShoeResponse; onClose: () => void }) {
+  const { t } = useTranslation('settings')
+  const stats = useQuery({
+    queryKey: ['shoe-stats', shoe.id],
+    queryFn: () => fetchShoeStats(shoe.id),
+  })
+  const data = stats.data
+  const maxMonth = data ? Math.max(...data.monthlyKm.map((m) => m.km), 1) : 1
+
+  const tile = (label: string, value: string) => (
+    <div className="rounded-lg border border-moss-200 bg-moss-50 p-2.5 dark:border-moss-750 dark:bg-moss-900">
+      <p className="text-[11px] font-semibold tracking-wide text-moss-500 uppercase dark:text-moss-400">
+        {label}
+      </p>
+      <p className="mt-0.5 font-display text-lg font-semibold tabular-nums">{value}</p>
+    </div>
+  )
+
+  return (
+    <Modal
+      title={shoe.name}
+      subtitle={[shoe.brand, shoe.purpose ? t(`parameters.shoes.purposes.${shoe.purpose}`) : null]
+        .filter(Boolean)
+        .join(' · ') || undefined}
+      onClose={onClose}
+    >
+      {stats.isLoading && (
+        <p className="text-sm text-moss-500 dark:text-moss-400">{t('common:loading')}</p>
+      )}
+      {data && (
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            {tile(t('parameters.shoes.stats.runs'), String(data.runs))}
+            {tile(t('parameters.shoes.stats.totalKm'), `${data.totalKm.toLocaleString(numberLocale())} km`)}
+            {tile(t('parameters.shoes.stats.elevation'), `${data.totalElevationM.toLocaleString(numberLocale())} m`)}
+            {tile(
+              t('parameters.shoes.stats.avgPace'),
+              data.avgPaceSecPerKm != null
+                ? `${Math.floor(data.avgPaceSecPerKm / 60)}:${String(data.avgPaceSecPerKm % 60).padStart(2, '0')} /km`
+                : '—',
+            )}
+          </div>
+
+          {shoe.retirementKm != null && (
+            <div>
+              <p className="flex justify-between text-xs text-moss-500 dark:text-moss-400">
+                <span>{t('parameters.shoes.stats.wear')}</span>
+                <span className="tabular-nums">
+                  {Math.round(shoe.mileageKm)} / {shoe.retirementKm} km
+                </span>
+              </p>
+              <div className="mt-1 h-2 overflow-hidden rounded-full bg-moss-200 dark:bg-moss-800">
+                <div
+                  className={`h-full rounded-full ${
+                    shoe.needsRetirement ? 'bg-clay-500 dark:bg-clay-300' : 'bg-pine-600 dark:bg-pine-350'
+                  }`}
+                  style={{ width: `${Math.min((shoe.mileageKm / shoe.retirementKm) * 100, 100)}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          <div>
+            <p className="text-[11px] font-semibold tracking-wide text-moss-500 uppercase dark:text-moss-400">
+              {t('parameters.shoes.stats.monthly')}
+            </p>
+            <div className="mt-2 flex h-24 items-end gap-1.5">
+              {data.monthlyKm.map((m) => (
+                <div key={m.month} className="flex min-w-0 flex-1 flex-col items-center gap-1">
+                  <span className="text-[10px] text-moss-500 tabular-nums dark:text-moss-400">
+                    {m.km > 0 ? Math.round(m.km) : ''}
+                  </span>
+                  <div
+                    className="w-full rounded-t bg-pine-600/80 dark:bg-pine-350/80"
+                    style={{ height: `${Math.max((m.km / maxMonth) * 64, m.km > 0 ? 3 : 1)}px` }}
+                  />
+                  <span className="truncate text-[10px] text-moss-500 dark:text-moss-400">
+                    {format(parseISO(`${m.month}-01`), 'MMM', { locale: dateLocale() })}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {data.firstUsedOn && data.lastUsedOn && (
+            <p className="text-xs text-moss-500 dark:text-moss-400">
+              {t('parameters.shoes.stats.lifespan', {
+                first: format(parseISO(data.firstUsedOn), 'd MMM yyyy', { locale: dateLocale() }),
+                last: format(parseISO(data.lastUsedOn), 'd MMM yyyy', { locale: dateLocale() }),
+              })}
+            </p>
+          )}
+        </div>
+      )}
+    </Modal>
   )
 }
 
 function ShoeRow({
   shoe,
+  onStats,
   onEdit,
   onDelete,
   onToggleRetired,
   onMakeDefault,
 }: {
   shoe: ShoeResponse
+  onStats: () => void
   onEdit: () => void
   onDelete: () => void
   onToggleRetired: () => void
@@ -152,7 +267,11 @@ function ShoeRow({
 
   return (
     <div className="flex gap-3">
-      <div className="relative">
+      <button
+        onClick={onStats}
+        aria-label={t('parameters.shoes.statsAria', { name: shoe.name })}
+        className="relative self-start transition hover:opacity-80"
+      >
         <BrandBadge brand={shoe.brand} />
         {shoe.color && (
           <span
@@ -161,11 +280,13 @@ function ShoeRow({
             aria-hidden="true"
           />
         )}
-      </div>
+      </button>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-medium">{shoe.name}</span>
+            <button onClick={onStats} className="font-medium underline-offset-2 hover:underline">
+              {shoe.name}
+            </button>
             {shoe.brand && <span className="text-sm text-moss-500 dark:text-moss-400">{shoe.brand}</span>}
             {shoe.isDefault && (
               <span className="rounded-full bg-pine-100 px-2 py-0.5 text-[11px] font-semibold text-pine-700 dark:bg-pine-900 dark:text-pine-300">
@@ -189,6 +310,9 @@ function ShoeRow({
             )}
           </div>
           <div className="flex flex-wrap gap-1">
+            <button onClick={onStats} className="rounded-lg px-2.5 py-1 text-sm font-medium text-pine-700 transition hover:bg-pine-100 dark:text-pine-300 dark:hover:bg-pine-900">
+              {t('parameters.shoes.statsButton')}
+            </button>
             {!shoe.isDefault && !shoe.retired && (
               <button onClick={onMakeDefault} className="rounded-lg px-2.5 py-1 text-sm font-medium text-moss-500 transition hover:text-ink dark:text-moss-400 dark:hover:text-linen">
                 {t('parameters.shoes.makeDefault')}

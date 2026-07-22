@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
 import { format, parseISO } from 'date-fns'
 import { useTranslation } from 'react-i18next'
@@ -6,6 +6,7 @@ import { StreamCharts } from '../../components/StreamCharts'
 import { dateLocale, numberLocale } from '../../i18n'
 import { card, muted } from '../../lib/ui'
 import { effortLabel } from '../calendar/labels'
+import { ActivityShoeRow } from '../shoes/ActivityShoeRow'
 import type { PerceivedEffort } from '../calendar/api'
 import { fetchActivityDetail, fetchActivityStreams } from './api'
 
@@ -25,6 +26,7 @@ export function ActivityDetailPage() {
   const params = useParams({ strict: false }) as { activityId?: string }
   const activityId = params.activityId!
 
+  const queryClient = useQueryClient()
   const query = useQuery({
     queryKey: ['activity', activityId],
     queryFn: () => fetchActivityDetail(activityId),
@@ -116,6 +118,16 @@ export function ActivityDetailPage() {
             </div>
           ))}
         </div>
+
+        {a.discipline === 'RUN' && (
+          <ActivityShoeRow
+            activityId={a.id}
+            shoeId={a.shoeId}
+            onSaved={() =>
+              void queryClient.invalidateQueries({ queryKey: ['activity', a.id] })
+            }
+          />
+        )}
 
         {(a.perceivedEffort || a.painFlag || a.comment) && (
           <div className="mt-3 rounded-xl border border-moss-200 bg-moss-25 p-3 dark:border-moss-750 dark:bg-moss-850">

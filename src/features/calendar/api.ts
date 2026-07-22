@@ -26,6 +26,8 @@ export interface ActivitySummary {
   painFlag: boolean
   comment: string | null
   hasStreams: boolean
+  activityId: string
+  shoeId: string | null
 }
 
 export interface ActivityStreams {

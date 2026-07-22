@@ -164,6 +164,8 @@ export default {
     validateRun: '✓ Valider cette sortie',
   },
   report: {
+    shoe: 'Chaussure',
+    shoeRetired: 'retirée',
     distance: 'Distance',
     time: 'Temps',
     avgPace: 'Allure moy.',
