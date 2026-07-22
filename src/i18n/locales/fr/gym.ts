@@ -29,6 +29,8 @@ export default {
       BARBELL: 'Barre',
       DUMBBELL: 'Haltères',
       MACHINE: 'Machine',
+      CABLE: 'Poulie',
+      SMITH: 'Smith machine',
       BODYWEIGHT: 'Poids du corps',
       BAND: 'Élastique',
       BOX: 'Box / step',

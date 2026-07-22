@@ -45,7 +45,7 @@ export function equipmentLabel(equipment: Equipment): string {
   return i18n.t(`gym:labels.equipment.${equipment}`)
 }
 
-export const EQUIPMENTS: Equipment[] = ['BARBELL', 'DUMBBELL', 'MACHINE', 'BODYWEIGHT', 'BAND', 'BOX']
+export const EQUIPMENTS: Equipment[] = ['BARBELL', 'DUMBBELL', 'MACHINE', 'CABLE', 'SMITH', 'BODYWEIGHT', 'BAND', 'BOX']
 
 export function measureLabel(measure: ExerciseMeasure): string {
   return i18n.t(`gym:labels.measure.${measure}`)

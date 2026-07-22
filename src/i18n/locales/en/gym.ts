@@ -29,6 +29,8 @@ export default {
       BARBELL: 'Barbell',
       DUMBBELL: 'Dumbbells',
       MACHINE: 'Machine',
+      CABLE: 'Cable',
+      SMITH: 'Smith machine',
       BODYWEIGHT: 'Bodyweight',
       BAND: 'Band',
       BOX: 'Box / step',

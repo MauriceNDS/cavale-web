@@ -13,7 +13,15 @@ export type Muscle =
   | 'EPAULES'
   | 'BRAS'
   | 'PIEDS_CHEVILLES'
-export type Equipment = 'BARBELL' | 'DUMBBELL' | 'MACHINE' | 'BODYWEIGHT' | 'BAND' | 'BOX'
+export type Equipment =
+  | 'BARBELL'
+  | 'DUMBBELL'
+  | 'MACHINE'
+  | 'CABLE'
+  | 'SMITH'
+  | 'BODYWEIGHT'
+  | 'BAND'
+  | 'BOX'
 export type ExerciseMeasure = 'WEIGHT_REPS' | 'BODYWEIGHT_REPS' | 'SECONDS'
 
 export interface ExerciseResponse {
