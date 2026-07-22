@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { addDays, format, parseISO } from 'date-fns'
@@ -6,8 +5,8 @@ import { useTranslation } from 'react-i18next'
 import { dateLocale } from '../../i18n'
 import { muted } from '../../lib/ui'
 import { fetchActiveWorkout, startWorkout } from '../gym/api'
+import { ExportMenu } from './ExportMenu'
 import {
-  downloadSessionFit,
   fetchCalendar,
   fetchSessionProposal,
   type SessionResponse,
@@ -96,7 +95,6 @@ export function TodayCard() {
 
 function SessionRow({ session }: { session: SessionResponse }) {
   const { t } = useTranslation('calendar')
-  const [exporting, setExporting] = useState(false)
   const navigate = useNavigate()
   const kind = trainingKind(session)
   const badgeCls = STATUS_BADGE[session.status]
@@ -116,15 +114,6 @@ function SessionRow({ session }: { session: SessionResponse }) {
     retry: false,
   })
   const proposal = proposalQuery.data ?? null
-
-  async function handleExport() {
-    setExporting(true)
-    try {
-      await downloadSessionFit(session)
-    } finally {
-      setExporting(false)
-    }
-  }
 
   return (
     <div
@@ -149,13 +138,7 @@ function SessionRow({ session }: { session: SessionResponse }) {
           </span>
         )}
         {session.discipline === 'RUN' && session.status === 'PLANNED' && (
-          <button
-            onClick={handleExport}
-            disabled={exporting}
-            className="rounded-lg border border-moss-200 px-3 py-1.5 text-sm font-medium transition hover:bg-moss-100 disabled:opacity-50 dark:border-moss-750 dark:hover:bg-moss-800"
-          >
-            {exporting ? t('session.exporting') : '⌚ .fit'}
-          </button>
+          <ExportMenu session={session} direction="down" />
         )}
         {session.discipline === 'GYM' && session.status === 'PLANNED' && session.templateVariantId && (
           <button

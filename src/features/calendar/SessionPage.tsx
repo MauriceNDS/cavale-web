@@ -8,11 +8,10 @@ import { ApiError } from '../../lib/api'
 import { GlossaryText } from '../../lib/glossary'
 import { StreamCharts } from '../../components/StreamCharts'
 import { startWorkout } from '../gym/api'
-import { pushSessionToGarmin } from '../intervals/api'
+import { ExportMenu } from './ExportMenu'
 import { fetchShoes } from '../shoes/api'
 import { fetchStravaActivities } from '../strava/api'
 import {
-  downloadSessionFit,
   fetchSession,
   fetchSessionProposal,
   fetchSessionStreams,
@@ -119,8 +118,6 @@ function SessionView({
 }) {
   const { t } = useTranslation('calendar')
   const [editingStructure, setEditingStructure] = useState(false)
-  const [exporting, setExporting] = useState(false)
-  const [exported, setExported] = useState(false)
 
   const totalSec =
     session.workout.length > 0
@@ -128,16 +125,6 @@ function SessionView({
       : (session.durationMin ?? 0) * 60
   const isValidated = session.status === 'DONE' && session.activity != null
   const consignes = session.structureNotes ?? session.detail
-
-  async function handleExport() {
-    setExporting(true)
-    try {
-      await downloadSessionFit(session)
-      setExported(true) // surface the "how to get it onto the watch" hint
-    } finally {
-      setExporting(false)
-    }
-  }
 
   return (
     <div className="mt-4">
@@ -230,9 +217,6 @@ function SessionView({
           {!editingStructure && (
             <SessionActions
               session={session}
-              exporting={exporting}
-              exported={exported}
-              onExport={handleExport}
               statusMutation={statusMutation}
               onValidated={onDone}
             />
@@ -252,88 +236,6 @@ function HeaderChip({ label, value }: { label: string; value: string }) {
   )
 }
 
-/**
- * Export: one button, two destinations — a .fit file download, or a direct
- * push to Garmin Connect through the athlete's Intervals.icu link. The menu
- * opens upward because the action bar is sticky at the bottom on mobile.
- */
-function ExportMenu({
-  session,
-  exportingFit,
-  exportedFit,
-  onExportFit,
-}: {
-  session: SessionResponse
-  exportingFit: boolean
-  exportedFit: boolean
-  onExportFit: () => void
-}) {
-  const { t } = useTranslation('calendar')
-  const [open, setOpen] = useState(false)
-
-  const garmin = useMutation({
-    mutationFn: () => pushSessionToGarmin(session.id),
-    onSuccess: () => setOpen(false),
-  })
-  const problem = garmin.error instanceof ApiError ? garmin.error.problem : undefined
-
-  const itemClass =
-    'block w-full rounded-md px-3 py-2 text-left text-sm font-medium text-ink transition hover:bg-moss-100 disabled:opacity-50 dark:text-linen dark:hover:bg-moss-800'
-
-  return (
-    <>
-      <div className="relative">
-        <button
-          onClick={() => setOpen((o) => !o)}
-          aria-haspopup="menu"
-          aria-expanded={open}
-          className="rounded-lg border border-moss-200 px-4 py-2 text-sm font-medium text-ink transition hover:bg-moss-100 dark:border-moss-750 dark:text-linen dark:hover:bg-moss-800"
-        >
-          {t('session.export')}
-        </button>
-        {open && (
-          <div
-            role="menu"
-            className="absolute bottom-full left-0 z-40 mb-1 w-56 rounded-lg border border-moss-200 bg-moss-25 p-1 shadow-lg dark:border-moss-750 dark:bg-moss-850"
-          >
-            <button
-              role="menuitem"
-              onClick={() => {
-                setOpen(false)
-                onExportFit()
-              }}
-              disabled={exportingFit}
-              className={itemClass}
-            >
-              {exportingFit ? t('session.exporting') : t('session.exportFit')}
-            </button>
-            <button
-              role="menuitem"
-              onClick={() => garmin.mutate()}
-              disabled={garmin.isPending}
-              className={itemClass}
-            >
-              {garmin.isPending ? t('session.exporting') : t('session.exportGarmin')}
-            </button>
-          </div>
-        )}
-      </div>
-      {exportedFit && (
-        <p className="w-full text-xs text-moss-500 dark:text-moss-400">{t('session.exportFitHint')}</p>
-      )}
-      {garmin.isSuccess && (
-        <p role="status" className="w-full text-xs text-pine-700 dark:text-pine-300">
-          {t('session.exportGarminDone')}
-        </p>
-      )}
-      {problem && (
-        <p role="alert" className="w-full text-xs text-clay-500 dark:text-clay-300">
-          {problem.detail ?? problem.title}
-        </p>
-      )}
-    </>
-  )
-}
 
 /* ── Validation wizard: choose → details → effort ──────────────────── */
 
@@ -348,16 +250,10 @@ type WizardStep =
 
 function SessionActions({
   session,
-  exporting,
-  exported,
-  onExport,
   statusMutation,
   onValidated,
 }: {
   session: SessionResponse
-  exporting: boolean
-  exported: boolean
-  onExport: () => void
   statusMutation: { mutate: (b: { status?: SessionResponse['status']; date?: string }) => void; isPending: boolean }
   onValidated: () => void
 }) {
@@ -521,14 +417,7 @@ function SessionActions({
       {/* Sticky on mobile: mid-workout, « Valider » stays one thumb away. */}
       <div className="sticky bottom-[calc(3.75rem+env(safe-area-inset-bottom))] z-30 -mx-4 mt-6 border-t border-moss-200 bg-moss-50/95 px-4 py-3 backdrop-blur md:static md:z-auto md:mx-0 md:bg-transparent md:px-0 md:pt-4 md:pb-0 md:backdrop-blur-none dark:border-moss-750 dark:bg-moss-900/95 dark:md:bg-transparent">
       <div className="flex flex-wrap gap-2">
-      {session.discipline === 'RUN' && (
-        <ExportMenu
-          session={session}
-          exportingFit={exporting}
-          exportedFit={exported}
-          onExportFit={onExport}
-        />
-      )}
+      {session.discipline === 'RUN' && <ExportMenu session={session} />}
       {session.discipline === 'GYM' && session.status === 'PLANNED' && session.templateVariantId && (
         <StartWorkoutButton sessionId={session.id} />
       )}
