@@ -11,6 +11,7 @@ import { startWorkout } from '../gym/api'
 import { ExportMenu } from './ExportMenu'
 import { ActivityShoeRow } from '../shoes/ActivityShoeRow'
 import { fetchShoes } from '../shoes/api'
+import { ShoePicker } from '../shoes/ShoePicker'
 import { fetchStravaActivities } from '../strava/api'
 import {
   fetchSession,
@@ -647,8 +648,10 @@ function ManualForm({
   const [error, setError] = useState<string | null>(null)
   const shoes = useQuery({ queryKey: ['shoes'], queryFn: fetchShoes, staleTime: 60_000, retry: false })
   const activeShoes = (shoes.data ?? []).filter((s) => !s.retired)
-  // Pre-select the athlete's default pair when they have one.
+  // Pre-select the athlete's default pair when they have one; null = untouched.
   const defaultShoeId = activeShoes.find((s) => s.isDefault)?.id ?? ''
+  const [shoeSel, setShoeSel] = useState<string | null>(null)
+  const effectiveShoeId = shoeSel ?? defaultShoeId
   const inputCls =
     'mt-0.5 w-full rounded-lg border border-moss-200 bg-moss-100 px-2.5 py-1.5 text-sm outline-none focus:border-pine-600 focus:ring-2 focus:ring-pine-600/25 dark:border-moss-750 dark:bg-moss-800 dark:focus:border-pine-350 dark:focus:ring-pine-350/25'
 
@@ -667,7 +670,7 @@ function ManualForm({
       distanceKm,
       elevationM: data.get('elevationM') ? Number(data.get('elevationM')) : undefined,
       avgHr: data.get('avgHr') ? Number(data.get('avgHr')) : undefined,
-      shoeId: (data.get('shoeId') as string) || undefined,
+      shoeId: effectiveShoeId || undefined,
     })
   }
 
@@ -697,18 +700,15 @@ function ManualForm({
           <input name="avgHr" type="number" min="30" max="250" className={inputCls} />
         </label>
         {activeShoes.length > 0 && (
-          <label className="col-span-2 block text-xs text-moss-500 dark:text-moss-400">
+          <div className="col-span-2 block text-xs text-moss-500 dark:text-moss-400">
             {t('wizard.shoeLabel')}
-            <select name="shoeId" className={inputCls} defaultValue={defaultShoeId}>
-              <option value="">{t('wizard.shoeNone')}</option>
-              {activeShoes.map((shoe) => (
-                <option key={shoe.id} value={shoe.id}>
-                  {shoe.name}
-                  {shoe.brand ? ` · ${shoe.brand}` : ''}
-                </option>
-              ))}
-            </select>
-          </label>
+            <ShoePicker
+              shoes={activeShoes}
+              value={effectiveShoeId || null}
+              onChange={(id) => setShoeSel(id ?? '')}
+              label={t('wizard.shoeLabel')}
+            />
+          </div>
         )}
       </div>
       <button
@@ -844,22 +844,15 @@ function EffortForm({
         </span>
       </label>
       {askShoe && activeShoes.length > 0 && (
-        <label className="mt-3 block text-xs text-moss-500 dark:text-moss-400">
+        <div className="mt-3 block text-xs text-moss-500 dark:text-moss-400">
           {t('wizard.shoeLabel')}
-          <select
-            value={effectiveShoeId}
-            onChange={(e) => setShoeId(e.target.value)}
-            className="mt-0.5 w-full rounded-lg border border-moss-200 bg-moss-100 px-2.5 py-1.5 text-sm outline-none focus:border-pine-600 focus:ring-2 focus:ring-pine-600/25 dark:border-moss-750 dark:bg-moss-800 dark:focus:border-pine-350 dark:focus:ring-pine-350/25"
-          >
-            <option value="">{t('wizard.shoeNone')}</option>
-            {activeShoes.map((shoe) => (
-              <option key={shoe.id} value={shoe.id}>
-                {shoe.name}
-                {shoe.brand ? ` · ${shoe.brand}` : ''}
-              </option>
-            ))}
-          </select>
-        </label>
+          <ShoePicker
+            shoes={activeShoes}
+            value={effectiveShoeId || null}
+            onChange={(id) => setShoeId(id ?? '')}
+            label={t('wizard.shoeLabel')}
+          />
+        </div>
       )}
       <textarea
         value={comment}

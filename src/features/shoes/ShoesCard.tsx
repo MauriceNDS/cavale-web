@@ -16,6 +16,7 @@ import {
   type ShoeResponse,
 } from './api'
 import { BRANDS, BrandBadge, findBrand, SHOE_COLORS } from './brands'
+import { ShoeSwatch } from './ShoeSwatch'
 
 const PURPOSES: ShoePurpose[] = ['ROAD', 'TRAIL', 'RACE']
 
@@ -33,6 +34,7 @@ function toPayload(shoe: ShoeResponse): ShoePayload {
     name: shoe.name,
     brand: shoe.brand,
     color: shoe.color,
+    colorSecondary: shoe.colorSecondary,
     purpose: shoe.purpose,
     retirementKm: shoe.retirementKm,
     retired: shoe.retired,
@@ -180,6 +182,12 @@ function ShoeStatsSheet({ shoe, onClose }: { shoe: ShoeResponse; onClose: () => 
       )}
       {data && (
         <div className="space-y-3">
+          {shoe.color && (
+            <div className="flex items-center gap-2">
+              <ShoeSwatch color={shoe.color} colorSecondary={shoe.colorSecondary} size="lg" />
+              <BrandBadge brand={shoe.brand} size="sm" />
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-2">
             {tile(t('parameters.shoes.stats.runs'), String(data.runs))}
             {tile(t('parameters.shoes.stats.totalKm'), `${data.totalKm.toLocaleString(numberLocale())} km`)}
@@ -270,16 +278,10 @@ function ShoeRow({
       <button
         onClick={onStats}
         aria-label={t('parameters.shoes.statsAria', { name: shoe.name })}
-        className="relative self-start transition hover:opacity-80"
+        className="flex items-center gap-2 self-start transition hover:opacity-80"
       >
+        <ShoeSwatch color={shoe.color} colorSecondary={shoe.colorSecondary} size="lg" />
         <BrandBadge brand={shoe.brand} />
-        {shoe.color && (
-          <span
-            className="absolute -right-1 -bottom-1 h-3 w-3 rounded-full border-2 border-moss-50 dark:border-moss-900"
-            style={{ backgroundColor: shoe.color }}
-            aria-hidden="true"
-          />
-        )}
       </button>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -354,6 +356,63 @@ function ShoeRow({
   )
 }
 
+/**
+ * One colour: preset swatches for the common cases, the native colour picker
+ * for the exact shade (great on phones), tap-again or the clear link to unset.
+ */
+function ColorField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string
+  value: string
+  onChange: (value: string) => void
+}) {
+  const { t } = useTranslation('settings')
+  return (
+    <div className="block text-xs text-moss-500 sm:col-span-2 dark:text-moss-400">
+      {label}
+      <div className="mt-1 flex flex-wrap items-center gap-1.5">
+        {SHOE_COLORS.map((c) => (
+          <button
+            key={c}
+            type="button"
+            onClick={() => onChange(value === c ? '' : c)}
+            aria-label={c}
+            aria-pressed={value === c}
+            className={`h-6 w-6 rounded-full border transition ${
+              value === c
+                ? 'border-ink ring-2 ring-pine-600/40 dark:border-linen'
+                : 'border-moss-300 dark:border-moss-700'
+            }`}
+            style={{ backgroundColor: c }}
+          />
+        ))}
+        <input
+          type="color"
+          // The native input demands a valid hex — show neutral grey until a pick.
+          value={/^#[0-9a-fA-F]{6}$/.test(value) ? value : '#888888'}
+          onChange={(e) => onChange(e.target.value)}
+          aria-label={t('parameters.shoes.colorCustom')}
+          title={t('parameters.shoes.colorCustom')}
+          className="ml-1 h-7 w-10 cursor-pointer rounded-md border border-moss-300 bg-transparent p-0.5 dark:border-moss-700"
+        />
+        {value && <span className="tabular-nums">{value.toUpperCase()}</span>}
+        {value && (
+          <button
+            type="button"
+            onClick={() => onChange('')}
+            className="font-medium underline underline-offset-2 hover:text-ink dark:hover:text-linen"
+          >
+            {t('parameters.shoes.colorNone')}
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function ShoeForm({
   shoe,
   pending,
@@ -373,6 +432,7 @@ function ShoeForm({
   )
   const [customBrand, setCustomBrand] = useState(knownBrand || initialBrand === '' ? '' : initialBrand)
   const [color, setColor] = useState(shoe?.color ?? '')
+  const [colorSecondary, setColorSecondary] = useState(shoe?.colorSecondary ?? '')
   const [isDefault, setIsDefault] = useState(shoe?.isDefault ?? false)
 
   const brand = brandChoice === '__other__' ? customBrand.trim() : brandChoice
@@ -395,6 +455,7 @@ function ShoeForm({
       name,
       brand: brand || null,
       color: color || null,
+      colorSecondary: colorSecondary || null,
       purpose: (data.get('purpose') as ShoePurpose) || null,
       retirementKm: data.get('retirementKm') ? Number(data.get('retirementKm')) : null,
       retired: shoe?.retired ?? false,
@@ -406,7 +467,17 @@ function ShoeForm({
     <form onSubmit={handleSubmit} className="grid gap-3 sm:grid-cols-2">
       <label className="block text-xs text-moss-500 sm:col-span-2 dark:text-moss-400">
         {t('parameters.shoes.name')}
-        <input name="name" defaultValue={shoe?.name} required maxLength={100} className={fieldClass} />
+        <div className="mt-0.5 flex items-center gap-2">
+          {/* Live colourway preview — what the pair will look like everywhere. */}
+          <ShoeSwatch color={color || null} colorSecondary={colorSecondary || null} size="lg" />
+          <input
+            name="name"
+            defaultValue={shoe?.name}
+            required
+            maxLength={100}
+            className={`${fieldClass} mt-0`}
+          />
+        </div>
       </label>
 
       <label className="block text-xs text-moss-500 dark:text-moss-400">
@@ -445,26 +516,12 @@ function ShoeForm({
         </select>
       </label>
 
-      <div className="block text-xs text-moss-500 sm:col-span-2 dark:text-moss-400">
-        {t('parameters.shoes.color')}
-        <div className="mt-1 flex flex-wrap items-center gap-1.5">
-          {SHOE_COLORS.map((c) => (
-            <button
-              key={c}
-              type="button"
-              onClick={() => setColor(color === c ? '' : c)}
-              aria-label={c}
-              aria-pressed={color === c}
-              className={`h-6 w-6 rounded-full border transition ${
-                color === c
-                  ? 'border-ink ring-2 ring-pine-600/40 dark:border-linen'
-                  : 'border-moss-300 dark:border-moss-700'
-              }`}
-              style={{ backgroundColor: c }}
-            />
-          ))}
-        </div>
-      </div>
+      <ColorField label={t('parameters.shoes.color')} value={color} onChange={setColor} />
+      <ColorField
+        label={t('parameters.shoes.colorSecondary')}
+        value={colorSecondary}
+        onChange={setColorSecondary}
+      />
 
       <label className="block text-xs text-moss-500 dark:text-moss-400">
         {t('parameters.shoes.retirementKm')}

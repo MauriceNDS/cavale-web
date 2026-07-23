@@ -7,6 +7,7 @@ export interface ShoeResponse {
   name: string
   brand: string | null
   color: string | null
+  colorSecondary: string | null
   purpose: ShoePurpose | null
   retirementKm: number | null
   retired: boolean
@@ -19,6 +20,7 @@ export interface ShoePayload {
   name: string
   brand?: string | null
   color?: string | null
+  colorSecondary?: string | null
   purpose?: ShoePurpose | null
   retirementKm?: number | null
   retired?: boolean

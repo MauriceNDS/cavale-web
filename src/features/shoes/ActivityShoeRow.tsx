@@ -2,9 +2,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ApiError } from '../../lib/api'
 import { assignShoeToActivity, fetchShoes } from './api'
+import { ShoePicker } from './ShoePicker'
 
 /**
- * "Which pair ran this?" — one select on a validated or history activity.
+ * "Which pair ran this?" — one picker on a validated or history activity.
  * Active pairs are offered; a retired pair already assigned stays visible.
  * Saves on change, so mileage is honest one tap after the oversight.
  */
@@ -38,22 +39,15 @@ export function ActivityShoeRow({
       <p className="text-[11px] font-semibold tracking-wide text-moss-500 uppercase dark:text-moss-400">
         {t('report.shoe')}
       </p>
-      <select
-        value={shoeId ?? ''}
-        onChange={(event) => mutation.mutate(event.target.value || null)}
-        disabled={mutation.isPending}
-        aria-label={t('report.shoe')}
-        className="min-w-0 flex-1 rounded-lg border border-moss-200 bg-moss-100 px-2.5 py-1.5 text-sm outline-none focus:border-pine-600 focus:ring-2 focus:ring-pine-600/25 disabled:opacity-50 dark:border-moss-750 dark:bg-moss-800 dark:focus:border-pine-350 dark:focus:ring-pine-350/25"
-      >
-        <option value="">{t('wizard.shoeNone')}</option>
-        {options.map((shoe) => (
-          <option key={shoe.id} value={shoe.id}>
-            {shoe.name}
-            {shoe.brand ? ` · ${shoe.brand}` : ''}
-            {shoe.retired ? ` (${t('report.shoeRetired')})` : ''}
-          </option>
-        ))}
-      </select>
+      <div className="min-w-0 flex-1">
+        <ShoePicker
+          shoes={options}
+          value={shoeId}
+          onChange={(next) => mutation.mutate(next)}
+          disabled={mutation.isPending}
+          label={t('report.shoe')}
+        />
+      </div>
       {mutation.error instanceof ApiError && (
         <p role="alert" className="w-full text-xs text-clay-500 dark:text-clay-300">
           {mutation.error.message}
