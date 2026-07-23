@@ -50,6 +50,8 @@ export interface WeekProgress {
   estimatedVolumeKm: number | null
   targetElevationM: number | null
   targetLoadUa: number | null
+  /** Sum of the week's prescribed session durations; null when nothing carries one. */
+  plannedDurationMin: number | null
   actualVolumeKm: number
   actualElevationM: number
   actualDurationMin: number
