@@ -16,6 +16,17 @@ export const WEEK_TYPE_BADGE: Record<WeekType, string> = {
   RACE: 'bg-copper-600/15 text-copper-600 dark:bg-copper-300/15 dark:text-copper-300',
 }
 
+/** Left-edge accent per week type (season list rows) — mirrors WEEK_TYPE_BADGE. */
+export const WEEK_TYPE_EDGE: Record<WeekType, string> = {
+  RECOVERY: 'border-l-pine-600 dark:border-l-pine-350',
+  TRANSITION: 'border-l-moss-400 dark:border-l-moss-500',
+  BUILD: 'border-l-moss-400 dark:border-l-moss-500',
+  DELOAD: 'border-l-pine-600 dark:border-l-pine-350',
+  SHOCK: 'border-l-wine-700 dark:border-l-wine-300',
+  TAPER: 'border-l-lake-600 dark:border-l-lake-300',
+  RACE: 'border-l-copper-600 dark:border-l-copper-300',
+}
+
 export function disciplineLabel(d: Discipline): string {
   return i18n.t(`calendar:discipline.${d}`)
 }

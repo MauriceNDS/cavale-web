@@ -53,6 +53,8 @@ export default {
     weekShort: 'W{{num}}',
     week: 'Week',
     month: 'Month',
+    season: 'Season',
+    viewAria: 'Planning view',
     loadError: 'Could not load the planning. Try again.',
     editFocus: 'Edit description',
     addFocus: 'Add a description',
@@ -227,5 +229,10 @@ export default {
     step: 'Step',
     recovery: 'recovery',
     repeatTimes: 'Repeat {{count}} times',
+  },
+  season: {
+    noPlan: 'No active plan — the season view needs one.',
+    sessions: '{{done}}/{{planned}} sessions',
+    currentWeek: 'Current week',
   },
 }

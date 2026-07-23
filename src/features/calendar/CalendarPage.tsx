@@ -57,8 +57,12 @@ import {
 } from './labels'
 import { WorkoutBuilder, draftsError, draftsToNodes, type ItemDraft } from './WorkoutBuilder'
 import { ProgressRing, RING_COLORS } from '../../components/ProgressRing'
+import { SegmentedControl } from '../../components/SegmentedControl'
+import { muted } from '../../lib/ui'
+import { fetchProgress } from '../objective/api'
+import { SeasonView } from './SeasonView'
 
-type View = 'week' | 'month'
+type View = 'week' | 'month' | 'season'
 
 const iso = (d: Date) => format(d, 'yyyy-MM-dd')
 
@@ -100,6 +104,12 @@ export function CalendarPage() {
     queryKey: ['plan', activePlan?.id],
     queryFn: () => fetchPlanDetail(activePlan!.id),
     enabled: !!activePlan,
+  })
+  // Same key as the objective page — the season list rides its cache.
+  const progress = useQuery({
+    queryKey: ['progress', activePlan?.id],
+    queryFn: () => fetchProgress(activePlan!.id),
+    enabled: view === 'season' && !!activePlan,
   })
 
   const moveMutation = useMutation({
@@ -144,6 +154,12 @@ export function CalendarPage() {
     setAnchor(view === 'week' ? addWeeks(anchor, direction) : addMonths(anchor, direction))
   }
 
+  function openWeek(startDate: string) {
+    setAnchor(parseISO(startDate))
+    setView('week')
+    navigate({ to: '/planning', search: { week: startDate } })
+  }
+
   return (
     <div className={`mx-auto mt-6 ${view === 'month' ? 'max-w-6xl' : 'max-w-3xl'}`}>
       <CalendarHeader
@@ -152,18 +168,19 @@ export function CalendarPage() {
         anchor={anchor}
         week={currentWeek}
         weekSessions={view === 'week' ? visibleSessions : []}
+        seasonTitle={activePlan?.name}
         onShift={shift}
         onToday={() => setAnchor(new Date())}
         onView={setView}
       />
 
-      {sessions.isError && (
+      {view !== 'season' && sessions.isError && (
         <p className="mt-8 text-center text-clay-500 dark:text-clay-300">
           {t('header.loadError')}
         </p>
       )}
 
-      {view === 'week' ? (
+      {view === 'week' && (
         <WeekView
           range={range}
           sessions={visibleSessions}
@@ -171,7 +188,8 @@ export function CalendarPage() {
           onMove={(id, date) => moveMutation.mutate({ id, date })}
           onAdd={setAdding}
         />
-      ) : (
+      )}
+      {view === 'month' && (
         <MonthView
           anchor={anchor}
           range={range}
@@ -182,6 +200,18 @@ export function CalendarPage() {
           }}
         />
       )}
+      {view === 'season' &&
+        (!activePlan && !plans.isLoading ? (
+          <p className={`mt-8 text-center text-sm ${muted}`}>{t('season.noPlan')}</p>
+        ) : progress.data ? (
+          <SeasonView progress={progress.data} onPickWeek={openWeek} />
+        ) : progress.isError ? (
+          <p className="mt-8 text-center text-clay-500 dark:text-clay-300">
+            {t('header.loadError')}
+          </p>
+        ) : (
+          <p className={`mt-8 text-center text-sm ${muted}`}>{t('common:loading')}</p>
+        ))}
 
       {adding && (
         <AddSessionModal
@@ -205,34 +235,40 @@ interface HeaderProps {
   anchor: Date
   week: WeekResponse | undefined
   weekSessions: SessionResponse[]
+  /** Active plan name — titles the season view. */
+  seasonTitle?: string
   onShift: (d: 1 | -1) => void
   onToday: () => void
   onView: (v: View) => void
 }
 
-function CalendarHeader({ view, range, anchor, week, weekSessions, onShift, onToday, onView }: HeaderProps) {
+function CalendarHeader({ view, range, anchor, week, weekSessions, seasonTitle, onShift, onToday, onView }: HeaderProps) {
   const { t } = useTranslation('calendar')
   const title =
-    view === 'week'
-      ? `${format(range.start, 'd', { locale: dateLocale() })}–${format(range.end, 'd MMM', { locale: dateLocale() })}`
-      : format(anchor, 'MMMM yyyy', { locale: dateLocale() })
+    view === 'season'
+      ? (seasonTitle ?? t('header.season'))
+      : view === 'week'
+        ? `${format(range.start, 'd', { locale: dateLocale() })}–${format(range.end, 'd MMM', { locale: dateLocale() })}`
+        : format(anchor, 'MMMM yyyy', { locale: dateLocale() })
 
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-      <div className="flex items-center gap-1">
-        <NavButton label={t('header.prevPeriod')} onClick={() => onShift(-1)}>
-          ‹
-        </NavButton>
-        <button
-          onClick={onToday}
-          className="rounded-lg px-3 py-1.5 text-sm font-medium text-moss-500 transition hover:bg-moss-100 hover:text-ink dark:text-moss-400 dark:hover:bg-moss-800 dark:hover:text-linen"
-        >
-          {t('common:today')}
-        </button>
-        <NavButton label={t('header.nextPeriod')} onClick={() => onShift(1)}>
-          ›
-        </NavButton>
-      </div>
+      {view !== 'season' && (
+        <div className="flex items-center gap-1">
+          <NavButton label={t('header.prevPeriod')} onClick={() => onShift(-1)}>
+            ‹
+          </NavButton>
+          <button
+            onClick={onToday}
+            className="rounded-lg px-3 py-1.5 text-sm font-medium text-moss-500 transition hover:bg-moss-100 hover:text-ink dark:text-moss-400 dark:hover:bg-moss-800 dark:hover:text-linen"
+          >
+            {t('common:today')}
+          </button>
+          <NavButton label={t('header.nextPeriod')} onClick={() => onShift(1)}>
+            ›
+          </NavButton>
+        </div>
+      )}
 
       <h1 className="font-display text-lg font-semibold capitalize md:text-xl">
         {week ? `${t('header.weekShort', { num: week.weekNumber })} · ${title}` : title}
@@ -246,21 +282,17 @@ function CalendarHeader({ view, range, anchor, week, weekSessions, onShift, onTo
         </span>
       )}
 
-      <div className="ml-auto flex rounded-lg border border-moss-200 p-0.5 dark:border-moss-750">
-        {(['week', 'month'] as const).map((v) => (
-          <button
-            key={v}
-            onClick={() => onView(v)}
-            className={`rounded-md px-3 py-1 text-sm font-medium transition ${
-              view === v
-                ? 'bg-pine-600 text-moss-25 dark:bg-pine-350 dark:text-moss-950'
-                : 'text-moss-500 hover:text-ink dark:text-moss-400 dark:hover:text-linen'
-            }`}
-          >
-            {v === 'week' ? t('header.week') : t('header.month')}
-          </button>
-        ))}
-      </div>
+      <SegmentedControl
+        className="ml-auto"
+        ariaLabel={t('header.viewAria')}
+        options={[
+          { value: 'week' as const, label: t('header.week') },
+          { value: 'month' as const, label: t('header.month') },
+          { value: 'season' as const, label: t('header.season') },
+        ]}
+        value={view}
+        onChange={onView}
+      />
 
       {week && <WeekMetrics week={week} sessions={weekSessions} />}
       {week && <WeekFocus week={week} />}
