@@ -56,6 +56,7 @@ import {
   trainingKind,
 } from './labels'
 import { WorkoutBuilder, draftsError, draftsToNodes, type ItemDraft } from './WorkoutBuilder'
+import { ProgressRing, RING_COLORS } from '../../components/ProgressRing'
 
 type View = 'week' | 'month'
 
@@ -299,22 +300,23 @@ function WeekMetrics({ week, sessions }: { week: WeekResponse; sessions: Session
     week.targetVolumeKm > 0 &&
     Math.abs(estimate - week.targetVolumeKm) / week.targetVolumeKm >= 0.1
 
+  const volumeTarget = estimate ?? week.targetVolumeKm
   const metrics: {
+    key: keyof typeof RING_COLORS
     label: string
-    actual: string | null
-    target: string | null
+    actual: number
+    target: number | null
+    sub: (target: number) => string
     title?: string
     alert?: boolean
   }[] = [
     {
+      key: 'volume',
       label: t('header.metrics.volume'),
-      actual: doneDistance > 0 ? `${Math.round(doneDistance * 10) / 10}` : '—',
-      target:
-        estimate != null
-          ? `~${estimate} km`
-          : week.targetVolumeKm != null
-            ? `${week.targetVolumeKm} km`
-            : null,
+      actual: doneDistance,
+      target: volumeTarget,
+      sub: (target) =>
+        `${Math.round(doneDistance * 10) / 10}/${estimate != null ? '~' : ''}${target} km`,
       title:
         estimate != null && week.targetVolumeKm != null
           ? t('header.metrics.volumeEstimateHint', {
@@ -325,48 +327,44 @@ function WeekMetrics({ week, sessions }: { week: WeekResponse; sessions: Session
       alert: volumeDrifts,
     },
     {
+      key: 'elevation',
       label: t('header.metrics.elevation'),
-      actual: `${doneElevation}`,
-      target: week.targetElevationM != null ? `${week.targetElevationM} m` : null,
+      actual: doneElevation,
+      target: week.targetElevationM,
+      sub: (target) => `${doneElevation}/${target} m`,
     },
     {
+      key: 'time',
       label: t('header.metrics.time'),
-      actual: formatDuration(doneMinutes) ?? '0',
-      target: formatDuration(plannedMinutes),
+      actual: doneMinutes,
+      target: plannedMinutes > 0 ? plannedMinutes : null,
+      sub: (target) => `${formatDuration(doneMinutes) ?? '0'}/${formatDuration(target)}`,
     },
     {
+      key: 'load',
       label: t('header.metrics.load'),
-      actual: `${Math.round(doneLoad)}`,
-      target: week.targetLoadUa != null ? `${week.targetLoadUa} UA` : null,
+      actual: doneLoad,
+      target: week.targetLoadUa,
+      sub: (target) => `${Math.round(doneLoad)}/${target} UA`,
     },
   ]
 
   return (
     // Single scrollable row on mobile — glanceable context must not stack up
     // and push the week below the fold.
-    <div className="flex w-full gap-2 overflow-x-auto [scrollbar-width:none] md:flex-wrap md:overflow-visible">
+    <div className="flex w-full gap-3 overflow-x-auto [scrollbar-width:none] md:flex-wrap md:overflow-visible">
       {metrics
-        .filter((m) => m.target != null)
+        .filter((m): m is (typeof metrics)[number] & { target: number } => m.target != null && m.target > 0)
         .map((m) => (
-          <span
-            key={m.label}
+          <ProgressRing
+            key={m.key}
+            ratio={m.actual / m.target}
+            label={m.label}
+            sub={m.sub(m.target)}
+            subClassName={m.alert ? 'text-clay-500 dark:text-clay-300' : undefined}
             title={m.title}
-            className="shrink-0 rounded-lg border border-moss-200 bg-moss-25 px-2.5 py-1 text-xs whitespace-nowrap tabular-nums dark:border-moss-750 dark:bg-moss-850"
-          >
-            <span className="text-moss-500 dark:text-moss-400">{m.label} </span>
-            <span className="font-semibold">{m.actual ?? '—'}</span>
-            {m.target && (
-              <span
-                className={
-                  m.alert
-                    ? 'text-clay-500 dark:text-clay-300'
-                    : 'text-moss-500 dark:text-moss-400'
-                }
-              >
-                {' '}/ {m.target}
-              </span>
-            )}
-          </span>
+            className={RING_COLORS[m.key]}
+          />
         ))}
     </div>
   )
