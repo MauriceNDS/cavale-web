@@ -26,7 +26,7 @@ export default {
   },
   parameters: {
     title: 'Settings',
-    stravaConnected: 'Strava is connected. Validate your sessions from the calendar: “Import from Strava”.',
+    stravaConnected: 'Strava is connected. Validate your sessions from the planning: “Import from Strava”.',
     stravaError: 'The Strava connection failed. Try again.',
     usage: {
       title: 'Usage',
@@ -83,7 +83,7 @@ export default {
     },
     strava: {
       title: 'Strava',
-      intro: 'Once connected, every calendar session offers “Import from Strava”.',
+      intro: 'Once connected, every planned session offers “Import from Strava”.',
       connected: 'Connected',
       configTitle: 'One-time configuration required',
       configStep1: 'Create an API application at <0>strava.com/settings/api</0> (authorization domain: <1>localhost</1>)',

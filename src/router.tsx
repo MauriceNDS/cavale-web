@@ -125,7 +125,7 @@ function IconUsers({ className }: IconProps) {
 interface NavItem {
   /** shell-namespace translation key. */
   label: string
-  to?: '/' | '/calendrier' | '/objectif' | '/renfo' | '/activites' | '/stats'
+  to?: '/' | '/planning' | '/objectif' | '/renfo' | '/activites' | '/stats'
   icon?: (props: IconProps) => ReactNode
   /** In the mobile bottom bar; the rest lives in the account menu. */
   mobileTab?: boolean
@@ -135,7 +135,7 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { label: 'nav.home', to: '/', icon: IconHome, mobileTab: true },
-  { label: 'nav.calendar', to: '/calendrier', icon: IconCalendar, mobileTab: true },
+  { label: 'nav.calendar', to: '/planning', icon: IconCalendar, mobileTab: true },
   { label: 'nav.gym', to: '/renfo', icon: IconDumbbell, mobileTab: true, needsGym: true },
   { label: 'nav.activities', to: '/activites', icon: IconPulse, mobileTab: true },
   { label: 'nav.stats', to: '/stats', icon: IconChart },
@@ -518,10 +518,21 @@ const indexRoute = createRoute({
 
 const calendarRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/calendrier',
+  path: '/planning',
   component: CalendarPage,
   validateSearch: (search: Record<string, unknown>): { week?: string } =>
     typeof search.week === 'string' ? { week: search.week } : {},
+})
+
+// Legacy URL kept alive for old bookmarks and external links.
+const legacyCalendarRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/calendrier',
+  validateSearch: (search: Record<string, unknown>): { week?: string } =>
+    typeof search.week === 'string' ? { week: search.week } : {},
+  beforeLoad: ({ search }) => {
+    throw redirect({ to: '/planning', search })
+  },
 })
 
 const sessionRoute = createRoute({
@@ -651,6 +662,7 @@ const stravaCallbackRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   indexRoute,
   calendarRoute,
+  legacyCalendarRoute,
   sessionRoute,
   objectiveRoute,
   renfoRoute,

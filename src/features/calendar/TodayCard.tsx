@@ -78,7 +78,7 @@ export function TodayCard() {
       {shown.length === 0 ? (
         <p className={`mt-2 text-sm ${muted}`}>
           {t('today.noneThisWeek')}{' '}
-          <Link to="/calendrier" className="font-medium text-pine-700 underline dark:text-pine-300">
+          <Link to="/planning" className="font-medium text-pine-700 underline dark:text-pine-300">
             {t('today.seeCalendar')}
           </Link>
         </p>

@@ -53,7 +53,7 @@ export default {
     weekShort: 'S{{num}}',
     week: 'Semaine',
     month: 'Mois',
-    loadError: 'Impossible de charger le calendrier. Réessaie.',
+    loadError: 'Impossible de charger le planning. Réessaie.',
     editFocus: 'Modifier la description',
     addFocus: 'Ajouter une description',
     metrics: {
@@ -192,7 +192,7 @@ export default {
     nextSession: 'Prochaine séance',
     nothingToday: "Rien de prévu aujourd'hui.",
     noneThisWeek: 'Aucune séance planifiée cette semaine —',
-    seeCalendar: 'voir le calendrier',
+    seeCalendar: 'voir le planning',
     start: '🏋 Démarrer',
   },
   builder: {

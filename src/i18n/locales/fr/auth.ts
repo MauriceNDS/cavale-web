@@ -47,7 +47,7 @@ export default {
       runningOnly: {
         title: 'La course uniquement',
         description:
-          'Plans, calendrier, Strava et statistiques. Le renfo reste activable plus tard dans les paramètres.',
+          'Plans, planning, Strava et statistiques. Le renfo reste activable plus tard dans les paramètres.',
       },
       runningAndGym: {
         title: 'Course + renfo',

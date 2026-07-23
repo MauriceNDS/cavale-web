@@ -26,7 +26,7 @@ export default {
   },
   parameters: {
     title: 'Paramètres',
-    stravaConnected: 'Strava est connecté. Valide tes séances depuis le calendrier : « Importer depuis Strava ».',
+    stravaConnected: 'Strava est connecté. Valide tes séances depuis le planning : « Importer depuis Strava ».',
     stravaError: 'La connexion Strava a échoué. Réessaie.',
     usage: {
       title: 'Utilisation',
@@ -83,7 +83,7 @@ export default {
     },
     strava: {
       title: 'Strava',
-      intro: 'Une fois connecté, chaque séance du calendrier propose « Importer depuis Strava ».',
+      intro: 'Une fois connecté, chaque séance du planning propose « Importer depuis Strava ».',
       connected: 'Connecté',
       configTitle: 'Configuration requise (une fois)',
       configStep1: "Crée une application API sur <0>strava.com/settings/api</0> (domaine d'autorisation : <1>localhost</1>)",

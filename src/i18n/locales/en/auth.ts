@@ -47,7 +47,7 @@ export default {
       runningOnly: {
         title: 'Running only',
         description:
-          'Plans, calendar, Strava and statistics. Strength can still be enabled later in the settings.',
+          'Plans, planning, Strava and statistics. Strength can still be enabled later in the settings.',
       },
       runningAndGym: {
         title: 'Running + strength',

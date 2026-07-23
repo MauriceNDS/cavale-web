@@ -53,7 +53,7 @@ export default {
     weekShort: 'W{{num}}',
     week: 'Week',
     month: 'Month',
-    loadError: 'Could not load the calendar. Try again.',
+    loadError: 'Could not load the planning. Try again.',
     editFocus: 'Edit description',
     addFocus: 'Add a description',
     metrics: {
@@ -192,7 +192,7 @@ export default {
     nextSession: 'Next session',
     nothingToday: 'Nothing planned today.',
     noneThisWeek: 'No sessions planned this week —',
-    seeCalendar: 'see the calendar',
+    seeCalendar: 'see the planning',
     start: '🏋 Start',
   },
   builder: {

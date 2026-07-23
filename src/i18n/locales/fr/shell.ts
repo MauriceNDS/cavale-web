@@ -1,7 +1,7 @@
 export default {
   nav: {
     home: 'Accueil',
-    calendar: 'Calendrier',
+    calendar: 'Planning',
     gym: 'Renfo',
     activities: 'Activités',
     stats: 'Statistiques',
