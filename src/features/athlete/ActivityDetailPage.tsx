@@ -57,10 +57,15 @@ export function ActivityDetailPage() {
       ? Math.round((a.durationMin * 60) / a.distanceKm)
       : null
 
-  const tiles = [
+  // Two-tier stat hierarchy: the three numbers a runner checks first, big;
+  // the rest compact underneath.
+  const primaryTiles = [
     a.distanceKm != null && { label: t('activityDetail.distance'), value: `${a.distanceKm} km` },
     { label: t('activityDetail.time'), value: formatDuration(a.durationMin) },
     pace != null && { label: t('activityDetail.avgPace'), value: formatPace(pace) },
+  ].filter(Boolean) as { label: string; value: string }[]
+
+  const secondaryTiles = [
     a.elevationM != null && {
       label: t('activityDetail.elevation'),
       value: `${a.elevationM.toLocaleString(numberLocale())} m`,
@@ -78,7 +83,7 @@ export function ActivityDetailPage() {
   ].filter(Boolean) as { label: string; value: string }[]
 
   return (
-    <div className="mx-auto mt-6 max-w-2xl space-y-4 pb-10">
+    <div className="mx-auto mt-6 max-w-3xl space-y-4 pb-10">
       <Link to="/activites" className="inline-flex items-center gap-1 text-sm font-medium text-pine-700 hover:underline dark:text-pine-300">
         ← {t('activityDetail.back')}
       </Link>
@@ -110,14 +115,27 @@ export function ActivityDetailPage() {
           </Link>
         )}
 
-        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {tiles.map((tile) => (
+        <div className="mt-4 grid grid-cols-3 gap-3">
+          {primaryTiles.map((tile) => (
             <div key={tile.label} className="rounded-xl border border-moss-200 bg-moss-50 p-3 dark:border-moss-750 dark:bg-moss-900">
               <p className={`text-xs ${muted}`}>{tile.label}</p>
-              <p className="mt-0.5 text-xl font-semibold">{tile.value}</p>
+              <p className="mt-0.5 font-display text-xl font-semibold whitespace-nowrap sm:text-2xl">
+                {tile.value}
+              </p>
             </div>
           ))}
         </div>
+
+        {secondaryTiles.length > 0 && (
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {secondaryTiles.map((tile) => (
+              <div key={tile.label} className="rounded-xl border border-moss-200 bg-moss-50 px-3 py-2 dark:border-moss-750 dark:bg-moss-900">
+                <p className={`text-[11px] ${muted}`}>{tile.label}</p>
+                <p className="mt-0.5 text-base font-semibold">{tile.value}</p>
+              </div>
+            ))}
+          </div>
+        )}
 
         {a.discipline === 'RUN' && (
           <ActivityShoeRow

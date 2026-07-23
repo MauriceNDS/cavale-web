@@ -1,12 +1,15 @@
 import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMeasuredWidth } from '../lib/useMeasuredWidth'
+import { scrubSurface } from '../lib/ui'
+import { SegmentedControl } from './SegmentedControl'
 import type { ActivityStreams } from '../features/calendar/api'
 
 /* ── Activity analysis: km splits + stream charts ──────────────────────
    Shared by the session report and the standalone activity detail page.
-   Every metric chart carries the elevation profile as a muted backdrop,
-   so pace/HR/cadence read against the terrain that produced them. */
+   Two modes, one chart visible at a time (phone-first): linear curves
+   over distance (with the elevation profile as a muted backdrop), and
+   per-kilometre bars derived from the splits. */
 
 interface Point {
   x: number
@@ -112,53 +115,52 @@ function SplitsTable({ splits }: { splits: Split[] }) {
   const cols = `2.25rem minmax(0,1fr)${hasHr ? ' 3rem' : ''}${hasDplus ? ' 3.25rem' : ''}`
 
   return (
-    <figure className="rounded-xl border border-moss-200 bg-moss-25 p-3 dark:border-moss-750 dark:bg-moss-850">
-      <figcaption className="text-[11px] font-semibold tracking-wide text-moss-500 uppercase dark:text-moss-400">
-        {t('report.splitsTitle')}
-      </figcaption>
-      <div className="mt-2 space-y-1 text-xs tabular-nums">
+    <div className="space-y-1 text-xs tabular-nums">
+      <div
+        className="grid items-center gap-2 text-[10px] font-semibold tracking-wide text-moss-500 uppercase dark:text-moss-400"
+        style={{ gridTemplateColumns: cols }}
+      >
+        <span>{t('report.splitsKm')}</span>
+        <span>{t('report.splitsPace')}</span>
+        {hasHr && <span className="text-right">{t('report.splitsHr')}</span>}
+        {hasDplus && <span className="text-right">{t('report.splitsDplus')}</span>}
+      </div>
+      {splits.map((split) => (
         <div
-          className="grid items-center gap-2 text-[10px] font-semibold tracking-wide text-moss-500 uppercase dark:text-moss-400"
+          key={split.label}
+          className="grid items-center gap-2"
           style={{ gridTemplateColumns: cols }}
         >
-          <span>{t('report.splitsKm')}</span>
-          <span>{t('report.splitsPace')}</span>
-          {hasHr && <span className="text-right">{t('report.splitsHr')}</span>}
-          {hasDplus && <span className="text-right">{t('report.splitsDplus')}</span>}
-        </div>
-        {splits.map((split) => (
-          <div
-            key={split.label}
-            className="grid items-center gap-2"
-            style={{ gridTemplateColumns: cols }}
-          >
-            <span className="text-moss-500 dark:text-moss-400">{split.label}</span>
-            <span className="flex items-center gap-2">
-              <span
-                className="h-3 shrink-0 rounded-full bg-pine-600/80 dark:bg-pine-350/80"
-                style={{ width: `${Math.max(6, (fastest / split.paceSecPerKm) * 100)}%` }}
-                aria-hidden
-              />
-              <span className="font-medium">{fmtPaceCompact(split.paceSecPerKm / 60)}</span>
+          <span className="text-moss-500 dark:text-moss-400">{split.label}</span>
+          <span className="flex items-center gap-2">
+            <span
+              className="h-3 shrink-0 rounded-full bg-pine-600/80 dark:bg-pine-350/80"
+              style={{ width: `${Math.max(6, (fastest / split.paceSecPerKm) * 100)}%` }}
+              aria-hidden
+            />
+            <span className="font-medium">{fmtPaceCompact(split.paceSecPerKm / 60)}</span>
+          </span>
+          {hasHr && (
+            <span className="text-right text-moss-500 dark:text-moss-400">
+              {split.avgHr ?? '—'}
             </span>
-            {hasHr && (
-              <span className="text-right text-moss-500 dark:text-moss-400">
-                {split.avgHr ?? '—'}
-              </span>
-            )}
-            {hasDplus && (
-              <span className="text-right text-moss-500 dark:text-moss-400">
-                {split.dplus > 0 ? `+${split.dplus} m` : '—'}
-              </span>
-            )}
-          </div>
-        ))}
-      </div>
-    </figure>
+          )}
+          {hasDplus && (
+            <span className="text-right text-moss-500 dark:text-moss-400">
+              {split.dplus > 0 ? `+${split.dplus} m` : '—'}
+            </span>
+          )}
+        </div>
+      ))}
+    </div>
   )
 }
 
-/* ── Stream charts ─────────────────────────────────────────────────── */
+/* ── Chart panel ───────────────────────────────────────────────────── */
+
+type ChartMode = 'linear' | 'perKm'
+type LinearTab = 'pace' | 'hr' | 'cadence' | 'elevation'
+type KmTab = 'pace' | 'hr' | 'dplus'
 
 export function StreamCharts({ streams }: { streams: ActivityStreams }) {
   const { t } = useTranslation('calendar')
@@ -213,59 +215,150 @@ export function StreamCharts({ streams }: { streams: ActivityStreams }) {
   const backdrop = altitude.length > 1 ? altitude : undefined
   const fmtPace = (y: number) => `${fmtPaceCompact(y)} /km`
 
+  const linearTabs: LinearTab[] = [
+    ...(pace.length > 1 ? (['pace'] as const) : []),
+    ...(hr.length > 1 ? (['hr'] as const) : []),
+    ...(cadence.length > 1 ? (['cadence'] as const) : []),
+    ...(altitude.length > 1 ? (['elevation'] as const) : []),
+  ]
+  const kmTabs: KmTab[] =
+    splits.length >= 2
+      ? [
+          'pace' as const,
+          ...(splits.some((s) => s.avgHr != null) ? (['hr'] as const) : []),
+          ...(splits.some((s) => s.dplus > 0) ? (['dplus'] as const) : []),
+        ]
+      : []
+
+  const [mode, setMode] = useState<ChartMode>('linear')
+  const [linearSel, setLinearSel] = useState<LinearTab>('pace')
+  const [kmSel, setKmSel] = useState<KmTab>('pace')
+
+  if (linearTabs.length === 0 && kmTabs.length === 0) return null
+
+  // Fall back gracefully when the picked mode has nothing to show.
+  const effectiveMode: ChartMode =
+    mode === 'perKm' && kmTabs.length === 0
+      ? 'linear'
+      : mode === 'linear' && linearTabs.length === 0
+        ? 'perKm'
+        : mode
+  const linearTab = linearTabs.includes(linearSel) ? linearSel : linearTabs[0]
+  const kmTab = kmTabs.includes(kmSel) ? kmSel : kmTabs[0]
+
+  const tabLabel: Record<LinearTab | KmTab, string> = {
+    pace: t('report.tabPace'),
+    hr: t('report.tabHr'),
+    cadence: t('report.tabCadence'),
+    elevation: t('report.tabElevation'),
+    dplus: t('report.tabDplus'),
+  }
+
+  const linearChart = {
+    elevation: (
+      <StreamChart
+        title={t('report.chartElevation')}
+        points={altitude}
+        colorClass="text-pine-600 dark:text-pine-350"
+        area
+        yFormat={(y) => `${Math.round(y)} m`}
+        yTick={(y) => `${Math.round(y)}`}
+      />
+    ),
+    pace: (
+      <StreamChart
+        title={t('report.chartPace')}
+        points={pace}
+        colorClass="text-teal-600 dark:text-teal-300"
+        invertY
+        yFormat={fmtPace}
+        yTick={fmtPaceCompact}
+        backdrop={backdrop}
+        extraAt={altAt}
+      />
+    ),
+    hr: (
+      <StreamChart
+        title={t('report.chartHr')}
+        points={hr}
+        colorClass="text-rowan-600 dark:text-rowan-300"
+        yFormat={(y) => `${Math.round(y)} bpm`}
+        yTick={(y) => `${Math.round(y)}`}
+        backdrop={backdrop}
+        extraAt={altAt}
+      />
+    ),
+    cadence: (
+      <StreamChart
+        title={t('report.chartCadence')}
+        points={cadence}
+        colorClass="text-copper-600 dark:text-copper-300"
+        yFormat={(y) => `${Math.round(y)} spm`}
+        yTick={(y) => `${Math.round(y)}`}
+        backdrop={backdrop}
+        extraAt={altAt}
+      />
+    ),
+  }[linearTab]
+
   return (
     <div className="mt-4 space-y-3">
-      {splits.length > 0 && <SplitsTable splits={splits} />}
-      {altitude.length > 1 && (
-        <StreamChart
-          title={t('report.chartElevation')}
-          points={altitude}
-          colorClass="text-pine-600 dark:text-pine-350"
-          area
-          yFormat={(y) => `${Math.round(y)} m`}
-          yTick={(y) => `${Math.round(y)}`}
-        />
-      )}
-      {pace.length > 1 && (
-        <StreamChart
-          title={t('report.chartPace')}
-          points={pace}
-          colorClass="text-teal-600 dark:text-teal-300"
-          invertY
-          yFormat={fmtPace}
-          yTick={fmtPaceCompact}
-          backdrop={backdrop}
-          extraAt={altAt}
-        />
-      )}
-      {hr.length > 1 && (
-        <StreamChart
-          title={t('report.chartHr')}
-          points={hr}
-          colorClass="text-rowan-600 dark:text-rowan-300"
-          yFormat={(y) => `${Math.round(y)} bpm`}
-          yTick={(y) => `${Math.round(y)}`}
-          backdrop={backdrop}
-          extraAt={altAt}
-        />
-      )}
-      {cadence.length > 1 && (
-        <StreamChart
-          title={t('report.chartCadence')}
-          points={cadence}
-          colorClass="text-copper-600 dark:text-copper-300"
-          yFormat={(y) => `${Math.round(y)} spm`}
-          yTick={(y) => `${Math.round(y)}`}
-          backdrop={backdrop}
-          extraAt={altAt}
-        />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        {linearTabs.length > 0 && kmTabs.length > 0 ? (
+          <SegmentedControl
+            size="sm"
+            ariaLabel={t('report.chartModeAria')}
+            options={[
+              { value: 'linear' as const, label: t('report.chartModeLinear') },
+              { value: 'perKm' as const, label: t('report.chartModePerKm') },
+            ]}
+            value={effectiveMode}
+            onChange={setMode}
+          />
+        ) : (
+          <span />
+        )}
+        {effectiveMode === 'linear'
+          ? linearTabs.length > 1 && (
+              <SegmentedControl
+                size="sm"
+                ariaLabel={t('report.chartMetricAria')}
+                options={linearTabs.map((v) => ({ value: v, label: tabLabel[v] }))}
+                value={linearTab}
+                onChange={setLinearSel}
+              />
+            )
+          : kmTabs.length > 1 && (
+              <SegmentedControl
+                size="sm"
+                ariaLabel={t('report.chartMetricAria')}
+                options={kmTabs.map((v) => ({ value: v, label: tabLabel[v] }))}
+                value={kmTab}
+                onChange={setKmSel}
+              />
+            )}
+      </div>
+      {effectiveMode === 'linear' ? (
+        linearChart
+      ) : (
+        <>
+          <KmBarChart splits={splits} metric={kmTab} />
+          <details className="rounded-xl border border-moss-200 bg-moss-25 p-3 dark:border-moss-750 dark:bg-moss-850">
+            <summary className="cursor-pointer text-[11px] font-semibold tracking-wide text-moss-500 uppercase select-none dark:text-moss-400">
+              {t('report.showSplitsTable')}
+            </summary>
+            <div className="mt-2">
+              <SplitsTable splits={splits} />
+            </div>
+          </details>
+        </>
       )}
     </div>
   )
 }
 
 const FALLBACK_W = 600
-const H = 150
+const H = 200
 const PAD = { left: 38, right: 8, top: 10, bottom: 18 }
 
 function StreamChart({
@@ -353,7 +446,10 @@ function StreamChart({
   const gridValue = (f: number) => (invertY ? yMin + f * (yMax - yMin) : yMax - f * (yMax - yMin))
 
   return (
-    <figure className="rounded-xl border border-moss-200 bg-moss-25 p-3 select-none dark:border-moss-750 dark:bg-moss-850">
+    <figure
+      className={`rounded-xl border border-moss-200 bg-moss-25 p-3 dark:border-moss-750 dark:bg-moss-850 ${scrubSurface}`}
+      onContextMenu={(e) => e.preventDefault()}
+    >
       <figcaption className="flex items-baseline justify-between gap-2">
         <span className="text-[11px] font-semibold tracking-wide text-moss-500 uppercase dark:text-moss-400">
           {title}
@@ -423,6 +519,152 @@ function StreamChart({
           <text x={W - PAD.right} y={H - 4} textAnchor="end" className="fill-moss-400 dark:fill-moss-500" fontSize="10">
             {xMax.toFixed(1)} km
           </text>
+        </svg>
+      </div>
+    </figure>
+  )
+}
+
+/* ── Per-kilometre bars ────────────────────────────────────────────── */
+
+const BAR_PAD = { left: 8, right: 8, top: 14, bottom: 18 }
+
+function KmBarChart({ splits, metric }: { splits: Split[]; metric: KmTab }) {
+  const { t } = useTranslation('calendar')
+  const { ref, width: W } = useMeasuredWidth<HTMLDivElement>(FALLBACK_W)
+  const [sel, setSel] = useState<number | null>(null)
+  const svgRef = useRef<SVGSVGElement>(null)
+
+  const conf = {
+    pace: {
+      colorClass: 'text-teal-600 dark:text-teal-300',
+      title: t('report.chartPace'),
+      // Taller bar = faster km: intuition-first, the label carries the pace.
+      value: (s: Split) => 1000 / s.paceSecPerKm,
+      barLabel: (s: Split) => fmtPaceCompact(s.paceSecPerKm / 60),
+    },
+    hr: {
+      colorClass: 'text-rowan-600 dark:text-rowan-300',
+      title: t('report.chartHr'),
+      value: (s: Split) => s.avgHr,
+      barLabel: (s: Split) => (s.avgHr != null ? String(s.avgHr) : ''),
+    },
+    dplus: {
+      colorClass: 'text-copper-600 dark:text-copper-300',
+      title: t('report.chartDplus'),
+      value: (s: Split) => s.dplus,
+      barLabel: (s: Split) => (s.dplus > 0 ? `+${s.dplus}` : ''),
+    },
+  }[metric]
+
+  const values = splits.map(conf.value)
+  const nums = values.filter((v): v is number => v != null)
+  const vMin = Math.min(...nums)
+  const vMax = Math.max(...nums)
+  // D+ reads honestly from zero; pace/HR live in a narrow band, so bars span
+  // it with a floor — otherwise every bar looks the same height.
+  const heightShare = (v: number) =>
+    metric === 'dplus' ? (vMax > 0 ? v / vMax : 0) : 0.2 + 0.8 * ((v - vMin) / (vMax - vMin || 1))
+
+  const n = splits.length
+  const plotH = H - BAR_PAD.top - BAR_PAD.bottom
+  const slot = (W - BAR_PAD.left - BAR_PAD.right) / n
+  const gap = Math.min(6, slot * 0.18)
+  const barW = Math.max(2, slot - gap)
+  const showBarLabels = slot >= 32
+  const xLabelEvery = Math.ceil(n / 12)
+
+  function handlePointer(event: React.PointerEvent<SVGSVGElement>) {
+    const rect = svgRef.current!.getBoundingClientRect()
+    const x = ((event.clientX - rect.left) / rect.width) * W
+    const index = Math.floor((x - BAR_PAD.left) / slot)
+    setSel(Math.min(n - 1, Math.max(0, index)))
+  }
+
+  const selected = sel != null ? splits[sel] : null
+  const readout = selected
+    ? [
+        `${t('report.splitsKm')} ${selected.label}`,
+        `${fmtPaceCompact(selected.paceSecPerKm / 60)} /km`,
+        ...(selected.avgHr != null ? [`${selected.avgHr} bpm`] : []),
+        ...(selected.dplus > 0 ? [`+${selected.dplus} m`] : []),
+      ].join(' · ')
+    : ' '
+
+  return (
+    <figure
+      className={`rounded-xl border border-moss-200 bg-moss-25 p-3 dark:border-moss-750 dark:bg-moss-850 ${scrubSurface}`}
+      onContextMenu={(e) => e.preventDefault()}
+    >
+      <figcaption className="flex items-baseline justify-between gap-2">
+        <span className="text-[11px] font-semibold tracking-wide text-moss-500 uppercase dark:text-moss-400">
+          {conf.title}
+        </span>
+        <span className="truncate text-xs font-medium tabular-nums">{readout}</span>
+      </figcaption>
+      <div ref={ref} className={conf.colorClass}>
+        <svg
+          ref={svgRef}
+          viewBox={`0 0 ${W} ${H}`}
+          className="mt-1 w-full touch-pan-y"
+          onPointerMove={handlePointer}
+          onPointerDown={handlePointer}
+          onPointerLeave={() => setSel(null)}
+          role="img"
+          aria-label={conf.title}
+        >
+          {splits.map((split, i) => {
+            const v = values[i]
+            const x = BAR_PAD.left + i * slot + gap / 2
+            const isSel = sel === i
+            const h = v != null ? Math.max(2, heightShare(v) * plotH) : 0
+            const y = H - BAR_PAD.bottom - h
+            return (
+              <g key={split.label}>
+                {v != null && (
+                  <rect
+                    x={x}
+                    y={y}
+                    width={barW}
+                    height={h}
+                    rx="2"
+                    fill="currentColor"
+                    opacity={sel == null || isSel ? 0.9 : 0.45}
+                  />
+                )}
+                {v != null && showBarLabels && (
+                  <text
+                    x={x + barW / 2}
+                    y={y - 3}
+                    textAnchor="middle"
+                    className="fill-moss-500 dark:fill-moss-400"
+                    fontSize="9"
+                  >
+                    {conf.barLabel(split)}
+                  </text>
+                )}
+                {i % xLabelEvery === 0 && (
+                  <text
+                    x={x + barW / 2}
+                    y={H - 4}
+                    textAnchor="middle"
+                    className="fill-moss-400 dark:fill-moss-500"
+                    fontSize="10"
+                  >
+                    {split.label}
+                  </text>
+                )}
+              </g>
+            )
+          })}
+          <line
+            x1={BAR_PAD.left}
+            x2={W - BAR_PAD.right}
+            y1={H - BAR_PAD.bottom}
+            y2={H - BAR_PAD.bottom}
+            className="stroke-moss-200 dark:stroke-moss-750"
+            strokeWidth="1"
+          />
         </svg>
       </div>
     </figure>
