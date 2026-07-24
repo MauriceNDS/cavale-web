@@ -9,12 +9,12 @@ import {
   useNavigate,
   useRouterState,
 } from '@tanstack/react-router'
-import { useState, type ReactNode } from 'react'
+import { lazy, Suspense, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { LanguageToggle } from './components/LanguageToggle'
 import { LogoMark } from './components/LogoMark'
 import { ThemeToggle } from './components/ThemeToggle'
 import type { UserResponse } from './features/auth/api'
-import { DemoButton } from './features/auth/DemoButton'
 import { LoginPage } from './features/auth/LoginPage'
 import { RegisterPage } from './features/auth/RegisterPage'
 import { StravaCallbackPage } from './features/auth/StravaCallbackPage'
@@ -35,6 +35,12 @@ import { PendingApprovalPage } from './features/auth/PendingApprovalPage'
 import { ParametersPage } from './features/settings/ParametersPage'
 import { ProfilePage } from './features/settings/ProfilePage'
 import { UsersAdminPage } from './features/admin/UsersAdminPage'
+
+/** The public landing page is its own chunk: `motion` and the whole scene
+ *  only ever download for signed-out visitors. */
+const LandingPage = lazy(() =>
+  import('./features/landing/LandingPage').then((m) => ({ default: m.LandingPage })),
+)
 
 /* ── Navigation model ──────────────────────────────────────────────── */
 
@@ -374,11 +380,12 @@ function Shell({ children }: { children: ReactNode }) {
     if (!PUBLIC_PATHS.has(pathname)) {
       return <Navigate to="/login" />
     }
-    // Signed-out chrome: slim public header
+    // Signed-out chrome: slim public header — sticky and translucent so the
+    // landing page can scroll beneath it.
     return (
       <div className="min-h-screen">
-        <header className="border-b border-moss-200 bg-moss-25 dark:border-moss-750 dark:bg-moss-850">
-          <nav className="mx-auto flex max-w-5xl items-center gap-4 px-4 py-3">
+        <header className="sticky top-0 z-40 border-b border-moss-200 bg-moss-25/85 backdrop-blur dark:border-moss-750 dark:bg-moss-850/85">
+          <nav className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3">
             <Link
               to="/"
               className="flex items-center gap-2 font-display text-xl font-semibold text-pine-700 dark:text-pine-300"
@@ -387,23 +394,32 @@ function Shell({ children }: { children: ReactNode }) {
               Cavale
             </Link>
             <div className="ml-auto flex items-center gap-2">
+              <LanguageToggle />
               <ThemeToggle />
+              {/* Hidden on the tightest screens — the landing footer and the
+                  register page still link to sign-in. */}
               <Link
                 to="/login"
-                className="rounded-lg px-3 py-1.5 text-sm font-medium text-moss-500 transition hover:text-ink dark:text-moss-400 dark:hover:text-linen [&.active]:text-ink dark:[&.active]:text-linen"
+                className="hidden rounded-lg px-3 py-1.5 text-sm font-medium text-moss-500 transition hover:text-ink sm:block dark:text-moss-400 dark:hover:text-linen [&.active]:text-ink dark:[&.active]:text-linen"
               >
                 {t('public.signIn')}
               </Link>
               <Link
                 to="/register"
-                className="rounded-lg bg-pine-600 px-3.5 py-1.5 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
+                className="hidden whitespace-nowrap rounded-lg bg-pine-600 px-3.5 py-1.5 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 sm:block dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
               >
                 {t('public.createAccount')}
               </Link>
             </div>
           </nav>
         </header>
-        <main className="mx-auto max-w-5xl px-4 pb-16">{children}</main>
+        {/* The landing page manages its own full-width sections; the auth
+            pages keep the centred column. */}
+        {pathname === '/' ? (
+          <main>{children}</main>
+        ) : (
+          <main className="mx-auto max-w-5xl px-4 pb-16">{children}</main>
+        )}
       </div>
     )
   }
@@ -469,7 +485,6 @@ function Shell({ children }: { children: ReactNode }) {
 
 function Home() {
   const { user } = useAuth()
-  const { t } = useTranslation('shell')
 
   // Shell already renders a loading state (and no Outlet) while the session is
   // restoring, so Home only mounts once `user` is resolved (a value or null).
@@ -478,25 +493,9 @@ function Home() {
   }
 
   return (
-    <div className="mt-20 text-center">
-      <h1 className="font-display text-5xl font-semibold text-balance">
-        Cavale <span className="text-pine-600 dark:text-pine-350">/ka.val/</span>
-      </h1>
-      <p className="mx-auto mt-4 max-w-xl text-lg text-moss-500 dark:text-moss-400">
-        {t('public.tagline')}
-      </p>
-      <div className="mx-auto mt-10 flex max-w-xs flex-col items-center gap-3">
-        <Link
-          to="/register"
-          className="w-full rounded-lg bg-pine-600 px-6 py-3 font-semibold text-moss-25 transition hover:bg-pine-700 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
-        >
-          {t('public.cta')}
-        </Link>
-        <div className="w-full">
-          <DemoButton />
-        </div>
-      </div>
-    </div>
+    <Suspense fallback={null}>
+      <LandingPage />
+    </Suspense>
   )
 }
 

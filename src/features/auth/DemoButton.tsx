@@ -8,7 +8,7 @@ import { useAuth } from './session'
  * "Explore the live demo" — one click spins up a throwaway, fully-seeded
  * sandbox and drops the visitor straight into the app. For recruiters.
  */
-export function DemoButton() {
+export function DemoButton({ className }: { className?: string }) {
   const { t } = useTranslation('auth')
   const { loginWithDemo } = useAuth()
   const navigate = useNavigate()
@@ -33,7 +33,10 @@ export function DemoButton() {
         type="button"
         onClick={start}
         disabled={pending}
-        className="w-full rounded-lg border border-pine-600 px-4 py-2.5 font-semibold text-pine-700 transition hover:bg-pine-100 disabled:opacity-50 dark:border-pine-350 dark:text-pine-300 dark:hover:bg-pine-900"
+        className={
+          className ??
+          'w-full rounded-lg border border-pine-600 px-4 py-2.5 font-semibold text-pine-700 transition hover:bg-pine-100 disabled:opacity-50 dark:border-pine-350 dark:text-pine-300 dark:hover:bg-pine-900'
+        }
       >
         {pending ? t('demo.starting') : t('demo.cta')}
       </button>

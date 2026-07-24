@@ -24,4 +24,9 @@ export default {
     toDark: 'Passer en mode sombre',
     toLight: 'Passer en mode clair',
   },
+  lang: {
+    label: 'Langue',
+    toFr: 'Passer le site en français',
+    toEn: 'Switch the site to English',
+  },
 }

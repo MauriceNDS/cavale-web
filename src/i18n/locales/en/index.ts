@@ -5,9 +5,10 @@ import calendar from './calendar'
 import common from './common'
 import glossary from './glossary'
 import gym from './gym'
+import landing from './landing'
 import objective from './objective'
 import settings from './settings'
 import shell from './shell'
 import stats from './stats'
 
-export default { admin, athlete, auth, calendar, common, glossary, gym, objective, settings, shell, stats }
+export default { admin, athlete, auth, calendar, common, glossary, gym, landing, objective, settings, shell, stats }
