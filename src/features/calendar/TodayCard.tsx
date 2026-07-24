@@ -44,7 +44,8 @@ export function TodayCard() {
 
   if (query.isLoading || query.isError) return null
 
-  const sessions = query.data ?? []
+  // Rest days aren't shown: an empty day IS the rest (same rule as the calendar).
+  const sessions = (query.data ?? []).filter((s) => s.discipline !== 'REST')
   const todays = sessions.filter((s) => s.date === today)
   const nextDate = sessions.find((s) => s.date > today)?.date
   const shown = todays.length > 0 ? todays : nextDate ? sessions.filter((s) => s.date === nextDate) : []
@@ -98,7 +99,6 @@ function SessionRow({ session }: { session: SessionResponse }) {
   const navigate = useNavigate()
   const kind = trainingKind(session)
   const badgeCls = STATUS_BADGE[session.status]
-  const isRest = session.discipline === 'REST'
 
   const startMutation = useMutation({
     mutationFn: () => startWorkout({ sessionId: session.id }),
@@ -125,7 +125,7 @@ function SessionRow({ session }: { session: SessionResponse }) {
           params={{ sessionId: session.id }}
           className="min-w-0 flex-1"
         >
-          <p className={`truncate font-medium ${isRest ? muted : ''}`}>{cleanTitle(session.title)}</p>
+          <p className="truncate font-medium">{cleanTitle(session.title)}</p>
           <p className={`text-xs ${muted}`}>
             {kindLabel(kind)}
             {session.durationMin != null && ` · ${formatDuration(session.durationMin)}`}

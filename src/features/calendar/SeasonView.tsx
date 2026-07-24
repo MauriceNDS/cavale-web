@@ -46,7 +46,7 @@ function SeasonWeekRow({ week, onPick }: { week: WeekProgress; onPick: () => voi
         key: 'volume' as const,
         label: t('header.metrics.volume'),
         ratio: week.actualVolumeKm / volumeTarget,
-        title: `${Math.round(week.actualVolumeKm * 10) / 10}/${week.estimatedVolumeKm != null ? '~' : ''}${volumeTarget} km`,
+        title: `${Math.round(week.actualVolumeKm * 10) / 10}/${volumeTarget} km`,
       },
     week.plannedDurationMin != null &&
       week.plannedDurationMin > 0 && {

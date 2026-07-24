@@ -338,7 +338,7 @@ function WeekMetrics({ week, sessions }: { week: WeekResponse; sessions: Session
     label: string
     actual: number
     target: number | null
-    sub: (target: number) => string
+    center: (target: number) => { value: string; detail: string }
     title?: string
     alert?: boolean
   }[] = [
@@ -347,8 +347,10 @@ function WeekMetrics({ week, sessions }: { week: WeekResponse; sessions: Session
       label: t('header.metrics.volume'),
       actual: doneDistance,
       target: volumeTarget,
-      sub: (target) =>
-        `${Math.round(doneDistance * 10) / 10}/${estimate != null ? '~' : ''}${target} km`,
+      center: (target) => ({
+        value: `${Math.round(doneDistance * 10) / 10}`,
+        detail: `/ ${target} km`,
+      }),
       title:
         estimate != null && week.targetVolumeKm != null
           ? t('header.metrics.volumeEstimateHint', {
@@ -363,36 +365,41 @@ function WeekMetrics({ week, sessions }: { week: WeekResponse; sessions: Session
       label: t('header.metrics.elevation'),
       actual: doneElevation,
       target: week.targetElevationM,
-      sub: (target) => `${doneElevation}/${target} m`,
+      center: (target) => ({ value: `${doneElevation}`, detail: `/ ${target} m` }),
     },
     {
       key: 'time',
       label: t('header.metrics.time'),
       actual: doneMinutes,
       target: plannedMinutes > 0 ? plannedMinutes : null,
-      sub: (target) => `${formatDuration(doneMinutes) ?? '0'}/${formatDuration(target)}`,
+      center: (target) => ({
+        value: formatDuration(doneMinutes) ?? '0',
+        detail: `/ ${formatDuration(target)}`,
+      }),
     },
     {
       key: 'load',
       label: t('header.metrics.load'),
       actual: doneLoad,
       target: week.targetLoadUa,
-      sub: (target) => `${Math.round(doneLoad)}/${target} UA`,
+      center: (target) => ({ value: `${Math.round(doneLoad)}`, detail: `/ ${target} UA` }),
     },
   ]
 
   return (
     // Single scrollable row on mobile — glanceable context must not stack up
-    // and push the week below the fold.
-    <div className="flex w-full gap-3 overflow-x-auto [scrollbar-width:none] md:flex-wrap md:overflow-visible">
+    // and push the week below the fold. Centered once there's room (≥ md).
+    <div className="flex w-full gap-4 overflow-x-auto [scrollbar-width:none] md:flex-wrap md:justify-center md:overflow-visible">
       {metrics
         .filter((m): m is (typeof metrics)[number] & { target: number } => m.target != null && m.target > 0)
         .map((m) => (
           <ProgressRing
             key={m.key}
             ratio={m.actual / m.target}
+            size={96}
+            strokeWidth={6}
             label={m.label}
-            sub={m.sub(m.target)}
+            center={m.center(m.target)}
             subClassName={m.alert ? 'text-clay-500 dark:text-clay-300' : undefined}
             title={m.title}
             className={RING_COLORS[m.key]}

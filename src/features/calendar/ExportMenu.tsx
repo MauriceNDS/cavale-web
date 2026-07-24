@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ApiError } from '../../lib/api'
+import { useClickOutside } from '../../lib/useClickOutside'
 import { pushSessionToGarmin } from '../intervals/api'
 import { downloadSessionFit, type SessionResponse } from './api'
 
@@ -11,17 +12,21 @@ import { downloadSessionFit, type SessionResponse } from './api'
  * whole flow (download state, push mutation, hints), so any screen can drop
  * it next to a session. `direction` says where the menu opens: 'up' for the
  * sticky bottom action bar of the session page, 'down' when the button sits
- * near the top of the page (home).
+ * near the top of the page (home). `size` matches the trigger to its
+ * neighbours: 'md' for the session action bar, 'sm' for compact rows.
  */
 export function ExportMenu({
   session,
   direction = 'up',
+  size = 'sm',
 }: {
   session: SessionResponse
   direction?: 'up' | 'down'
+  size?: 'sm' | 'md'
 }) {
   const { t } = useTranslation('calendar')
   const [open, setOpen] = useState(false)
+  const menuRef = useClickOutside<HTMLDivElement>(() => setOpen(false), open)
   const [exportingFit, setExportingFit] = useState(false)
   const [exportedFit, setExportedFit] = useState(false)
 
@@ -49,12 +54,14 @@ export function ExportMenu({
 
   return (
     <>
-      <div className="relative">
+      <div className="relative" ref={menuRef}>
         <button
           onClick={() => setOpen((o) => !o)}
           aria-haspopup="menu"
           aria-expanded={open}
-          className="rounded-lg border border-moss-200 px-3 py-1.5 text-sm font-medium text-ink transition hover:bg-moss-100 dark:border-moss-750 dark:text-linen dark:hover:bg-moss-800"
+          className={`rounded-lg border border-moss-200 text-sm font-medium text-ink transition hover:bg-moss-100 dark:border-moss-750 dark:text-linen dark:hover:bg-moss-800 ${
+            size === 'md' ? 'px-4 py-2' : 'px-3 py-1.5'
+          }`}
         >
           {t('session.export')}
         </button>

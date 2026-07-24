@@ -18,6 +18,7 @@ export function ProgressRing({
   label,
   sub,
   subClassName,
+  center,
   title,
   className = '',
 }: {
@@ -30,6 +31,10 @@ export function ProgressRing({
   /** Optional compact "actual/target" line under the label. */
   sub?: string
   subClassName?: string
+  /** Replaces the percent readout with stacked actual value over target detail
+   *  (needs a large enough `size` to stay legible). The percent moves to the
+   *  aria-label. */
+  center?: { value: string; detail: string }
   title?: string
   /** Arc color as a text class, e.g. `RING_COLORS.volume`. */
   className?: string
@@ -63,14 +68,34 @@ export function ProgressRing({
             />
           )}
         </svg>
-        <span
-          className="absolute inset-0 flex items-center justify-center font-semibold tabular-nums text-ink dark:text-linen"
-          style={{ fontSize: Math.max(9, Math.round(size * 0.22)) }}
-        >
-          {percent}%
-        </span>
+        {center ? (
+          <span className="absolute inset-0 flex flex-col items-center justify-center tabular-nums">
+            <span
+              className="font-semibold text-ink dark:text-linen"
+              style={{ fontSize: Math.max(11, Math.round(size * 0.17)) }}
+            >
+              {center.value}
+            </span>
+            <span
+              className={subClassName ?? 'text-moss-500 dark:text-moss-400'}
+              style={{ fontSize: Math.max(9, Math.round(size * 0.11)) }}
+            >
+              {center.detail}
+            </span>
+          </span>
+        ) : (
+          <span
+            className="absolute inset-0 flex items-center justify-center font-semibold tabular-nums text-ink dark:text-linen"
+            style={{ fontSize: Math.max(9, Math.round(size * 0.22)) }}
+          >
+            {percent}%
+          </span>
+        )}
       </div>
-      <span className="max-w-16 truncate text-[11px] font-medium text-moss-500 dark:text-moss-400">
+      <span
+        className="truncate text-[11px] font-medium text-moss-500 dark:text-moss-400"
+        style={{ maxWidth: size }}
+      >
         {label}
       </span>
       {sub && (
