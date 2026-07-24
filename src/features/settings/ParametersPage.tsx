@@ -7,8 +7,18 @@ import { ThemeModeSelector } from '../../components/ThemeModeSelector'
 import { applyLanguage, dateLocale, type Language } from '../../i18n'
 import { ApiError } from '../../lib/api'
 import { useRovingRadioGroup } from '../../lib/useRovingRadioGroup'
-import { issuePat, updateProfile, type IssuedToken } from '../athlete/api'
+import {
+  fetchPats,
+  issuePat,
+  revokePat,
+  updateProfile,
+  type IssuedToken,
+  type PersonalToken,
+} from '../athlete/api'
+import { Trash2 } from 'lucide-react'
 import { useAuth } from '../auth/session'
+import { setCredentials } from '../auth/api'
+import { ErrorAlert, Field, SubmitButton } from '../../components/form'
 import {
   connectIntervals,
   disconnectIntervals,
@@ -52,6 +62,7 @@ export function ParametersPage() {
       <LanguageCard />
       <ThemeCard />
       {/* Strava OAuth and MCP tokens don't apply to a throwaway demo account. */}
+      {user && !user.demo && !user.hasCredentials && <CredentialsCard />}
       {!user?.demo && <StravaCard />}
       {!user?.demo && <IntervalsCard />}
       {!user?.demo && <McpCard />}
@@ -184,10 +195,84 @@ function ThemeCard() {
   )
 }
 
+/**
+ * Account claim for Strava-born users: their synthetic address + random
+ * password can't log in, so until they set real credentials, losing the
+ * Strava link means losing access. Shown only while hasCredentials is false.
+ */
+function CredentialsCard() {
+  const { t } = useTranslation('settings')
+  const { refresh } = useAuth()
+  const [mismatch, setMismatch] = useState(false)
+
+  const mutation = useMutation({
+    mutationFn: setCredentials,
+    onSuccess: () => void refresh(),
+  })
+  const problem = mutation.error instanceof ApiError ? mutation.error.problem : undefined
+
+  return (
+    <section className="mt-6 rounded-xl border border-moss-200 bg-moss-25 p-6 dark:border-moss-750 dark:bg-moss-850">
+      <h2 className="font-display text-lg font-semibold">{t('parameters.credentials.title')}</h2>
+      <p className="mt-0.5 text-sm text-moss-500 dark:text-moss-400">
+        {t('parameters.credentials.intro')}
+      </p>
+      {mutation.isSuccess ? (
+        <p role="status" className="mt-4 text-sm font-medium text-pine-700 dark:text-pine-300">
+          {t('parameters.credentials.success')}
+        </p>
+      ) : (
+        <form
+          className="mt-4 max-w-sm space-y-3"
+          onSubmit={(event) => {
+            event.preventDefault()
+            const data = new FormData(event.currentTarget)
+            const email = (data.get('email') as string).trim()
+            const password = data.get('password') as string
+            const confirm = data.get('confirm') as string
+            if (password !== confirm) {
+              setMismatch(true)
+              return
+            }
+            setMismatch(false)
+            mutation.mutate({ email, password })
+          }}
+        >
+          <Field
+            label={t('parameters.credentials.email')}
+            name="email"
+            type="email"
+            autoComplete="email"
+          />
+          <Field
+            label={t('parameters.credentials.password')}
+            name="password"
+            type="password"
+            autoComplete="new-password"
+          />
+          <Field
+            label={t('parameters.credentials.confirm')}
+            name="confirm"
+            type="password"
+            autoComplete="new-password"
+            error={mismatch ? t('parameters.credentials.mismatch') : undefined}
+          />
+          {problem && <ErrorAlert message={problem.detail ?? problem.title} />}
+          <SubmitButton pending={mutation.isPending} pendingText={t('parameters.credentials.saving')}>
+            {t('parameters.credentials.submit')}
+          </SubmitButton>
+        </form>
+      )}
+    </section>
+  )
+}
+
 function StravaCard() {
   const { t } = useTranslation('settings')
+  const { user } = useAuth()
   const queryClient = useQueryClient()
   const status = useQuery({ queryKey: ['strava-status'], queryFn: fetchStravaStatus })
+  const [confirmingDisconnect, setConfirmingDisconnect] = useState(false)
 
   const connect = useMutation({
     mutationFn: fetchAuthorizeUrl,
@@ -198,7 +283,10 @@ function StravaCard() {
 
   const disconnect = useMutation({
     mutationFn: disconnectStrava,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['strava-status'] }),
+    onSuccess: () => {
+      setConfirmingDisconnect(false)
+      void queryClient.invalidateQueries({ queryKey: ['strava-status'] })
+    },
   })
 
   const data = status.data
@@ -262,12 +350,27 @@ function StravaCard() {
             {t('parameters.strava.athleteId', { id: data.athleteId })}
           </p>
           <button
-            onClick={() => disconnect.mutate()}
+            onClick={() => setConfirmingDisconnect(true)}
             disabled={disconnect.isPending}
             className="rounded-lg border border-moss-200 px-4 py-2 text-sm font-medium text-moss-500 transition hover:bg-moss-100 dark:border-moss-750 dark:text-moss-400 dark:hover:bg-moss-800"
           >
             {t('parameters.strava.disconnect')}
           </button>
+          {confirmingDisconnect && (
+            <ConfirmDialog
+              title={t('parameters.strava.disconnect')}
+              message={
+                user?.hasCredentials
+                  ? t('parameters.strava.disconnectConfirm')
+                  : t('parameters.strava.disconnectLockout')
+              }
+              confirmLabel={t('parameters.strava.disconnect')}
+              danger={!user?.hasCredentials}
+              busy={disconnect.isPending}
+              onConfirm={() => disconnect.mutate()}
+              onCancel={() => setConfirmingDisconnect(false)}
+            />
+          )}
         </div>
       )}
     </section>
@@ -431,17 +534,33 @@ function IntervalsCard() {
   )
 }
 
-/** MCP credential: connect the owner's Claude as the coach. Token shown once. */
+/** MCP credential: connect the owner's Claude as the coach. Token shown once;
+ *  every issued token is listed below with its label and can be revoked. */
 function McpCard() {
   const { t } = useTranslation('settings')
+  const queryClient = useQueryClient()
   const [issued, setIssued] = useState<IssuedToken | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
+  const [label, setLabel] = useState('')
+  const [revoking, setRevoking] = useState<PersonalToken | null>(null)
+
+  const pats = useQuery({ queryKey: ['pats'], queryFn: fetchPats })
 
   const mutation = useMutation({
     mutationFn: issuePat,
     onSuccess: (token) => {
       setIssued(token)
       setCopied(null)
+      setLabel('')
+      void queryClient.invalidateQueries({ queryKey: ['pats'] })
+    },
+  })
+
+  const revokeMutation = useMutation({
+    mutationFn: revokePat,
+    onSuccess: () => {
+      setRevoking(null)
+      void queryClient.invalidateQueries({ queryKey: ['pats'] })
     },
   })
 
@@ -471,13 +590,29 @@ function McpCard() {
       <p className="mt-0.5 text-sm text-moss-500 dark:text-moss-400">{t('parameters.mcp.intro')}</p>
 
       {!issued && (
-        <button
-          onClick={() => mutation.mutate()}
-          disabled={mutation.isPending}
-          className="mt-4 rounded-lg bg-pine-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
+        <form
+          className="mt-4 flex flex-wrap gap-2"
+          onSubmit={(event) => {
+            event.preventDefault()
+            if (label.trim()) mutation.mutate(label.trim())
+          }}
         >
-          {mutation.isPending ? t('parameters.mcp.generating') : t('parameters.mcp.generate')}
-        </button>
+          <input
+            value={label}
+            onChange={(event) => setLabel(event.target.value)}
+            placeholder={t('parameters.mcp.labelPlaceholder')}
+            aria-label={t('parameters.mcp.labelPlaceholder')}
+            maxLength={100}
+            className="min-w-0 flex-1 rounded-lg border border-moss-200 bg-moss-100 px-3 py-2 text-sm text-ink placeholder:text-moss-400 focus:outline-2 focus:outline-pine-600 dark:border-moss-750 dark:bg-moss-800 dark:text-linen dark:placeholder:text-moss-500 dark:focus:outline-pine-350"
+          />
+          <button
+            type="submit"
+            disabled={mutation.isPending || !label.trim()}
+            className="rounded-lg bg-pine-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
+          >
+            {mutation.isPending ? t('parameters.mcp.generating') : t('parameters.mcp.generate')}
+          </button>
+        </form>
       )}
       {mutation.error instanceof ApiError && (
         <p role="alert" className="mt-2 text-sm text-clay-500 dark:text-clay-300">
@@ -514,6 +649,55 @@ function McpCard() {
             />
           </p>
         </div>
+      )}
+
+      {pats.data && pats.data.length > 0 && (
+        <div className="mt-5 border-t border-moss-200 pt-4 dark:border-moss-750">
+          <p className="text-[11px] font-semibold tracking-wide text-moss-500 uppercase dark:text-moss-400">
+            {t('parameters.mcp.tokens')}
+          </p>
+          <ul className="mt-2 space-y-2">
+            {pats.data.map((pat) => (
+              <li key={pat.id} className="flex flex-wrap items-center gap-2 text-sm">
+                <span className="min-w-0 flex-1">
+                  <span className={`font-medium ${pat.revoked ? 'line-through opacity-60' : ''}`}>
+                    {pat.label}
+                  </span>
+                  <span className="block text-xs text-moss-500 tabular-nums dark:text-moss-400">
+                    {t('parameters.mcp.tokenDates', {
+                      issued: format(parseISO(pat.issuedAt), 'd MMM yyyy', { locale: dateLocale() }),
+                      expires: format(parseISO(pat.expiresAt), 'd MMM yyyy', { locale: dateLocale() }),
+                    })}
+                  </span>
+                </span>
+                {pat.revoked ? (
+                  <span className="rounded-full bg-clay-100 px-2 py-0.5 text-[11px] font-medium text-clay-600 dark:bg-clay-900 dark:text-clay-300">
+                    {t('parameters.mcp.revoked')}
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => setRevoking(pat)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-clay-500/40 px-3 py-1.5 text-xs font-semibold text-clay-500 transition hover:bg-clay-100 dark:text-clay-300 dark:hover:bg-clay-900"
+                  >
+                    <Trash2 size={13} aria-hidden />
+                    {t('parameters.mcp.revoke')}
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {revoking && (
+        <ConfirmDialog
+          title={t('parameters.mcp.revoke')}
+          message={t('parameters.mcp.revokeConfirm', { label: revoking.label })}
+          confirmLabel={t('parameters.mcp.revoke')}
+          danger
+          busy={revokeMutation.isPending}
+          onConfirm={() => revokeMutation.mutate(revoking.id)}
+          onCancel={() => setRevoking(null)}
+        />
       )}
     </section>
   )

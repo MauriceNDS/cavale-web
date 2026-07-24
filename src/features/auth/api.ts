@@ -35,7 +35,14 @@ export interface UserResponse {
   role: UserRole
   /** Ephemeral portfolio demo account — sandboxed, auto-deleted. */
   demo: boolean
+  /** False for Strava-born accounts that never set a real email + password. */
+  hasCredentials: boolean
   createdAt: string
+}
+
+/** Claim a Strava-born account: set the real email + password pair. */
+export function setCredentials(body: { email: string; password: string }): Promise<UserResponse> {
+  return api.put<UserResponse>('/api/users/me/credentials', body)
 }
 
 export interface AuthResponse {

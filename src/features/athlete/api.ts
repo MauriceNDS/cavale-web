@@ -131,13 +131,31 @@ export function updateStatus(body: { status: AthleteStatus; note?: string }): Pr
 }
 
 export interface IssuedToken {
+  id: string
+  label: string
   token: string
   expiresAt: string
 }
 
+export interface PersonalToken {
+  id: string
+  label: string
+  issuedAt: string
+  expiresAt: string
+  revoked: boolean
+}
+
 /** Long-lived personal access token — the MCP client credential. Shown once. */
-export function issuePat(): Promise<IssuedToken> {
-  return api.post<IssuedToken>('/api/users/me/pat', {})
+export function issuePat(label: string): Promise<IssuedToken> {
+  return api.post<IssuedToken>('/api/users/me/pat', { label })
+}
+
+export function fetchPats(): Promise<PersonalToken[]> {
+  return api.get<PersonalToken[]>('/api/users/me/pats')
+}
+
+export function revokePat(id: string): Promise<void> {
+  return api.delete(`/api/users/me/pats/${id}`)
 }
 
 /* ── Unified activities feed ───────────────────────────────────────── */
