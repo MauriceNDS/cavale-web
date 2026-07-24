@@ -102,6 +102,7 @@ export default {
     eyebrow: 'Under the hood',
     title: 'Real software, end to end.',
     body: 'Tested API, CI/CD, continuous deployment, self-hosted: Cavale doubles as an engineering showcase. The demo runs on the real stack.',
+    github: 'View the source on GitHub',
   },
   cta: {
     title: 'Ready to gain some height?',

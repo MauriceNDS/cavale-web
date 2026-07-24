@@ -102,6 +102,7 @@ export default {
     eyebrow: 'Sous le capot',
     title: 'Du vrai logiciel, de bout en bout.',
     body: "API testée, CI/CD, déploiement continu, auto-hébergé : Cavale est aussi une vitrine d'ingénierie. La démo tourne sur la vraie stack.",
+    github: 'Voir le code sur GitHub',
   },
   cta: {
     title: 'Prêt à prendre de la hauteur ?',
