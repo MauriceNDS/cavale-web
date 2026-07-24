@@ -59,6 +59,7 @@ import { WorkoutBuilder, draftsError, draftsToNodes, type ItemDraft } from './Wo
 import { ProgressRing, RING_COLORS } from '../../components/ProgressRing'
 import { SegmentedControl } from '../../components/SegmentedControl'
 import { muted } from '../../lib/ui'
+import { useMeasuredWidth } from '../../lib/useMeasuredWidth'
 import { fetchProgress } from '../objective/api'
 import { SeasonView } from './SeasonView'
 
@@ -386,25 +387,55 @@ function WeekMetrics({ week, sessions }: { week: WeekResponse; sessions: Session
     },
   ]
 
+  const shown = metrics.filter(
+    (m): m is (typeof metrics)[number] & { target: number } => m.target != null && m.target > 0,
+  )
+  return <MetricRings metrics={shown} />
+}
+
+const RING_GAP = 12
+const RING_MAX = 120
+
+/**
+ * One centered row, never scrolling: the measured container width sets the
+ * ring size so every metric fits side by side on any phone, up to 120px each
+ * on desktop.
+ */
+function MetricRings({
+  metrics,
+}: {
+  metrics: {
+    key: keyof typeof RING_COLORS
+    label: string
+    actual: number
+    target: number
+    center: (target: number) => { value: string; detail: string }
+    title?: string
+    alert?: boolean
+  }[]
+}) {
+  const { ref, width } = useMeasuredWidth<HTMLDivElement>(480)
+  if (metrics.length === 0) return null
+  const size = Math.min(
+    RING_MAX,
+    Math.floor((width - RING_GAP * (metrics.length - 1)) / metrics.length),
+  )
+  const strokeWidth = Math.max(4, Math.round(size / 16))
   return (
-    // Single scrollable row on mobile — glanceable context must not stack up
-    // and push the week below the fold. Centered once there's room (≥ md).
-    <div className="flex w-full gap-4 overflow-x-auto [scrollbar-width:none] md:flex-wrap md:justify-center md:overflow-visible">
-      {metrics
-        .filter((m): m is (typeof metrics)[number] & { target: number } => m.target != null && m.target > 0)
-        .map((m) => (
-          <ProgressRing
-            key={m.key}
-            ratio={m.actual / m.target}
-            size={96}
-            strokeWidth={6}
-            label={m.label}
-            center={m.center(m.target)}
-            subClassName={m.alert ? 'text-clay-500 dark:text-clay-300' : undefined}
-            title={m.title}
-            className={RING_COLORS[m.key]}
-          />
-        ))}
+    <div ref={ref} className="flex w-full justify-center" style={{ gap: RING_GAP }}>
+      {metrics.map((m) => (
+        <ProgressRing
+          key={m.key}
+          ratio={m.actual / m.target}
+          size={size}
+          strokeWidth={strokeWidth}
+          label={m.label}
+          center={m.center(m.target)}
+          subClassName={m.alert ? 'text-clay-500 dark:text-clay-300' : undefined}
+          title={m.title}
+          className={RING_COLORS[m.key]}
+        />
+      ))}
     </div>
   )
 }
