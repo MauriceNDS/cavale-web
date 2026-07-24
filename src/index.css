@@ -83,6 +83,16 @@
     text-wrap: balance;
   }
 
+  /* Tailwind 4 preflight leaves buttons with the default arrow cursor;
+     restore the pointer affordance on every interactive control. */
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']),
+  summary,
+  label[for],
+  select:not(:disabled) {
+    cursor: pointer;
+  }
+
   /* Topographic contour texture over the page background. Painted with a
      theme color and masked by the (seamlessly tiling) contour SVG, so the
      same asset serves light and dark mode. Page bg lives on <html> because
