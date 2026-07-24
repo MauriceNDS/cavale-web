@@ -2,9 +2,11 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+import { ChevronDown, ChevronUp, Copy, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { ApiError } from '../../lib/api'
 import { muted } from '../../lib/ui'
 import { Modal } from '../../components/Modal'
+import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { ExerciseDetailSheet } from './ExerciseDetailSheet'
 import { ExerciseForm } from './ExerciseForm'
 import {
@@ -40,6 +42,11 @@ const fieldClass =
   'mt-1 w-full rounded-lg border border-moss-200 bg-moss-100 px-3 py-1.5 text-sm transition outline-none focus:border-pine-600 focus:ring-2 focus:ring-pine-600/25 dark:border-moss-750 dark:bg-moss-800 dark:focus:border-pine-350 dark:focus:ring-pine-350/25'
 const actionBtn =
   'rounded-lg border border-moss-200 px-2.5 py-1 text-xs font-medium transition hover:bg-moss-100 disabled:opacity-40 dark:border-moss-750 dark:hover:bg-moss-800'
+const iconBtn =
+  'grid h-9 w-9 place-items-center rounded-lg text-moss-500 transition hover:bg-moss-100 hover:text-ink dark:text-moss-400 dark:hover:bg-moss-800 dark:hover:text-linen'
+/** Buttons inside the bordered variant-action cluster: no own border. */
+const clusterBtn =
+  'flex h-8 items-center gap-1 rounded-md px-2 text-xs font-medium transition hover:bg-moss-100 disabled:opacity-40 dark:hover:bg-moss-800'
 
 /** One program: variant tabs, ordered prescriptions, alternatives. */
 export function TemplateEditorPage() {
@@ -49,6 +56,7 @@ export function TemplateEditorPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [variantId, setVariantId] = useState<string | null>(null)
+  const [confirming, setConfirming] = useState<'program' | 'variant' | null>(null)
 
   const templateQuery = useQuery({
     queryKey: ['gym-template', templateId],
@@ -56,6 +64,7 @@ export function TemplateEditorPage() {
   })
   const template = templateQuery.data
   const activeVariantId = variantId ?? template?.variants[0]?.id ?? null
+  const activeLabel = template?.variants.find((v) => v.id === activeVariantId)?.label ?? null
 
   function invalidate() {
     void queryClient.invalidateQueries({ queryKey: ['gym-template', templateId] })
@@ -91,6 +100,7 @@ export function TemplateEditorPage() {
     mutationFn: () => deleteVariant(activeVariantId!),
     onSuccess: () => {
       setVariantId(null)
+      setConfirming(null)
       invalidate()
     },
   })
@@ -121,11 +131,7 @@ export function TemplateEditorPage() {
       <TemplateHeader
         template={template}
         onSaved={invalidate}
-        onDelete={() => {
-          if (window.confirm(t('editor.deleteConfirm', { name: template.name }))) {
-            deleteTemplateMutation.mutate()
-          }
-        }}
+        onDelete={() => setConfirming('program')}
       />
 
       <div className="mt-4 flex flex-wrap items-center gap-1.5">
@@ -143,29 +149,64 @@ export function TemplateEditorPage() {
             {variant.label}
           </button>
         ))}
-        <button onClick={() => addVariantMutation.mutate()} className={actionBtn} title={t('editor.addVariantTitle')}>
-          {t('editor.addVariant')}
-        </button>
-        <button
-          onClick={() => copyVariantMutation.mutate()}
-          disabled={!activeVariantId}
-          className={actionBtn}
-          title={t('editor.duplicateTitle')}
-        >
-          {t('editor.duplicate')}
-        </button>
-        {template.variants.length > 1 && (
+        {/* Variant actions, grouped apart from the tabs so they read as one
+            family — and can't be mistaken for the program-level actions. */}
+        <div className="ml-auto flex items-center gap-0.5 rounded-lg border border-moss-200 p-0.5 dark:border-moss-750">
           <button
-            onClick={() => deleteVariantMutation.mutate()}
-            disabled={!activeVariantId}
-            className={`${actionBtn} text-clay-500 dark:text-clay-300`}
+            onClick={() => addVariantMutation.mutate()}
+            className={clusterBtn}
+            title={t('editor.addVariantTitle')}
           >
-            {t('editor.deleteLower')}
+            <Plus size={14} aria-hidden />
+            {t('editor.addVariant')}
           </button>
-        )}
+          <button
+            onClick={() => copyVariantMutation.mutate()}
+            disabled={!activeVariantId}
+            className={clusterBtn}
+            title={t('editor.duplicateVariant', { label: activeLabel ?? '' })}
+            aria-label={t('editor.duplicateVariant', { label: activeLabel ?? '' })}
+          >
+            <Copy size={14} aria-hidden />
+          </button>
+          {template.variants.length > 1 && (
+            <button
+              onClick={() => setConfirming('variant')}
+              disabled={!activeVariantId}
+              className={`${clusterBtn} text-clay-500 dark:text-clay-300`}
+              title={t('editor.deleteVariant', { label: activeLabel ?? '' })}
+              aria-label={t('editor.deleteVariant', { label: activeLabel ?? '' })}
+            >
+              <Trash2 size={14} aria-hidden />
+            </button>
+          )}
+        </div>
       </div>
 
       {activeVariantId && <VariantEditor key={activeVariantId} variantId={activeVariantId} />}
+
+      {confirming === 'program' && (
+        <ConfirmDialog
+          title={t('editor.deleteProgram')}
+          message={t('editor.deleteConfirm', { name: template.name })}
+          confirmLabel={t('common:delete')}
+          danger
+          busy={deleteTemplateMutation.isPending}
+          onConfirm={() => deleteTemplateMutation.mutate()}
+          onCancel={() => setConfirming(null)}
+        />
+      )}
+      {confirming === 'variant' && activeLabel != null && (
+        <ConfirmDialog
+          title={t('editor.deleteVariant', { label: activeLabel })}
+          message={t('editor.deleteVariantConfirm', { label: activeLabel })}
+          confirmLabel={t('common:delete')}
+          danger
+          busy={deleteVariantMutation.isPending}
+          onConfirm={() => deleteVariantMutation.mutate()}
+          onCancel={() => setConfirming(null)}
+        />
+      )}
     </div>
   )
 }
@@ -202,11 +243,21 @@ function TemplateHeader({
       <div className="mt-2 flex flex-wrap items-baseline gap-2">
         <h1 className="font-display text-3xl font-semibold">{template.name}</h1>
         {template.goal && <p className={`text-sm ${muted}`}>{template.goal}</p>}
-        <button onClick={() => setEditing(true)} className={`text-sm font-medium text-pine-700 underline dark:text-pine-300`}>
-          {t('editor.editLower')}
+        <button
+          onClick={() => setEditing(true)}
+          className={iconBtn}
+          title={t('editor.renameProgram')}
+          aria-label={t('editor.renameProgram')}
+        >
+          <Pencil size={16} aria-hidden />
         </button>
-        <button onClick={onDelete} className="text-sm font-medium text-clay-500 underline dark:text-clay-300">
-          {t('editor.deleteLower')}
+        <button
+          onClick={onDelete}
+          className={`${iconBtn} text-clay-500 hover:text-clay-500 dark:text-clay-300 dark:hover:text-clay-300`}
+          title={t('editor.deleteProgram')}
+          aria-label={t('editor.deleteProgram')}
+        >
+          <Trash2 size={16} aria-hidden />
         </button>
       </div>
     )
@@ -333,8 +384,8 @@ function VariantEditor({ variantId }: { variantId: string }) {
           >
             <div className="flex flex-wrap items-center gap-2">
               <div className="flex flex-col">
-                <button onClick={() => move(index, -1)} disabled={index === 0} aria-label={t('editor.moveUp')} className="text-xs text-moss-500 disabled:opacity-30 dark:text-moss-400">▲</button>
-                <button onClick={() => move(index, 1)} disabled={index === detail.exercises.length - 1} aria-label={t('editor.moveDown')} className="text-xs text-moss-500 disabled:opacity-30 dark:text-moss-400">▼</button>
+                <button onClick={() => move(index, -1)} disabled={index === 0} aria-label={t('editor.moveUp')} className="text-moss-500 disabled:opacity-30 dark:text-moss-400"><ChevronUp size={16} aria-hidden /></button>
+                <button onClick={() => move(index, 1)} disabled={index === detail.exercises.length - 1} aria-label={t('editor.moveDown')} className="text-moss-500 disabled:opacity-30 dark:text-moss-400"><ChevronDown size={16} aria-hidden /></button>
               </div>
               <div className="min-w-0 flex-1">
                 <button
@@ -382,7 +433,7 @@ function VariantEditor({ variantId }: { variantId: string }) {
                     aria-label={t('editor.removeAlternativeAria', { name: alt.exercise.name })}
                     className="text-moss-500 hover:text-clay-500 dark:text-moss-400"
                   >
-                    ✕
+                    <X size={12} aria-hidden />
                   </button>
                 </span>
               ))}
