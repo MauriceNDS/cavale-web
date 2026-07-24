@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { differenceInCalendarDays, format, parseISO } from 'date-fns'
 import { useTranslation } from 'react-i18next'
+import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { dateLocale, numberLocale } from '../../i18n'
 import { ApiError } from '../../lib/api'
 import { card, muted } from '../../lib/ui'
@@ -210,11 +211,13 @@ interface MainCardProps {
 function MainObjectiveCard({ progress, editing, onEdit, onCancel, onSubmit, pending, error }: MainCardProps) {
   const { t } = useTranslation('objective')
   const queryClient = useQueryClient()
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
   const { plan, mainObjective, currentWeekNumber, totalWeeks, daysToObjective, secondaryObjectives } = progress
 
   const deleteSeasonMutation = useMutation({
     mutationFn: () => deletePlan(plan.id),
     onSuccess: () => {
+      setConfirmingDelete(false)
       queryClient.invalidateQueries({ queryKey: ['plans'] })
       queryClient.invalidateQueries({ queryKey: ['hub'] })
     },
@@ -293,16 +296,23 @@ function MainObjectiveCard({ progress, editing, onEdit, onCancel, onSubmit, pend
             {t('common:edit')}
           </button>
           <button
-            onClick={() => {
-              if (window.confirm(t('main.deleteSeasonConfirm', { name: plan.name }))) {
-                deleteSeasonMutation.mutate()
-              }
-            }}
+            onClick={() => setConfirmingDelete(true)}
             disabled={deleteSeasonMutation.isPending}
             className="mt-1 block w-full rounded-lg px-3 py-1 text-xs font-medium text-clay-500 transition hover:text-clay-600 disabled:opacity-50 dark:text-clay-300 dark:hover:text-clay-300/80"
           >
             {t('main.deleteSeason')}
           </button>
+          {confirmingDelete && (
+            <ConfirmDialog
+              title={t('main.deleteSeason')}
+              message={t('main.deleteSeasonConfirm', { name: plan.name })}
+              confirmLabel={t('common:delete')}
+              danger
+              busy={deleteSeasonMutation.isPending}
+              onConfirm={() => deleteSeasonMutation.mutate()}
+              onCancel={() => setConfirmingDelete(false)}
+            />
+          )}
           {deleteSeasonMutation.error instanceof ApiError && (
             <p role="alert" className="mt-1 text-xs text-clay-500 dark:text-clay-300">
               {deleteSeasonMutation.error.message}

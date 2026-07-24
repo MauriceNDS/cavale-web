@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { dateLocale, numberLocale } from '../../i18n'
 import { ApiError } from '../../lib/api'
 import { Modal } from '../../components/Modal'
+import { ConfirmDialog } from '../../components/ConfirmDialog'
 import {
   createShoe,
   deleteShoe,
@@ -49,6 +50,7 @@ export function ShoesCard() {
   const shoesQuery = useQuery({ queryKey: ['shoes'], queryFn: fetchShoes })
   const [editing, setEditing] = useState<string | 'new' | null>(null)
   const [statsOf, setStatsOf] = useState<ShoeResponse | null>(null)
+  const [deleting, setDeleting] = useState<ShoeResponse | null>(null)
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['shoes'] })
   const close = () => {
@@ -60,7 +62,13 @@ export function ShoesCard() {
     mutationFn: ({ id, body }: { id: string; body: ShoePayload }) => updateShoe(id, body),
     onSuccess: close,
   })
-  const deleteMut = useMutation({ mutationFn: deleteShoe, onSuccess: refresh })
+  const deleteMut = useMutation({
+    mutationFn: deleteShoe,
+    onSuccess: () => {
+      setDeleting(null)
+      refresh()
+    },
+  })
 
   const shoes = shoesQuery.data ?? []
   const editingShoe = shoes.find((s) => s.id === editing) ?? null
@@ -103,11 +111,7 @@ export function ShoesCard() {
               shoe={shoe}
               onStats={() => setStatsOf(shoe)}
               onEdit={() => setEditing(shoe.id)}
-              onDelete={() => {
-                if (window.confirm(t('parameters.shoes.deleteConfirm', { name: shoe.name }))) {
-                  deleteMut.mutate(shoe.id)
-                }
-              }}
+              onDelete={() => setDeleting(shoe)}
               onToggleRetired={() =>
                 updateMut.mutate({
                   id: shoe.id,
@@ -145,6 +149,17 @@ export function ShoesCard() {
         </Modal>
       )}
       {statsOf && <ShoeStatsSheet shoe={statsOf} onClose={() => setStatsOf(null)} />}
+      {deleting && (
+        <ConfirmDialog
+          title={t('common:delete')}
+          message={t('parameters.shoes.deleteConfirm', { name: deleting.name })}
+          confirmLabel={t('common:delete')}
+          danger
+          busy={deleteMut.isPending}
+          onConfirm={() => deleteMut.mutate(deleting.id)}
+          onCancel={() => setDeleting(null)}
+        />
+      )}
     </section>
   )
 }

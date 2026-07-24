@@ -23,6 +23,7 @@ export default {
     deactivate: 'Deactivate',
     activating: 'Activating…',
     deactivating: 'Deactivating…',
+    deactivateConfirm: 'Deactivate {{name}}? They lose access immediately (their data is kept).',
   },
   count_one: '{{count}} account',
   count_other: '{{count}} accounts',

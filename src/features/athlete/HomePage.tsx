@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { differenceInCalendarDays, differenceInYears, format, parseISO } from 'date-fns'
 import { Trans, useTranslation } from 'react-i18next'
+import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { dateLocale, numberLocale } from '../../i18n'
 import { ApiError } from '../../lib/api'
 import { card, muted } from '../../lib/ui'
@@ -342,6 +343,7 @@ function EmptyNote({ children }: { children: React.ReactNode }) {
 function SeasonCard({ season, showLink, deletable }: { season: Season; showLink?: boolean; deletable?: boolean }) {
   const { t } = useTranslation('athlete')
   const queryClient = useQueryClient()
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
   const objective = season.objective
   const date = objective?.date ?? season.endDate
   const days = differenceInCalendarDays(parseISO(date), new Date())
@@ -387,17 +389,28 @@ function SeasonCard({ season, showLink, deletable }: { season: Season; showLink?
         </Link>
       )}
       {deletable && (
-        <button
-          onClick={() => {
-            if (window.confirm(t('home.objectives.deleteConfirm', { name: objective?.name ?? season.planName }))) {
-              deleteMutation.mutate(season.planId)
-            }
-          }}
-          disabled={deleteMutation.isPending}
-          className="mt-1 text-xs font-medium text-clay-500 transition hover:text-clay-600 disabled:opacity-50 dark:text-clay-300 dark:hover:text-clay-300/80"
-        >
-          {t('common:delete')}
-        </button>
+        <>
+          <button
+            onClick={() => setConfirmingDelete(true)}
+            disabled={deleteMutation.isPending}
+            className="mt-1 text-xs font-medium text-clay-500 transition hover:text-clay-600 disabled:opacity-50 dark:text-clay-300 dark:hover:text-clay-300/80"
+          >
+            {t('common:delete')}
+          </button>
+          {confirmingDelete && (
+            <ConfirmDialog
+              title={t('common:delete')}
+              message={t('home.objectives.deleteConfirm', {
+                name: objective?.name ?? season.planName,
+              })}
+              confirmLabel={t('common:delete')}
+              danger
+              busy={deleteMutation.isPending}
+              onConfirm={() => deleteMutation.mutate(season.planId)}
+              onCancel={() => setConfirmingDelete(false)}
+            />
+          )}
+        </>
       )}
       {deleteMutation.error instanceof ApiError && (
         <p role="alert" className="mt-1 text-xs text-clay-500 dark:text-clay-300">

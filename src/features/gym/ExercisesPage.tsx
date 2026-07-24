@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ApiError } from '../../lib/api'
 import { muted } from '../../lib/ui'
+import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { RenfoTabs } from './RenfoTabs'
 import { ExerciseForm } from './ExerciseForm'
 import {
@@ -183,6 +184,7 @@ function ExerciseCard({
 }) {
   const { t } = useTranslation('gym')
   const queryClient = useQueryClient()
+  const [confirming, setConfirming] = useState<'archive' | 'delete' | null>(null)
 
   const archiveMutation = useMutation({
     mutationFn: () =>
@@ -197,12 +199,18 @@ function ExerciseCard({
         muscles: exercise.muscles,
         archived: true,
       }),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['exercises'] }),
+    onSuccess: () => {
+      setConfirming(null)
+      void queryClient.invalidateQueries({ queryKey: ['exercises'] })
+    },
   })
 
   const deleteMutation = useMutation({
     mutationFn: () => deleteExercise(exercise.id),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['exercises'] }),
+    onSuccess: () => {
+      setConfirming(null)
+      void queryClient.invalidateQueries({ queryKey: ['exercises'] })
+    },
   })
 
   return (
@@ -253,16 +261,37 @@ function ExerciseCard({
           <div className="mt-3 flex flex-wrap gap-2">
             <ActionButton onClick={onEdit}>{t('common:edit')}</ActionButton>
             <ActionButton onClick={onDerive}>{t('exercises.derive')}</ActionButton>
-            <ActionButton onClick={() => archiveMutation.mutate()} disabled={archiveMutation.isPending}>
+            <ActionButton onClick={() => setConfirming('archive')} disabled={archiveMutation.isPending}>
               {t('exercises.archive')}
             </ActionButton>
             <ActionButton
-              onClick={() => deleteMutation.mutate()}
+              onClick={() => setConfirming('delete')}
               disabled={deleteMutation.isPending}
               danger
             >
               {t('common:delete')}
             </ActionButton>
+            {confirming === 'archive' && (
+              <ConfirmDialog
+                title={t('exercises.archive')}
+                message={t('exercises.archiveConfirm', { name: exercise.name })}
+                confirmLabel={t('exercises.archive')}
+                busy={archiveMutation.isPending}
+                onConfirm={() => archiveMutation.mutate()}
+                onCancel={() => setConfirming(null)}
+              />
+            )}
+            {confirming === 'delete' && (
+              <ConfirmDialog
+                title={t('common:delete')}
+                message={t('exercises.deleteConfirm', { name: exercise.name })}
+                confirmLabel={t('common:delete')}
+                danger
+                busy={deleteMutation.isPending}
+                onConfirm={() => deleteMutation.mutate()}
+                onCancel={() => setConfirming(null)}
+              />
+            )}
           </div>
           {deleteMutation.error instanceof ApiError && (
             <p role="alert" className="mt-2 text-xs text-clay-500 dark:text-clay-300">

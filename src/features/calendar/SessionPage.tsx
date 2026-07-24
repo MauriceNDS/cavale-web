@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { dateLocale } from '../../i18n'
 import { ApiError } from '../../lib/api'
 import { GlossaryText } from '../../lib/glossary'
+import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { StreamCharts } from '../../components/StreamCharts'
 import { startWorkout } from '../gym/api'
 import { ExportMenu } from './ExportMenu'
@@ -262,6 +263,7 @@ function SessionActions({
   const { t } = useTranslation('calendar')
   const [step, setStep] = useState<WizardStep>({ kind: 'none' })
   const [proposalDismissed, setProposalDismissed] = useState(false)
+  const [confirming, setConfirming] = useState<'skip' | 'unvalidate' | null>(null)
 
   const proposalQuery = useQuery({
     queryKey: ['session-proposal', session.id],
@@ -422,7 +424,7 @@ function SessionActions({
       {/* Sticky on mobile: mid-workout, « Valider » stays one thumb away. */}
       <div className="sticky bottom-[calc(3.75rem+env(safe-area-inset-bottom))] z-30 -mx-4 mt-6 border-t border-moss-200 bg-moss-50/95 px-4 py-3 backdrop-blur md:static md:z-auto md:mx-0 md:bg-transparent md:px-0 md:pt-4 md:pb-0 md:backdrop-blur-none dark:border-moss-750 dark:bg-moss-900/95 dark:md:bg-transparent">
       <div className="flex flex-wrap gap-2">
-      {session.discipline === 'RUN' && <ExportMenu session={session} />}
+      {session.discipline === 'RUN' && <ExportMenu session={session} size="md" />}
       {session.discipline === 'GYM' && session.status === 'PLANNED' && session.templateVariantId && (
         <StartWorkoutButton sessionId={session.id} />
       )}
@@ -442,7 +444,7 @@ function SessionActions({
             {t('session.validate')}
           </button>
           <button
-            onClick={() => statusMutation.mutate({ status: 'SKIPPED' })}
+            onClick={() => setConfirming('skip')}
             disabled={pending}
             className="rounded-lg border border-clay-500/40 px-4 py-2 text-sm font-semibold text-clay-500 transition hover:bg-clay-100 disabled:opacity-50 dark:text-clay-300 dark:hover:bg-clay-900"
           >
@@ -468,7 +470,7 @@ function SessionActions({
       )}
       {session.status === 'DONE' && (
         <button
-          onClick={() => statusMutation.mutate({ status: 'PLANNED' })}
+          onClick={() => setConfirming('unvalidate')}
           disabled={pending}
           className="rounded-lg border border-moss-200 px-4 py-2 text-sm font-medium text-moss-500 transition hover:bg-moss-100 disabled:opacity-50 dark:border-moss-750 dark:text-moss-400 dark:hover:bg-moss-800"
         >
@@ -477,6 +479,34 @@ function SessionActions({
       )}
       </div>
       </div>
+      {confirming === 'skip' && (
+        <ConfirmDialog
+          title={t('session.skip')}
+          message={t('session.skipConfirm')}
+          confirmLabel={t('session.skip')}
+          danger
+          busy={statusMutation.isPending}
+          onConfirm={() => {
+            setConfirming(null)
+            statusMutation.mutate({ status: 'SKIPPED' })
+          }}
+          onCancel={() => setConfirming(null)}
+        />
+      )}
+      {confirming === 'unvalidate' && (
+        <ConfirmDialog
+          title={t('session.backToPlanned')}
+          message={t('session.unvalidateConfirm')}
+          confirmLabel={t('session.backToPlanned')}
+          danger
+          busy={statusMutation.isPending}
+          onConfirm={() => {
+            setConfirming(null)
+            statusMutation.mutate({ status: 'PLANNED' })
+          }}
+          onCancel={() => setConfirming(null)}
+        />
+      )}
     </>
   )
 }
@@ -943,6 +973,7 @@ function ActivityReport({
 }) {
   const { t } = useTranslation('calendar')
   const queryClient = useQueryClient()
+  const [confirmingUnvalidate, setConfirmingUnvalidate] = useState(false)
   const activity = session.activity!
   const streams = useQuery({
     queryKey: ['session-streams', session.id],
@@ -1023,20 +1054,36 @@ function ActivityReport({
       </div>
 
       {/* charts */}
-      {activity.hasStreams && streams.data && <StreamCharts streams={streams.data} />}
+      {activity.hasStreams && streams.data && (
+        <StreamCharts streams={streams.data} workout={session.workout} />
+      )}
       {activity.hasStreams && streams.isLoading && (
         <p className="mt-4 text-sm text-moss-500 dark:text-moss-400">{t('report.loadingCharts')}</p>
       )}
 
       <div className="mt-6 flex gap-2 border-t border-moss-200 pt-4 dark:border-moss-750">
         <button
-          onClick={() => statusMutation.mutate({ status: 'PLANNED' })}
+          onClick={() => setConfirmingUnvalidate(true)}
           disabled={statusMutation.isPending}
           className="rounded-lg border border-moss-200 px-4 py-2 text-sm font-medium text-moss-500 transition hover:bg-moss-100 disabled:opacity-50 dark:border-moss-750 dark:text-moss-400 dark:hover:bg-moss-800"
         >
           {t('session.backToPlanned')}
         </button>
       </div>
+      {confirmingUnvalidate && (
+        <ConfirmDialog
+          title={t('session.backToPlanned')}
+          message={t('session.unvalidateConfirm')}
+          confirmLabel={t('session.backToPlanned')}
+          danger
+          busy={statusMutation.isPending}
+          onConfirm={() => {
+            setConfirmingUnvalidate(false)
+            statusMutation.mutate({ status: 'PLANNED' })
+          }}
+          onCancel={() => setConfirmingUnvalidate(false)}
+        />
+      )}
     </div>
   )
 }

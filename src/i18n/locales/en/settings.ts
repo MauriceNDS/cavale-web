@@ -109,6 +109,7 @@ export default {
       athleteId: 'Athlete {{id}}',
       lastPush: 'last push {{date}}',
       push: 'Send the upcoming week',
+      disconnectConfirm: 'Disconnect Intervals.icu? Planned workouts stop syncing to your watch until you paste a key again.',
       pushing: 'Pushing…',
       pushed: '{{count}} workout(s) sent to the calendar — sync your watch.',
       disconnect: 'Disconnect',

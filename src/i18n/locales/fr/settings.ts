@@ -109,6 +109,7 @@ export default {
       athleteId: 'Athlète {{id}}',
       lastPush: 'dernier envoi {{date}}',
       push: 'Envoyer la semaine à venir',
+      disconnectConfirm: 'Déconnecter Intervals.icu ? Les séances planifiées ne seront plus envoyées vers ta montre tant qu’une clé n’est pas re-saisie.',
       pushing: 'Envoi…',
       pushed: '{{count}} séance(s) envoyée(s) au calendrier — synchronise ta montre.',
       disconnect: 'Déconnecter',

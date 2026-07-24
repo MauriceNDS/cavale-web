@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
@@ -6,6 +6,7 @@ import { format } from 'date-fns'
 import { dateLocale } from '../../i18n'
 import { ApiError } from '../../lib/api'
 import { muted } from '../../lib/ui'
+import { ConfirmDialog } from '../../components/ConfirmDialog'
 import type { AccountStatus } from '../auth/api'
 import { useAuth } from '../auth/session'
 import {
@@ -117,11 +118,15 @@ export function UsersAdminPage() {
 function UserRow({ account, isSelf }: { account: AdminUser; isSelf: boolean }) {
   const { t } = useTranslation('admin')
   const queryClient = useQueryClient()
+  const [confirmingDeactivate, setConfirmingDeactivate] = useState(false)
 
   const mutation = useMutation({
     mutationFn: (next: 'activate' | 'deactivate') =>
       next === 'activate' ? activateUser(account.id) : deactivateUser(account.id),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['admin', 'users'] }),
+    onSuccess: () => {
+      setConfirmingDeactivate(false)
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
+    },
   })
 
   const isAdmin = account.role === 'ADMIN'
@@ -171,7 +176,7 @@ function UserRow({ account, isSelf }: { account: AdminUser; isSelf: boolean }) {
 
       {action && (
         <button
-          onClick={() => mutation.mutate(action)}
+          onClick={() => (action === 'deactivate' ? setConfirmingDeactivate(true) : mutation.mutate(action))}
           disabled={mutation.isPending}
           className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition disabled:opacity-50 ${
             action === 'activate'
@@ -183,6 +188,19 @@ function UserRow({ account, isSelf }: { account: AdminUser; isSelf: boolean }) {
             ? t(action === 'activate' ? 'actions.activating' : 'actions.deactivating')
             : t(action === 'activate' ? 'actions.activate' : 'actions.deactivate')}
         </button>
+      )}
+      {confirmingDeactivate && (
+        <ConfirmDialog
+          title={t('actions.deactivate')}
+          message={t('actions.deactivateConfirm', {
+            name: account.displayName || account.email,
+          })}
+          confirmLabel={t('actions.deactivate')}
+          danger
+          busy={mutation.isPending}
+          onConfirm={() => mutation.mutate('deactivate')}
+          onCancel={() => setConfirmingDeactivate(false)}
+        />
       )}
     </li>
   )

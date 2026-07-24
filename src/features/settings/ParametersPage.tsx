@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format, parseISO } from 'date-fns'
 import { Trans, useTranslation } from 'react-i18next'
+import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { ThemeModeSelector } from '../../components/ThemeModeSelector'
 import { applyLanguage, dateLocale, type Language } from '../../i18n'
 import { ApiError } from '../../lib/api'
@@ -283,6 +284,7 @@ function IntervalsCard() {
   const queryClient = useQueryClient()
   const status = useQuery({ queryKey: ['intervals-status'], queryFn: fetchIntervalsStatus })
   const [apiKey, setApiKey] = useState('')
+  const [confirmingDisconnect, setConfirmingDisconnect] = useState(false)
 
   const connect = useMutation({
     mutationFn: connectIntervals,
@@ -294,7 +296,10 @@ function IntervalsCard() {
 
   const disconnect = useMutation({
     mutationFn: disconnectIntervals,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['intervals-status'] }),
+    onSuccess: () => {
+      setConfirmingDisconnect(false)
+      void queryClient.invalidateQueries({ queryKey: ['intervals-status'] })
+    },
   })
 
   const push = useMutation({
@@ -403,13 +408,23 @@ function IntervalsCard() {
               {push.isPending ? t('parameters.intervals.pushing') : t('parameters.intervals.push')}
             </button>
             <button
-              onClick={() => disconnect.mutate()}
+              onClick={() => setConfirmingDisconnect(true)}
               disabled={disconnect.isPending}
               className="rounded-lg border border-moss-200 px-4 py-2 text-sm font-medium text-moss-500 transition hover:bg-moss-100 dark:border-moss-750 dark:text-moss-400 dark:hover:bg-moss-800"
             >
               {t('parameters.intervals.disconnect')}
             </button>
           </div>
+          {confirmingDisconnect && (
+            <ConfirmDialog
+              title={t('parameters.intervals.disconnect')}
+              message={t('parameters.intervals.disconnectConfirm')}
+              confirmLabel={t('parameters.intervals.disconnect')}
+              busy={disconnect.isPending}
+              onConfirm={() => disconnect.mutate()}
+              onCancel={() => setConfirmingDisconnect(false)}
+            />
+          )}
         </div>
       )}
     </section>

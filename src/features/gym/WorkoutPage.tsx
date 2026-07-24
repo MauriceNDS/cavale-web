@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { ApiError } from '../../lib/api'
 import { muted } from '../../lib/ui'
 import { Modal } from '../../components/Modal'
+import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { ExerciseDetailSheet } from './ExerciseDetailSheet'
 import {
   abandonWorkout,
@@ -220,6 +221,7 @@ function WorkoutHeader({
 }) {
   const { t } = useTranslation('gym')
   const [, forceTick] = useState(0)
+  const [confirmingAbandon, setConfirmingAbandon] = useState(false)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -255,15 +257,22 @@ function WorkoutHeader({
         {!finished && (
           <>
             <button
-              onClick={() => {
-                if (window.confirm(t('workout.abandonConfirm'))) {
-                  abandonMutation.mutate()
-                }
-              }}
+              onClick={() => setConfirmingAbandon(true)}
               className="rounded-lg px-2.5 py-2 text-xs font-medium text-clay-500 transition hover:bg-clay-100 dark:text-clay-300 dark:hover:bg-clay-900"
             >
               {t('workout.abandon')}
             </button>
+            {confirmingAbandon && (
+              <ConfirmDialog
+                title={t('workout.abandon')}
+                message={t('workout.abandonConfirm')}
+                confirmLabel={t('workout.abandon')}
+                danger
+                busy={abandonMutation.isPending}
+                onConfirm={() => abandonMutation.mutate()}
+                onCancel={() => setConfirmingAbandon(false)}
+              />
+            )}
             <button
               onClick={onFinish}
               className="rounded-lg bg-pine-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
@@ -489,6 +498,7 @@ function BlockCard({
   const { t } = useTranslation('gym')
   const queryClient = useQueryClient()
   const [replacing, setReplacing] = useState(false)
+  const [confirmingRemove, setConfirmingRemove] = useState(false)
   const [detailOpen, setDetailOpen] = useState(false)
   const { restLeft, setRestLeft } = useRestCountdown()
 
@@ -598,7 +608,7 @@ function BlockCard({
             <button
               onClick={() => {
                 if (isExtra) {
-                  if (window.confirm(t('workout.removeExtraConfirm'))) removeExtraMutation.mutate()
+                  setConfirmingRemove(true)
                 } else {
                   skipMutation.mutate()
                 }
@@ -610,6 +620,17 @@ function BlockCard({
             >
               <CrossIcon />
             </button>
+            {confirmingRemove && (
+              <ConfirmDialog
+                title={t('workout.skipAria', { name: exercise.name })}
+                message={t('workout.removeExtraConfirm')}
+                confirmLabel={t('common:delete')}
+                danger
+                busy={removeExtraMutation.isPending}
+                onConfirm={() => removeExtraMutation.mutate()}
+                onCancel={() => setConfirmingRemove(false)}
+              />
+            )}
           </span>
         )}
       </div>
