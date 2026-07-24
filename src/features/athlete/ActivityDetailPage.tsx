@@ -7,7 +7,7 @@ import { dateLocale, numberLocale } from '../../i18n'
 import { card, muted } from '../../lib/ui'
 import { effortLabel } from '../calendar/labels'
 import { ActivityShoeRow } from '../shoes/ActivityShoeRow'
-import type { PerceivedEffort } from '../calendar/api'
+import { fetchSession, type PerceivedEffort } from '../calendar/api'
 import { fetchActivityDetail, fetchActivityStreams } from './api'
 
 function formatDuration(min: number): string {
@@ -35,6 +35,12 @@ export function ActivityDetailPage() {
     queryKey: ['activity-streams', activityId],
     queryFn: () => fetchActivityStreams(activityId),
     enabled: query.data?.hasStreams ?? false,
+  })
+  // The linked session brings the planned workout structure (per-segment chart).
+  const session = useQuery({
+    queryKey: ['session', query.data?.sessionId],
+    queryFn: () => fetchSession(query.data!.sessionId!),
+    enabled: query.data?.sessionId != null,
   })
 
   if (query.isLoading) {
@@ -166,7 +172,9 @@ export function ActivityDetailPage() {
           </div>
         )}
 
-        {a.hasStreams && streams.data && <StreamCharts streams={streams.data} />}
+        {a.hasStreams && streams.data && (
+          <StreamCharts streams={streams.data} workout={session.data?.workout} />
+        )}
         {a.hasStreams && streams.isLoading && (
           <p className={`mt-4 text-sm ${muted}`}>{t('activityDetail.loadingCharts')}</p>
         )}
