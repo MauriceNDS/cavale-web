@@ -19,11 +19,11 @@ import {
   syncStravaHistory,
   type AthleteHub,
   type Season,
-  type TrailIndex,
   type TrainingStatusLabel,
 } from './api'
-import { EffortChart, PeriodBars, TrendLine, type PeriodPoint } from './charts'
-import { formatChrono, formatHours, formatMonth, formatPace } from './labels'
+import { PeriodBars, type PeriodPoint } from './charts'
+import { formatHours, formatMonth } from './labels'
+import { WeekSnapshotCard } from './WeekSnapshotCard'
 
 // Safety cap on the self-chaining analyze drain: a backend that never reports
 // remaining === 0 must not spin up requests forever.
@@ -54,8 +54,8 @@ function HubContent({ hub }: { hub: AthleteHub }) {
     <div className="mx-auto max-w-5xl space-y-4 pt-6">
       <TodayCard />
       <ProfileHeader hub={hub} />
+      <WeekSnapshotCard hub={hub} />
       <ObjectivesRail seasons={hub.seasons} />
-      <RecordsSection hub={hub} />
       <TrendsSection hub={hub} />
     </div>
   )
@@ -444,119 +444,9 @@ function NextObjectiveForm({ hasFuture }: { hasFuture: boolean }) {
   )
 }
 
-/* ── Records, longest runs, estimations ────────────────────────────── */
-
-/** The personal trail performance index — one number the athlete watches climb. */
-function TrailIndexTile({ trailIndex }: { trailIndex: TrailIndex }) {
-  const { t } = useTranslation('athlete')
-  return (
-    <div className="mt-3 flex items-center justify-between gap-4 rounded-lg border border-copper-600/30 bg-copper-600/5 p-4 dark:border-copper-300/30 dark:bg-copper-300/10">
-      <div>
-        <p className={`text-xs font-semibold tracking-wide uppercase ${muted}`}>
-          {t('home.trailIndex.title')}
-        </p>
-        <p className={`mt-1 text-xs ${muted}`}>
-          {trailIndex.bestEffortName
-            ? t('home.trailIndex.bestNamed', {
-                name: trailIndex.bestEffortName,
-                km: trailIndex.bestKmEffort,
-              })
-            : t('home.trailIndex.best', { km: trailIndex.bestKmEffort })}
-          {' · '}
-          {t('home.trailIndex.basis', { count: trailIndex.sampleEfforts })}
-        </p>
-      </div>
-      <p className="font-display text-4xl font-semibold text-copper-600 dark:text-copper-300">
-        {trailIndex.index}
-      </p>
-    </div>
-  )
-}
-
-function RecordsSection({ hub }: { hub: AthleteHub }) {
-  const { t } = useTranslation('athlete')
-  const { records, longestRuns, predictions, sync } = hub
-
-  return (
-    <section className={card}>
-      <h2 className="font-display text-lg font-semibold">{t('home.records.title')}</h2>
-      {hub.trailIndex && <TrailIndexTile trailIndex={hub.trailIndex} />}
-      {records.length === 0 ? (
-        <p className={`mt-2 text-sm ${muted}`}>
-          {sync.stravaConnected
-            ? sync.recordsPending > 0
-              ? t('home.records.emptyAnalyze')
-              : t('home.records.emptySync')
-            : t('home.records.emptyConnect')}
-        </p>
-      ) : (
-        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {records.map((record) => (
-            <div key={record.label} className="rounded-lg border border-moss-200 bg-moss-50 p-3 dark:border-moss-750 dark:bg-moss-900">
-              <p className={`text-xs ${muted}`}>{record.label}</p>
-              <p className="mt-0.5 text-xl font-semibold">{formatChrono(record.seconds)}</p>
-              <p className={`mt-0.5 text-xs ${muted}`}>
-                {formatPace(Math.round((record.seconds * 1000) / record.distanceM))} ·{' '}
-                {format(parseISO(record.date), 'MMM yyyy', { locale: dateLocale() })}
-              </p>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {(longestRuns.byDistance || longestRuns.byDuration) && (
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          {longestRuns.byDistance && (
-            <div className="rounded-lg border border-moss-200 bg-moss-50 p-3 dark:border-moss-750 dark:bg-moss-900">
-              <p className={`text-xs ${muted}`}>{t('home.records.longestByDistance')}</p>
-              <p className="mt-0.5 text-xl font-semibold">{longestRuns.byDistance.distanceKm} km</p>
-              <p className={`mt-0.5 truncate text-xs ${muted}`}>
-                {longestRuns.byDistance.name ?? t('home.records.runFallback')} ·{' '}
-                {format(parseISO(longestRuns.byDistance.date), 'd MMM yyyy', { locale: dateLocale() })}
-              </p>
-            </div>
-          )}
-          {longestRuns.byDuration && (
-            <div className="rounded-lg border border-moss-200 bg-moss-50 p-3 dark:border-moss-750 dark:bg-moss-900">
-              <p className={`text-xs ${muted}`}>{t('home.records.longestByDuration')}</p>
-              <p className="mt-0.5 text-xl font-semibold">
-                {formatHours(longestRuns.byDuration.durationMin)}
-                <span className="text-sm font-normal"> ({formatChrono(longestRuns.byDuration.durationMin * 60)})</span>
-              </p>
-              <p className={`mt-0.5 truncate text-xs ${muted}`}>
-                {longestRuns.byDuration.name ?? t('home.records.runFallback')} ·{' '}
-                {format(parseISO(longestRuns.byDuration.date), 'd MMM yyyy', { locale: dateLocale() })}
-              </p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {predictions.length > 0 && (
-        <>
-          <h3 className="mt-5 font-display text-base font-semibold">{t('home.records.estimatesTitle')}</h3>
-          <p className={`mt-0.5 text-xs ${muted}`}>{t('home.records.estimatesIntro')}</p>
-          <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {predictions.map((prediction) => (
-              <div key={prediction.label} className="rounded-lg border border-dashed border-moss-300 p-3 dark:border-moss-700">
-                <p className={`text-xs ${muted}`}>{prediction.label}</p>
-                <p className="mt-0.5 text-xl font-semibold">{formatChrono(prediction.seconds)}</p>
-                <p className={`mt-0.5 text-xs ${muted}`}>
-                  {formatPace(prediction.paceSecPerKm)} · {t('home.records.basedOn', { record: prediction.basedOn })}
-                </p>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-    </section>
-  )
-}
-
-/* ── Trends: volume, pace/HR/cadence, relative effort ──────────────── */
+/* ── Trends: the one compact volume chart ──────────────────────────── */
 
 type VolumeMetric = 'km' | 'dplus'
-type TrendMetric = 'pace' | 'hr' | 'cadence'
 type Granularity = 'week' | 'month'
 
 /** Zoom stops of the trend charts, per granularity. */
@@ -568,10 +458,9 @@ const RANGES: Record<Granularity, number[]> = {
 function TrendsSection({ hub }: { hub: AthleteHub }) {
   const { t } = useTranslation('athlete')
   const [volumeMetric, setVolumeMetric] = useState<VolumeMetric>('km')
-  const [trendMetric, setTrendMetric] = useState<TrendMetric>('pace')
   const [granularity, setGranularity] = useState<Granularity>('month')
   const [range, setRange] = useState<Record<Granularity, number>>({ week: 16, month: 12 })
-  const { monthly, weeklyEffort, totals } = hub
+  const { monthly, totals } = hub
   // Tolerate a hub payload from an API deployed moments before this build.
   const weekly = hub.weekly ?? []
 
@@ -588,30 +477,6 @@ function TrendsSection({ hub }: { hub: AthleteHub }) {
           })),
     [monthly, weekly, granularity, range],
   )
-
-  const trend = {
-    pace: {
-      label: t('home.trends.avgPace'),
-      value: (p: PeriodPoint) => p.avgPaceSecPerKm,
-      format: (v: number) => formatPace(v),
-      tick: (v: number) => formatPace(v).replace('/km', ''),
-      invert: true,
-    },
-    hr: {
-      label: t('home.trends.avgHr'),
-      value: (p: PeriodPoint) => p.avgHr,
-      format: (v: number) => `${Math.round(v)} bpm`,
-      tick: (v: number) => `${Math.round(v)}`,
-      invert: false,
-    },
-    cadence: {
-      label: t('home.trends.avgCadence'),
-      value: (p: PeriodPoint) => p.avgCadenceSpm,
-      format: (v: number) => `${Math.round(v)} spm`,
-      tick: (v: number) => `${Math.round(v)}`,
-      invert: false,
-    },
-  }[trendMetric]
 
   return (
     <section className={card}>
@@ -662,40 +527,11 @@ function TrendsSection({ hub }: { hub: AthleteHub }) {
           unit={volumeMetric === 'km' ? 'km' : 'm D+'}
         />
       </div>
-
-      <div className="mt-6 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-display text-lg font-semibold">{t('home.trends.evolutionTitle')}</h2>
-        <div className="flex gap-1 rounded-lg bg-moss-100 p-0.5 dark:bg-moss-800">
-          <button onClick={() => setTrendMetric('pace')} className={pill(trendMetric === 'pace')}>
-            {t('home.trends.pace')}
-          </button>
-          <button onClick={() => setTrendMetric('hr')} className={pill(trendMetric === 'hr')}>
-            {t('home.trends.hr')}
-          </button>
-          <button onClick={() => setTrendMetric('cadence')} className={pill(trendMetric === 'cadence')}>
-            {t('home.trends.cadence')}
-          </button>
-        </div>
-      </div>
-      {trendMetric === 'pace' && (
-        <p className={`mt-1 text-xs ${muted}`}>{t('home.trends.invertedAxis')}</p>
-      )}
-      <div className="mt-3">
-        <TrendLine
-          periods={periods}
-          value={trend.value}
-          formatValue={trend.format}
-          formatTick={trend.tick}
-          invert={trend.invert}
-          label={trend.label}
-        />
-      </div>
-
-      <h2 className="mt-6 font-display text-lg font-semibold">{t('home.trends.effortTitle')}</h2>
-      <p className={`mt-1 text-xs ${muted}`}>{t('home.trends.effortIntro')}</p>
-      <div className="mt-3">
-        <EffortChart weeks={weeklyEffort} />
-      </div>
+      <p className={`mt-2 text-xs ${muted}`}>
+        <Link to="/stats" className="text-pine-700 underline dark:text-pine-300">
+          {t('home.trends.allStats')}
+        </Link>
+      </p>
     </section>
   )
 }

@@ -1,11 +1,33 @@
 export default {
   title: 'Statistiques',
-  tabRunning: 'Course',
-  tabStrength: 'Renfo',
   period: 'Période',
   months_one: '{{count}} mois',
   months_other: '{{count}} mois',
   loadError: 'Impossible de charger les statistiques.',
+  tabs: {
+    charge: 'Charge',
+    volume: 'Volume',
+    physio: 'Physiologie',
+    records: 'Records & Prédictions',
+    renfo: 'Renfo',
+  },
+  verdict: {
+    status: 'Statut',
+    statusLabel: {
+      PRODUCTIVE: 'Productif',
+      MAINTAINING: 'Maintien',
+      OVERREACHING: 'Surcharge',
+      RECOVERY: 'Récupération',
+      DETRAINING: 'Désentraînement',
+    },
+    fitnessTrend: 'fitness {{value}} % / 28 j',
+    form: 'Forme',
+    formHint: "aujourd'hui",
+    acwr: 'Charge 7j/28j',
+    acwrLoads: 'aigu {{acute}} · chronique {{chronic}}',
+    monotony: 'Monotonie',
+    strain: 'contrainte {{value}}',
+  },
   form: {
     title: 'Forme & Fitness',
     hint: 'Fitness = effort relatif lissé sur 42 j, Fatigue sur 7 j, Forme = différence.',
@@ -14,6 +36,7 @@ export default {
     fitness: 'Fitness',
     fatigue: 'Fatigue',
     form: 'Forme',
+    summary: 'forme {{value}}',
   },
   acwr: {
     tooltip:
@@ -40,6 +63,7 @@ export default {
     statusOver: 'au-dessus de la zone — pense à lever le pied',
     statusIn: 'dans la zone — progression saine',
     statusUnder: "vise {{low}}–{{high}} d'ici dimanche",
+    summary: 'cette semaine {{value}}',
   },
   monotony: {
     title: "Monotonie d'entraînement",
@@ -61,6 +85,28 @@ export default {
     runs_one: '{{count}} sortie',
     runs_other: '{{count}} sorties',
     totalPrefix: 'Total période :',
+    summary: '{{km}} km sur la période',
+  },
+  evolution: {
+    title: 'Évolution',
+    hint: 'Allure, FC et cadence moyennes par mois — le fond qui bouge.',
+  },
+  records: {
+    title: 'Records',
+    emptyAnalyze: "Lance « Analyser les records » depuis l'accueil pour extraire tes meilleurs temps.",
+    emptySync: 'Synchronise ton historique Strava pour découvrir tes records.',
+    emptyConnect: 'Connecte Strava pour découvrir tes records de distance.',
+    longestByDistance: 'Plus longue sortie (distance)',
+    longestByDuration: 'Plus longue sortie (durée)',
+    runFallback: 'Sortie',
+    estimatesTitle: 'Temps estimés',
+    estimatesIntro: "Estimations (formule de Riegel) d'après tes records — pas des résultats.",
+    basedOn: "d'après ton {{record}}",
+    trailIndexTitle: 'Indice de performance trail',
+    trailIndexBest: 'meilleur effort : {{km}} km-effort',
+    trailIndexBestNamed: 'meilleur : {{name}} ({{km}} km-effort)',
+    trailIndexBasis_one: 'sur {{count}} effort',
+    trailIndexBasis_other: 'sur tes {{count}} meilleurs efforts',
   },
   checkpoints: {
     title: 'Après X minutes de course…',
@@ -87,6 +133,7 @@ export default {
     criticalSpeed: 'Vitesse critique',
     anaerobic: "Réserve anaérobie D'",
     criticalBasis: 'Ajustée sur {{count}} meilleurs efforts · R² {{r2}}',
+    summary: '≈ {{value}}',
   },
   durability: {
     title: 'Endurance aérobie',
