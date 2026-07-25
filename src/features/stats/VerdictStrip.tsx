@@ -51,7 +51,8 @@ export function VerdictStrip({ stats }: { stats: RunningStatsResponse }) {
   const form = stats.form
   const today = form.at(-1)
   const weekAgo = form.at(-8)
-  const formDelta = today && weekAgo ? today.formScore - weekAgo.formScore : null
+  const formDelta =
+    today && weekAgo ? Math.round((today.formScore - weekAgo.formScore) * 10) / 10 : null
   // Sparkline windows: fitness over ~8 weeks (every 2nd day), form over 6 weeks.
   const fitnessSpark = form.slice(-56).filter((_, i) => i % 2 === 0).map((d) => d.fitness)
   const formSpark = form.slice(-42).map((d) => d.formScore)
