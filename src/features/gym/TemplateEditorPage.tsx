@@ -13,7 +13,7 @@ import {
   addAlternative,
   addTemplateExercise,
   addVariant,
-  configureCircuit,
+  assignGroups,
   copyVariant,
   deleteTemplate,
   deleteVariant,
@@ -28,7 +28,6 @@ import {
   type ExerciseResponse,
   type TemplateExerciseRequest,
   type TemplateExerciseResponse,
-  type VariantDetailResponse,
 } from './api'
 import {
   CATEGORY_BADGE,
@@ -304,8 +303,46 @@ type PanelState =
   | { kind: 'add' }
   | { kind: 'edit'; te: TemplateExerciseResponse }
   | { kind: 'alternative'; te: TemplateExerciseResponse }
-  | { kind: 'circuit' }
   | { kind: 'detail'; exercise: ExerciseResponse }
+
+/** First unused letter — group keys are only ever shown, never typed. */
+function freeGroupKey(keys: (string | null)[]): string {
+  const taken = new Set(keys.filter(Boolean))
+  for (const letter of 'ABCDEFGHIJKLMNOPQRSTUVWXYZ') {
+    if (!taken.has(letter)) return letter
+  }
+  return 'Z'
+}
+
+/** Chain prescription `index` with the one below: merge, extend, or open a group. */
+function chained(keys: (string | null)[], index: number): (string | null)[] {
+  const next = [...keys]
+  const here = next[index]
+  const below = next[index + 1]
+  if (here && below) {
+    // two existing groups meet — the lower one is absorbed into the upper
+    return next.map((key) => (key === below ? here : key))
+  }
+  if (here) next[index + 1] = here
+  else if (below) next[index] = below
+  else {
+    const key = freeGroupKey(next)
+    next[index] = key
+    next[index + 1] = key
+  }
+  return next
+}
+
+/** Break the chain below `index`: what follows becomes its own group. */
+function unchained(keys: (string | null)[], index: number): (string | null)[] {
+  const next = [...keys]
+  const key = next[index]
+  const fresh = freeGroupKey(next)
+  for (let i = index + 1; i < next.length && next[i] === key; i++) {
+    next[i] = fresh
+  }
+  return next
+}
 
 function VariantEditor({ variantId }: { variantId: string }) {
   const { t } = useTranslation('gym')
@@ -333,6 +370,12 @@ function VariantEditor({ variantId }: { variantId: string }) {
     onSuccess: invalidate,
   })
 
+  const groupsMutation = useMutation({
+    mutationFn: (assignments: { templateExerciseId: string; groupKey: string | null }[]) =>
+      assignGroups(variantId, assignments),
+    onSuccess: invalidate,
+  })
+
   const removeAltMutation = useMutation({
     mutationFn: (alternativeId: string) => removeAlternative(alternativeId),
     onSuccess: invalidate,
@@ -351,24 +394,28 @@ function VariantEditor({ variantId }: { variantId: string }) {
     reorderMutation.mutate(ids)
   }
 
-  const circuit = detail.circuitLoops != null
+  const groupKeys = detail.exercises.map((e) => e.groupKey)
+  // one group holding everything is what a circuit has always been
+  const circuit =
+    detail.exercises.length > 1 &&
+    groupKeys.every((key) => key != null && key === groupKeys[0])
+  const rounds = circuit ? Math.max(...detail.exercises.map((e) => e.sets)) : null
+
+  function regroup(keys: (string | null)[]) {
+    groupsMutation.mutate(
+      detail!.exercises.map((te, i) => ({ templateExerciseId: te.id, groupKey: keys[i] })),
+    )
+  }
 
   return (
     <div className="mt-4">
-      {/* circuit banner: the variant's execution mode, one tap to change */}
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        {circuit ? (
+      {circuit && (
+        <div className="mb-3">
           <span className="rounded-full bg-teal-600/15 px-2.5 py-1 text-xs font-semibold text-teal-600 dark:bg-teal-300/15 dark:text-teal-300">
-            {t('editor.circuit.tag', { loops: detail.circuitLoops })}
-            {detail.circuitRestSec != null && ` · ${formatRest(detail.circuitRestSec)}`}
+            {t('editor.groups.circuitTag', { rounds })}
           </span>
-        ) : (
-          <span className={`text-xs ${muted}`}>{t('editor.circuit.classicTag')}</span>
-        )}
-        <button onClick={() => setPanel({ kind: 'circuit' })} className={actionBtn}>
-          {circuit ? t('editor.circuit.edit') : t('editor.circuit.enable')}
-        </button>
-      </div>
+        </div>
+      )}
 
       {detail.exercises.length === 0 && panel.kind === 'closed' && (
         <p className={`my-6 text-center ${muted}`}>
@@ -392,20 +439,27 @@ function VariantEditor({ variantId }: { variantId: string }) {
                   onClick={() => setPanel({ kind: 'detail', exercise: te.exercise })}
                   className="text-left font-medium underline-offset-2 hover:underline"
                 >
+                  {te.groupKey != null && (
+                    <span className="mr-1 rounded bg-teal-600/15 px-1.5 py-0.5 text-[11px] font-bold text-teal-600 dark:bg-teal-300/15 dark:text-teal-300">
+                      {te.groupKey}
+                      {groupKeys.slice(0, index).filter((k) => k === te.groupKey).length + 1}
+                    </span>
+                  )}
                   {te.exercise.name}{' '}
                   <span className={`ml-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${CATEGORY_BADGE[te.exercise.category]}`}>
                     {categoryLabel(te.exercise.category)}
                   </span>
                 </button>
                 <p className={`text-xs ${muted}`}>
-                  {circuit
-                    ? t('editor.circuit.prescription', {
-                        loops: detail.circuitLoops,
-                        effort: te.seconds != null ? `${te.seconds} sec` : `${te.reps ?? '?'}`,
-                      })
-                    : formatPrescription(te.sets, te.reps, te.seconds)}
+                  {formatPrescription(te.sets, te.reps, te.seconds)}
                   {te.intensityPct != null && ` · ${te.intensityPct} %`}
-                  {formatRest(te.restSec) != null && ` · ${formatRest(te.restSec)}`}
+                  {formatRest(te.restSec) != null &&
+                    ` · ${t(
+                      te.groupKey != null && groupKeys[index + 1] === te.groupKey
+                        ? 'editor.groups.restBeforeNext'
+                        : 'editor.groups.restAfter',
+                      { rest: formatRest(te.restSec) },
+                    )}`}
                   {te.note && ` · ${te.note}`}
                 </p>
               </div>
@@ -444,9 +498,38 @@ function VariantEditor({ variantId }: { variantId: string }) {
                 {t('editor.addAlternative')}
               </button>
             </div>
+
+            {/* the chain to the exercise below: enchaîner makes a superset */}
+            {index < detail.exercises.length - 1 && (
+              <div className="mt-2 border-t border-dashed border-moss-200 pt-2 pl-6 dark:border-moss-750">
+                {te.groupKey != null && groupKeys[index + 1] === te.groupKey ? (
+                  <button
+                    onClick={() => regroup(unchained(groupKeys, index))}
+                    disabled={groupsMutation.isPending}
+                    className="text-xs font-medium text-teal-600 disabled:opacity-50 dark:text-teal-300"
+                  >
+                    {t('editor.groups.unchain')}
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => regroup(chained(groupKeys, index))}
+                    disabled={groupsMutation.isPending}
+                    className={`text-xs font-medium ${muted} transition hover:text-teal-600 disabled:opacity-50 dark:hover:text-teal-300`}
+                  >
+                    {t('editor.groups.chain')}
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         ))}
       </div>
+
+      {groupsMutation.error instanceof ApiError && (
+        <p role="alert" className="mt-2 text-sm text-clay-500 dark:text-clay-300">
+          {groupsMutation.error.message}
+        </p>
+      )}
 
       <button
         onClick={() => setPanel({ kind: 'add' })}
@@ -458,7 +541,6 @@ function VariantEditor({ variantId }: { variantId: string }) {
       {panel.kind === 'add' && (
         <Modal title={t('editor.addExerciseTitle')} onClose={() => setPanel({ kind: 'closed' })}>
           <PrescriptionPanel
-            circuit={circuit}
             onSubmit={(body) => addTemplateExercise(variantId, body)}
             onDone={() => {
               invalidate()
@@ -474,7 +556,6 @@ function VariantEditor({ variantId }: { variantId: string }) {
           onClose={() => setPanel({ kind: 'closed' })}
         >
           <PrescriptionPanel
-            circuit={circuit}
             existing={panel.te}
             onSubmit={(body) => updateTemplateExercise(panel.te.id, body)}
             onDone={() => {
@@ -500,16 +581,6 @@ function VariantEditor({ variantId }: { variantId: string }) {
           />
         </Modal>
       )}
-      {panel.kind === 'circuit' && (
-        <CircuitModal
-          detail={detail}
-          onDone={() => {
-            invalidate()
-            setPanel({ kind: 'closed' })
-          }}
-          onClose={() => setPanel({ kind: 'closed' })}
-        />
-      )}
       {panel.kind === 'detail' && (
         <ExerciseDetailSheet
           exercise={panel.exercise}
@@ -517,87 +588,6 @@ function VariantEditor({ variantId }: { variantId: string }) {
         />
       )}
     </div>
-  )
-}
-
-/* ── Circuit configuration ─────────────────────────────────────────── */
-
-function CircuitModal({
-  detail,
-  onDone,
-  onClose,
-}: {
-  detail: VariantDetailResponse
-  onDone: () => void
-  onClose: () => void
-}) {
-  const { t } = useTranslation('gym')
-  const [enabled, setEnabled] = useState(detail.circuitLoops != null)
-  const mutation = useMutation({
-    mutationFn: (body: { loops: number | null; restSec?: number | null }) =>
-      configureCircuit(detail.id, body),
-    onSuccess: onDone,
-  })
-
-  return (
-    <Modal title={t('editor.circuit.title')} subtitle={t('editor.circuit.subtitle')} onClose={onClose}>
-      <form
-        className="space-y-3"
-        onSubmit={(event) => {
-          event.preventDefault()
-          if (!enabled) {
-            mutation.mutate({ loops: null })
-            return
-          }
-          const data = new FormData(event.currentTarget)
-          mutation.mutate({
-            loops: Number(data.get('loops')) || 3,
-            restSec: Number(data.get('restSec')) || 0,
-          })
-        }}
-      >
-        <label className="flex items-center gap-2 text-sm font-medium">
-          <input
-            type="checkbox"
-            checked={enabled}
-            onChange={(event) => setEnabled(event.target.checked)}
-            className="h-4 w-4 accent-teal-600"
-          />
-          {t('editor.circuit.enableLabel')}
-        </label>
-        {enabled && (
-          <div className="flex gap-2">
-            <label className="flex-1 text-xs font-medium">
-              {t('editor.circuit.loops')}
-              <input name="loops" type="number" inputMode="numeric" min={1} max={10}
-                defaultValue={detail.circuitLoops ?? 3} className={fieldClass} />
-            </label>
-            <label className="flex-1 text-xs font-medium">
-              {t('editor.circuit.rest')}
-              <input name="restSec" type="number" inputMode="numeric" min={0} max={900} step={15}
-                defaultValue={detail.circuitRestSec ?? 60} className={fieldClass} />
-            </label>
-          </div>
-        )}
-        {mutation.error instanceof ApiError && (
-          <p role="alert" className="text-sm text-clay-500 dark:text-clay-300">
-            {mutation.error.message}
-          </p>
-        )}
-        <div className="flex gap-2 pt-1">
-          <button
-            type="submit"
-            disabled={mutation.isPending}
-            className="rounded-lg bg-pine-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
-          >
-            {mutation.isPending ? t('common:saving') : t('common:save')}
-          </button>
-          <button type="button" onClick={onClose} className={`px-3 py-2 text-sm font-medium ${muted}`}>
-            {t('common:cancel')}
-          </button>
-        </div>
-      </form>
-    </Modal>
   )
 }
 
@@ -689,13 +679,11 @@ function ExercisePicker({
 /* ── Prescription form ─────────────────────────────────────────────── */
 
 function PrescriptionPanel({
-  circuit,
   existing,
   onSubmit,
   onDone,
   onCancel,
 }: {
-  circuit: boolean
   existing?: TemplateExerciseResponse
   onSubmit: (body: TemplateExerciseRequest) => Promise<unknown>
   onDone: () => void
@@ -736,11 +724,6 @@ function PrescriptionPanel({
             <label className="block">
               <span className="text-sm font-medium">{t('editor.fields.sets')}</span>
               <input name="sets" type="number" min={1} required defaultValue={existing?.sets ?? 3} className={fieldClass} />
-              {circuit && (
-                <span className={`mt-0.5 block text-[11px] ${muted}`}>
-                  {t('editor.circuit.setsIgnored')}
-                </span>
-              )}
             </label>
             {seconds ? (
               <label className="block">

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ApiError } from '../../lib/api'
+import { muted } from '../../lib/ui'
 import {
   createExercise,
   updateExercise,
@@ -69,6 +70,10 @@ export function ExerciseForm({
       onSubmit={(event) => {
         event.preventDefault()
         const data = new FormData(event.currentTarget)
+        const num = (key: string) => {
+          const raw = ((data.get(key) as string) || '').trim()
+          return raw ? Number(raw) : null
+        }
         mutation.mutate({
           name: (data.get('name') as string).trim(),
           category: data.get('category') as ExerciseCategory,
@@ -78,6 +83,8 @@ export function ExerciseForm({
           resourceUrl: ((data.get('resourceUrl') as string) || '').trim() || undefined,
           runningBenefit: ((data.get('runningBenefit') as string) || '').trim() || undefined,
           muscles,
+          incrementKg: num('incrementKg'),
+          referenceWeightKg: num('referenceWeightKg'),
           derivedFromId: deriveFrom?.id,
           archived: exercise?.archived,
         })
@@ -133,6 +140,42 @@ export function ExerciseForm({
               </option>
             ))}
           </select>
+        </label>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <label className="block">
+          <span className="text-sm font-medium">{t('exerciseForm.increment')}</span>
+          <input
+            name="incrementKg"
+            type="number"
+            inputMode="decimal"
+            step="0.25"
+            min={0.25}
+            max={50}
+            defaultValue={exercise?.incrementKg ?? ''}
+            placeholder={String(base?.effectiveIncrementKg ?? 2.5)}
+            className={fieldClass}
+          />
+          <span className={`mt-0.5 block text-[11px] ${muted}`}>
+            {t('exerciseForm.incrementHint')}
+          </span>
+        </label>
+        <label className="block">
+          <span className="text-sm font-medium">{t('exerciseForm.referenceWeight')}</span>
+          <input
+            name="referenceWeightKg"
+            type="number"
+            inputMode="decimal"
+            step="0.5"
+            min={0}
+            max={500}
+            defaultValue={exercise?.referenceWeightKg ?? ''}
+            className={fieldClass}
+          />
+          <span className={`mt-0.5 block text-[11px] ${muted}`}>
+            {t('exerciseForm.referenceWeightHint')}
+          </span>
         </label>
       </div>
 

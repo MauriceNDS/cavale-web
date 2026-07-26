@@ -34,6 +34,11 @@ export interface ExerciseResponse {
   resourceUrl: string | null
   runningBenefit: string | null
   muscles: Muscle[]
+  /** As set on the exercise — null means "whatever the equipment does". */
+  incrementKg: number | null
+  /** The step actually applied, equipment default resolved. */
+  effectiveIncrementKg: number
+  referenceWeightKg: number | null
   derivedFromId: string | null
   derivedFromName: string | null
   archived: boolean
@@ -48,6 +53,8 @@ export interface ExerciseRequest {
   resourceUrl?: string
   runningBenefit?: string
   muscles: Muscle[]
+  incrementKg?: number | null
+  referenceWeightKg?: number | null
   derivedFromId?: string
   archived?: boolean
 }
@@ -75,9 +82,6 @@ export interface VariantSummary {
   label: string
   note: string | null
   exerciseCount: number
-  /** Loops of a circuit variant — null for a classic sets×reps program. */
-  circuitLoops: number | null
-  circuitRestSec: number | null
 }
 
 export interface TemplateResponse {
@@ -103,6 +107,8 @@ export interface TemplateExerciseResponse {
   restSec: number | null
   intensityPct: number | null
   note: string | null
+  /** Superset this prescription belongs to — shared with its neighbours. */
+  groupKey: string | null
   alternatives: AlternativeResponse[]
 }
 
@@ -112,9 +118,6 @@ export interface VariantDetailResponse {
   templateName: string
   label: string
   note: string | null
-  /** Loops of a circuit variant — null for a classic sets×reps program. */
-  circuitLoops: number | null
-  circuitRestSec: number | null
   exercises: TemplateExerciseResponse[]
 }
 
@@ -126,6 +129,7 @@ export interface TemplateExerciseRequest {
   restSec?: number
   intensityPct?: number
   note?: string
+  groupKey?: string | null
 }
 
 export function fetchTemplates(): Promise<TemplateResponse[]> {
@@ -169,12 +173,18 @@ export function copyVariant(
   return api.post<VariantSummary>(`/api/gym/variants/${variantId}/copy`, body)
 }
 
-/** Configure circuit mode (loops + rest between loops); loops null reverts to sets×reps. */
-export function configureCircuit(
+/**
+ * Rewrite which prescriptions are chained into supersets — the WHOLE variant
+ * at once. Members of a group must be consecutive; a key left with a single
+ * member is dropped server-side. One group holding everything is a circuit.
+ */
+export function assignGroups(
   variantId: string,
-  body: { loops: number | null; restSec?: number | null },
-): Promise<VariantSummary> {
-  return api.put<VariantSummary>(`/api/gym/variants/${variantId}/circuit`, body)
+  assignments: { templateExerciseId: string; groupKey: string | null }[],
+): Promise<TemplateExerciseResponse[]> {
+  return api.put<TemplateExerciseResponse[]>(`/api/gym/variants/${variantId}/groups`, {
+    assignments,
+  })
 }
 
 export function deleteVariant(variantId: string): Promise<void> {
@@ -233,6 +243,10 @@ export interface SetLogResponse {
   reps: number | null
   weightKg: number | null
   seconds: number | null
+  /** An approach set — kept out of every statistic. */
+  warmup: boolean
+  /** Reps left in reserve, 0–4 — asked during the rest that follows the set. */
+  rir: number | null
 }
 
 export interface WorkoutLogResponse {
@@ -272,6 +286,8 @@ export interface WorkoutBlockResponse {
   restSec: number | null
   intensityPct: number | null
   note: string | null
+  /** Superset this block belongs to — shared with its neighbours. */
+  groupKey: string | null
   lastSets: SetLogResponse[]
   recordWeightKg: number | null
 }
@@ -279,7 +295,11 @@ export interface WorkoutBlockResponse {
 export interface WorkoutDetailResponse {
   log: WorkoutLogResponse
   blocks: WorkoutBlockResponse[]
-  /** Set when the variant is a circuit: blocks run as loops. */
+  /**
+   * DERIVED from the groups: set only when one group holds every block, in
+   * which case loops is the longest member's set count. Goes away with the
+   * rewritten runner, which reads groupKey directly.
+   */
   circuitLoops: number | null
   circuitRestSec: number | null
 }
@@ -308,10 +328,18 @@ export interface LogSetRequest {
   reps?: number
   weightKg?: number
   seconds?: number
+  /** Absent means a working set. */
+  warmup?: boolean
+  rir?: number
 }
 
 export function logSet(workoutLogId: string, body: LogSetRequest): Promise<SetLogResponse> {
   return api.put<SetLogResponse>(`/api/workouts/${workoutLogId}/sets`, body)
+}
+
+/** Answer "how many reps were left?" after the fact, from the rest countdown. */
+export function rateSet(setLogId: string, rir: number | null): Promise<SetLogResponse> {
+  return api.patch<SetLogResponse>(`/api/workouts/sets/${setLogId}/rating`, { rir })
 }
 
 /** Un-tick a set logged by mistake. */
