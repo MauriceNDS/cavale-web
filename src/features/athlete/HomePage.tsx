@@ -10,6 +10,7 @@ import { card, muted } from '../../lib/ui'
 import { fetchMe } from '../auth/api'
 import { deletePlan } from '../calendar/api'
 import { TodayCard } from '../calendar/TodayCard'
+import { CoachCard } from '../coach/CoachCard'
 import { OBJECTIVE_TYPE_BADGE, formatTimeMin, objectiveTypeLabel } from '../objective/labels'
 import { SeasonForm } from '../objective/SeasonForm'
 import {
@@ -55,6 +56,7 @@ function HubContent({ hub }: { hub: AthleteHub }) {
       <TodayCard />
       <ProfileHeader hub={hub} />
       <WeekSnapshotCard hub={hub} />
+      <CoachCard />
       <ObjectivesRail seasons={hub.seasons} />
       <TrendsSection hub={hub} />
     </div>

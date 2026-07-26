@@ -29,6 +29,7 @@ import { WorkoutPage } from './features/gym/WorkoutPage'
 import { ActivitiesPage } from './features/athlete/ActivitiesPage'
 import { ActivityDetailPage } from './features/athlete/ActivityDetailPage'
 import { StatsPage } from './features/stats/StatsPage'
+import { CoachPage } from './features/coach/CoachPage'
 import { ObjectivePage } from './features/objective/ObjectivePage'
 import { OnboardingPage } from './features/auth/OnboardingPage'
 import { PendingApprovalPage } from './features/auth/PendingApprovalPage'
@@ -131,7 +132,7 @@ function IconUsers({ className }: IconProps) {
 interface NavItem {
   /** shell-namespace translation key. */
   label: string
-  to?: '/' | '/planning' | '/objectif' | '/renfo' | '/activites' | '/stats'
+  to?: '/' | '/planning' | '/objectif' | '/renfo' | '/activites' | '/stats' | '/coach'
   icon?: (props: IconProps) => ReactNode
   /** In the mobile bottom bar; the rest lives in the account menu. */
   mobileTab?: boolean
@@ -146,7 +147,17 @@ const NAV: NavItem[] = [
   { label: 'nav.activities', to: '/activites', icon: IconPulse, mobileTab: true },
   { label: 'nav.stats', to: '/stats', icon: IconChart },
   { label: 'nav.objective', to: '/objectif', icon: IconTarget },
+  { label: 'nav.coach', to: '/coach', icon: IconWhistle },
 ]
+
+function IconWhistle(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+      <path d="M8 9h8M8 12h5" />
+    </svg>
+  )
+}
 
 function visibleNav(gymEnabled: boolean): NavItem[] {
   return NAV.filter((item) => gymEnabled || !item.needsGym)
@@ -581,6 +592,12 @@ const gymStatsRoute = createRoute({
   },
 })
 
+const coachRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/coach',
+  component: CoachPage,
+})
+
 const statsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/stats',
@@ -664,6 +681,7 @@ const routeTree = rootRoute.addChildren([
   legacyCalendarRoute,
   sessionRoute,
   objectiveRoute,
+  coachRoute,
   renfoRoute,
   exercisesRoute,
   templateEditorRoute,
