@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
-import { ChevronDown, ChevronUp, Copy, Pencil, Plus, Trash2, X } from 'lucide-react'
+import { ChevronDown, ChevronUp, Copy, Link2, Pencil, Plus, Trash2, Unlink2, X } from 'lucide-react'
 import { ApiError } from '../../lib/api'
 import { muted } from '../../lib/ui'
 import { Modal } from '../../components/Modal'
@@ -427,7 +427,20 @@ function VariantEditor({ variantId }: { variantId: string }) {
         {detail.exercises.map((te, index) => (
           <div
             key={te.id}
-            className={`rounded-lg border border-l-4 border-moss-200 bg-moss-25 p-3 dark:border-moss-750 dark:bg-moss-850 ${CATEGORY_EDGE[te.exercise.category]}`}
+            className={`rounded-lg border border-l-4 border-moss-200 bg-moss-25 p-3 dark:border-moss-750 dark:bg-moss-850 ${CATEGORY_EDGE[te.exercise.category]} ${
+              // a superset reads as one block: its members sit tight together,
+              // ringed in teal, with only the outer corners rounded
+              te.groupKey == null
+                ? ''
+                : `relative ring-1 ring-teal-600/40 dark:ring-teal-300/30 ${
+                    groupKeys[index - 1] === te.groupKey ? 'mt-0 rounded-t-none' : ''
+                  } ${groupKeys[index + 1] === te.groupKey ? 'mb-0 rounded-b-none' : ''}`
+            }`}
+            style={
+              te.groupKey != null && groupKeys[index - 1] === te.groupKey
+                ? { marginTop: '-0.5rem' }
+                : undefined
+            }
           >
             <div className="flex flex-wrap items-center gap-2">
               <div className="flex flex-col">
@@ -435,21 +448,23 @@ function VariantEditor({ variantId }: { variantId: string }) {
                 <button onClick={() => move(index, 1)} disabled={index === detail.exercises.length - 1} aria-label={t('editor.moveDown')} className="text-moss-500 disabled:opacity-30 dark:text-moss-400"><ChevronDown size={16} aria-hidden /></button>
               </div>
               <div className="min-w-0 flex-1">
-                <button
-                  onClick={() => setPanel({ kind: 'detail', exercise: te.exercise })}
-                  className="text-left font-medium underline-offset-2 hover:underline"
-                >
+                <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
                   {te.groupKey != null && (
-                    <span className="mr-1 rounded bg-teal-600/15 px-1.5 py-0.5 text-[11px] font-bold text-teal-600 dark:bg-teal-300/15 dark:text-teal-300">
+                    <span className="shrink-0 rounded bg-teal-600/15 px-1.5 py-0.5 text-[11px] font-bold text-teal-600 tabular-nums dark:bg-teal-300/15 dark:text-teal-300">
                       {te.groupKey}
                       {groupKeys.slice(0, index).filter((k) => k === te.groupKey).length + 1}
                     </span>
                   )}
-                  {te.exercise.name}{' '}
-                  <span className={`ml-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${CATEGORY_BADGE[te.exercise.category]}`}>
+                  <button
+                    onClick={() => setPanel({ kind: 'detail', exercise: te.exercise })}
+                    className="text-left font-medium underline-offset-2 hover:underline"
+                  >
+                    {te.exercise.name}
+                  </button>
+                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${CATEGORY_BADGE[te.exercise.category]}`}>
                     {categoryLabel(te.exercise.category)}
                   </span>
-                </button>
+                </div>
                 <p className={`text-xs ${muted}`}>
                   {formatPrescription(te.sets, te.reps, te.seconds)}
                   {te.intensityPct != null && ` · ${te.intensityPct} %`}
@@ -506,16 +521,18 @@ function VariantEditor({ variantId }: { variantId: string }) {
                   <button
                     onClick={() => regroup(unchained(groupKeys, index))}
                     disabled={groupsMutation.isPending}
-                    className="text-xs font-medium text-teal-600 disabled:opacity-50 dark:text-teal-300"
+                    className="inline-flex items-center gap-1.5 text-xs font-medium text-teal-600 disabled:opacity-50 dark:text-teal-300"
                   >
+                    <Unlink2 size={13} aria-hidden />
                     {t('editor.groups.unchain')}
                   </button>
                 ) : (
                   <button
                     onClick={() => regroup(chained(groupKeys, index))}
                     disabled={groupsMutation.isPending}
-                    className={`text-xs font-medium ${muted} transition hover:text-teal-600 disabled:opacity-50 dark:hover:text-teal-300`}
+                    className={`inline-flex items-center gap-1.5 text-xs font-medium ${muted} transition hover:text-teal-600 disabled:opacity-50 dark:hover:text-teal-300`}
                   >
+                    <Link2 size={13} aria-hidden />
                     {t('editor.groups.chain')}
                   </button>
                 )}

@@ -141,8 +141,8 @@ export default {
       notePlaceholder: 'Tempo 5-0-1, lesté si facile…',
     },
     groups: {
-      chain: '⛓ enchaîner avec le suivant',
-      unchain: '⛓ détacher du suivant',
+      chain: 'enchaîner avec le suivant',
+      unchain: 'détacher du suivant',
       circuitTag: 'Circuit · {{rounds}} tours',
       restAfter: '{{rest}} après',
       restBeforeNext: '{{rest}} avant le suivant',

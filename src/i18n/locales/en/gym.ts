@@ -141,8 +141,8 @@ export default {
       notePlaceholder: 'Tempo 5-0-1, add weight if easy…',
     },
     groups: {
-      chain: '⛓ chain with the next one',
-      unchain: '⛓ unchain from the next one',
+      chain: 'chain with the next one',
+      unchain: 'unchain from the next one',
       circuitTag: 'Circuit · {{rounds}} rounds',
       restAfter: '{{rest}} after',
       restBeforeNext: '{{rest}} before the next',
