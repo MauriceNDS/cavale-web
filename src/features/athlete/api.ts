@@ -226,7 +226,7 @@ export interface ActivityDetail {
   comment: string | null
   hasStreams: boolean
   shoeId: string | null
-  discipline: 'RUN' | 'GYM' | 'REST' | 'CROSS'
+  discipline: 'RUN' | 'GYM' | 'REST' | 'CROSS' | 'HIKE'
   /** Encoded-polyline GPS trace — null on activities synced before capture. */
   mapPolyline: string | null
   /** First-half vs second-half HR/pace drift %, on long runs with streams. */

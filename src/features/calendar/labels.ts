@@ -43,12 +43,14 @@ export type TrainingKind =
   | 'EF'
   | 'GYM'
   | 'CROSS'
+  | 'HIKE'
   | 'REST'
 
 export function trainingKind(session: SessionResponse): TrainingKind {
   if (session.discipline === 'GYM') return 'GYM'
   if (session.discipline === 'REST') return 'REST'
   if (session.discipline === 'CROSS') return 'CROSS'
+  if (session.discipline === 'HIKE') return 'HIKE'
 
   const title = session.title.toUpperCase()
   if (title.includes('CHOC')) return 'CHOC'
@@ -77,6 +79,7 @@ export const KIND_EDGE: Record<TrainingKind, string> = {
   EF: 'border-l-pine-600 dark:border-l-pine-350',
   GYM: 'border-l-copper-600 dark:border-l-copper-300',
   CROSS: 'border-l-moss-400 dark:border-l-moss-500',
+  HIKE: 'border-l-moss-700 dark:border-l-moss-300',
   REST: 'border-l-moss-300 dark:border-l-moss-700',
 }
 
@@ -91,6 +94,7 @@ export const KIND_DOT: Record<TrainingKind, string> = {
   EF: 'bg-pine-600 dark:bg-pine-350',
   GYM: 'bg-copper-600 dark:bg-copper-300',
   CROSS: 'bg-moss-400 dark:bg-moss-500',
+  HIKE: 'bg-moss-700 dark:bg-moss-300',
   REST: 'bg-moss-300 dark:bg-moss-700',
 }
 
@@ -105,6 +109,7 @@ export const KIND_LEGEND: TrainingKind[] = [
   'CHOC',
   'GYM',
   'CROSS',
+  'HIKE',
 ]
 
 import type { Allure, PerceivedEffort, Terrain, WorkoutNode } from './api'

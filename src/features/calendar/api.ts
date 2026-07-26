@@ -1,7 +1,7 @@
 import { api, getToken } from '../../lib/api'
 import type { ObjectivePayload } from '../objective/api'
 
-export type Discipline = 'RUN' | 'GYM' | 'REST' | 'CROSS'
+export type Discipline = 'RUN' | 'GYM' | 'REST' | 'CROSS' | 'HIKE'
 export type SessionStatus = 'PLANNED' | 'DONE' | 'SKIPPED' | 'MOVED'
 export type WeekType =
   | 'RECOVERY'

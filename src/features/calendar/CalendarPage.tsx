@@ -653,8 +653,12 @@ const STATUS_MARK: Partial<Record<SessionResponse['status'], { label: string; cl
 }
 
 function DraggableSessionCard({ session, onClick }: { session: SessionResponse; onClick: () => void }) {
+  // a DONE or SKIPPED session is history — moving it has no meaning (the API
+  // rejects it too); keep the card clickable but not draggable
+  const frozen = session.status === 'DONE' || session.status === 'SKIPPED'
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: session.id,
+    disabled: frozen,
   })
 
   // total time shown ONCE: computed from the structure, else the planned duration
@@ -916,6 +920,7 @@ function AddSessionModal({
                   <option value="RUN">{t('discipline.RUN')}</option>
                   {gymEnabled && <option value="GYM">{t('discipline.GYM')}</option>}
                   <option value="CROSS">{t('addModal.disciplineCross')}</option>
+                  <option value="HIKE">{t('discipline.HIKE')}</option>
                 </select>
               </label>
               <label className="block text-xs text-moss-500 dark:text-moss-400">

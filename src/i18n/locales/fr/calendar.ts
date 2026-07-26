@@ -18,6 +18,7 @@ export default {
     EF: 'EF / Récup',
     GYM: 'Renfo',
     CROSS: 'Croisé',
+    HIKE: 'Rando',
     REST: 'Repos',
   },
   discipline: {
@@ -25,6 +26,7 @@ export default {
     GYM: 'Renfo',
     REST: 'Repos',
     CROSS: 'Croisé',
+    HIKE: 'Rando',
   },
   effort: {
     TROP_FACILE: 'Trop facile',

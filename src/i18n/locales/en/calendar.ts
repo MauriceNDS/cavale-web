@@ -18,6 +18,7 @@ export default {
     EF: 'Easy / Recovery',
     GYM: 'Strength',
     CROSS: 'Cross-training',
+    HIKE: 'Hike',
     REST: 'Rest',
   },
   discipline: {
@@ -25,6 +26,7 @@ export default {
     GYM: 'Strength',
     REST: 'Rest',
     CROSS: 'Cross-training',
+    HIKE: 'Hike',
   },
   effort: {
     TROP_FACILE: 'Too easy',

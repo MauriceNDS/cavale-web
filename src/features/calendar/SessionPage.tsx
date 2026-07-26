@@ -432,7 +432,7 @@ function SessionActions({
         <>
           <button
             onClick={() =>
-              session.discipline === 'RUN'
+              session.discipline === 'RUN' || session.discipline === 'HIKE'
                 ? setStep({ kind: 'choose' })
                 : session.discipline === 'CROSS'
                   ? setStep({ kind: 'bike' })
