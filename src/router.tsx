@@ -13,6 +13,7 @@ import { lazy, Suspense, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { LanguageToggle } from './components/LanguageToggle'
 import { LogoMark } from './components/LogoMark'
+import { RestBar } from './features/gym/RestBar'
 import { ThemeToggle } from './components/ThemeToggle'
 import type { UserResponse } from './features/auth/api'
 import { LoginPage } from './features/auth/LoginPage'
@@ -486,6 +487,8 @@ function Shell({ children }: { children: ReactNode }) {
       <div className="flex min-h-screen flex-1 flex-col">
         {user.demo && <DemoBanner onExit={handleLogout} />}
         <main className="flex-1 px-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] md:px-8 md:pb-10">{children}</main>
+        {/* rest is when people wander — the countdown follows them */}
+        {user.gymEnabled && <RestBar />}
         <TabBar user={user} onLogout={handleLogout} />
       </div>
     </div>

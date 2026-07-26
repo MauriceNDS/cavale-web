@@ -23,7 +23,8 @@ import {
   type WorkoutDetailResponse,
 } from './api'
 import { gymQueue, type QueueState } from './mutationQueue'
-import { useRestTimer, useWakeLock, type RestTimer } from './useRestTimer'
+import { RestBar, RirChips, useOwnsRestBar, useWakeLock } from './RestBar'
+import { restClock } from './restClock'
 import {
   blockId,
   blocksInRound,
@@ -44,8 +45,6 @@ const EFFORTS: PerceivedEffort[] = [
   'TROP_FACILE', 'FACILE', 'COMME_PREVU', 'DIFFICILE', 'TROP_DIFFICILE',
 ]
 
-const RIR_CHOICES = [0, 1, 2, 3] as const
-
 function formatElapsed(startedAt: string): string {
   const sec = Math.max(0, Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000))
   const h = Math.floor(sec / 3600)
@@ -54,10 +53,6 @@ function formatElapsed(startedAt: string): string {
   return h > 0
     ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
     : `${m}:${String(s).padStart(2, '0')}`
-}
-
-function formatCountdown(sec: number): string {
-  return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`
 }
 
 /** Trailing zeros are noise on a plate: 82.5 kg, but 80 kg. */
@@ -94,9 +89,9 @@ export function WorkoutPage() {
   })
   const detail = query.data
 
-  const rest = useRestTimer()
   const finished = detail?.log.status === 'FINISHED'
   useWakeLock(detail != null && !finished)
+  useOwnsRestBar()
 
   const [mode, setMode] = useState<'focus' | 'list'>('focus')
   const [stepIndex, setStepIndex] = useState(0)
@@ -187,7 +182,7 @@ export function WorkoutPage() {
     // rest is dead time — that is where the rating question goes
     setRatingSetId(localId)
     const owed = restAfter(step, block, setNumber, detail!.log.sets)
-    if (owed != null && owed > 0) rest.start(owed)
+    if (owed != null && owed > 0) restClock.start(owed)
   }
 
   function unlogSet(block: WorkoutBlockResponse, setNumber: number) {
@@ -339,7 +334,10 @@ export function WorkoutPage() {
   }
 
   return (
-    <div className="mx-auto mt-3 max-w-2xl pb-44 md:pb-28" onPointerDownCapture={() => rest.unlockSound()}>
+    <div
+      className="mx-auto mt-3 max-w-2xl pb-44 md:pb-28"
+      onPointerDownCapture={() => restClock.unlockSound()}
+    >
       <WorkoutHeader
         detail={detail}
         finished={finished}
@@ -397,8 +395,7 @@ export function WorkoutPage() {
         />
       )}
 
-      <RestBar
-        rest={rest}
+      <RunnerRestBar
         ratingSet={detail.log.sets.find((s) => s.id === ratingSetId) ?? null}
         onRate={(rir) => {
           if (ratingSetId) rateSet(ratingSetId, rir)
@@ -417,7 +414,7 @@ export function WorkoutPage() {
         <FinishPanel
           detail={detail}
           onDone={(sessionId) => {
-            rest.skip()
+            restClock.skip()
             void queryClient.invalidateQueries()
             void navigate(sessionId
               ? { to: '/session/$sessionId', params: { sessionId } }
@@ -1039,77 +1036,21 @@ function Keypad({
   )
 }
 
-/* ── The rest countdown: visible everywhere, alarm that lands ──────── */
+/* ── The rest countdown, with the question that only the runner asks ─ */
 
-function RestBar({
-  rest,
+function RunnerRestBar({
   ratingSet,
   onRate,
 }: {
-  rest: RestTimer
   ratingSet: SetLogResponse | null
   onRate: (rir: number) => void
 }) {
-  const { t } = useTranslation('gym')
-  if (rest.secondsLeft == null && !rest.ringing) return null
-
-  const over = rest.ringing
   return (
-    <div className="fixed inset-x-0 bottom-16 z-50 border-y border-moss-200 bg-moss-50/97 px-4 py-2.5 backdrop-blur md:bottom-0 md:border-b-0 md:pb-[max(0.625rem,env(safe-area-inset-bottom))] dark:border-moss-750 dark:bg-moss-900/97">
-      <div className="mx-auto max-w-2xl">
-        <div
-          className={`flex items-center gap-2 rounded-xl px-3 py-2.5 transition ${
-            over
-              ? 'animate-pulse bg-pine-600 text-moss-25 dark:bg-pine-350 dark:text-moss-950'
-              : 'bg-copper-600/15 text-copper-600 dark:bg-copper-300/15 dark:text-copper-300'
-          }`}
-        >
-          <p className="flex-1 font-display text-lg font-bold tabular-nums">
-            {over ? t('workout.restOver') : t('workout.restCountdown', {
-              time: formatCountdown(rest.secondsLeft ?? 0),
-            })}
-          </p>
-          {!over && (
-            <>
-              <button onClick={() => rest.extend(30)}
-                className="rounded-lg px-2.5 py-1.5 text-xs font-bold">
-                {t('workout.restPlus30')}
-              </button>
-              <button onClick={rest.skip}
-                className="rounded-lg px-2.5 py-1.5 text-xs font-medium opacity-80">
-                {t('workout.restSkip')}
-              </button>
-            </>
-          )}
-          {over && (
-            <button onClick={rest.skip} className="rounded-lg px-2.5 py-1.5 text-xs font-bold">
-              {t('common:ok')}
-            </button>
-          )}
-        </div>
-
-        {/* dead time, so the question costs nothing in the critical path */}
-        {ratingSet && ratingSet.rir == null && !ratingSet.warmup && (
-          <div className="mt-2 flex items-center gap-1.5">
-            <span className={`text-xs ${muted}`}>{t('workout.rirQuestion')}</span>
-            {RIR_CHOICES.map((rir) => (
-              <button
-                key={rir}
-                onClick={() => onRate(rir)}
-                className="h-9 min-w-9 flex-1 rounded-lg border border-moss-200 text-sm font-bold transition active:scale-95 hover:bg-moss-100 dark:border-moss-750 dark:hover:bg-moss-800"
-              >
-                {rir === 3 ? '3+' : rir}
-              </button>
-            ))}
-          </div>
-        )}
-        {ratingSet?.rir != null && (
-          <p className={`mt-1.5 text-center text-[11px] ${muted}`}>
-            {t('workout.rirNoted', { rir: ratingSet.rir })}
-          </p>
-        )}
-      </div>
-    </div>
+    <RestBar owned>
+      {ratingSet && !ratingSet.warmup && (
+        <RirChips value={ratingSet.rir} onRate={onRate} />
+      )}
+    </RestBar>
   )
 }
 
