@@ -27,6 +27,16 @@ export default {
     namePlaceholder: 'Saison UTMB 2027',
     start: 'Début',
     end: 'Fin',
+    sectionPrefs: 'Préférences d’entraînement',
+    runsPerWeek: 'Courses / semaine',
+    gymPerWeek: 'Renfo / semaine',
+    focus: 'Orientation',
+    focusMAINTAIN: 'Entretien',
+    focusSPEED: 'Vitesse',
+    focusENDURANCE: 'Endurance',
+    generateProgram: 'Générer le programme par défaut',
+    generateProgramHint:
+      'Les semaines et des séances types sont créées automatiquement — tout reste modifiable.',
   },
   main: {
     badge: 'Objectif principal',

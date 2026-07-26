@@ -27,6 +27,16 @@ export default {
     namePlaceholder: 'UTMB 2027 season',
     start: 'Start',
     end: 'End',
+    sectionPrefs: 'Training preferences',
+    runsPerWeek: 'Runs / week',
+    gymPerWeek: 'Strength / week',
+    focus: 'Focus',
+    focusMAINTAIN: 'Maintain',
+    focusSPEED: 'Speed',
+    focusENDURANCE: 'Endurance',
+    generateProgram: 'Generate the default program',
+    generateProgramHint:
+      'Weeks and default sessions are created automatically — everything stays editable.',
   },
   main: {
     badge: 'Main goal',

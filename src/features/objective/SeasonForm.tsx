@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ErrorAlert, fieldClass } from '../../components/form'
 import { ApiError } from '../../lib/api'
-import { createPlan } from '../calendar/api'
+import { createPlan, scaffoldPlan, type CreatePlanRequest, type PlanFocus } from '../calendar/api'
 import { ObjectiveFields, buildObjectiveSchema, readObjectiveFields } from './ObjectiveForm'
 
 /**
@@ -17,10 +17,15 @@ export function SeasonForm({ onDone, onCancel }: { onDone: () => void; onCancel:
   const [validationError, setValidationError] = useState<string | null>(null)
 
   const mutation = useMutation({
-    mutationFn: createPlan,
+    // create the season, then optionally scaffold it with the default program
+    mutationFn: async ({ body, generate }: { body: CreatePlanRequest; generate: boolean }) => {
+      const plan = await createPlan(body)
+      if (generate) await scaffoldPlan(plan.id, true)
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['hub'] })
       queryClient.invalidateQueries({ queryKey: ['plans'] })
+      queryClient.invalidateQueries({ queryKey: ['calendar'] })
       onDone()
     },
   })
@@ -38,10 +43,16 @@ export function SeasonForm({ onDone, onCancel }: { onDone: () => void; onCancel:
     // resultTimeMin only exists on the edit form; a season is created before its race.
     const { resultTimeMin: _unused, ...objectivePayload } = parsed.data
     mutation.mutate({
-      name: (data.get('seasonName') as string).trim(),
-      startDate: data.get('startDate') as string,
-      endDate: data.get('endDate') as string,
-      objective: objectivePayload,
+      body: {
+        name: (data.get('seasonName') as string).trim(),
+        startDate: data.get('startDate') as string,
+        endDate: data.get('endDate') as string,
+        runsPerWeek: Number(data.get('runsPerWeek')),
+        gymPerWeek: Number(data.get('gymPerWeek')),
+        focus: data.get('focus') as PlanFocus,
+        objective: objectivePayload,
+      },
+      generate: data.get('generateProgram') === 'on',
     })
   }
 
@@ -75,6 +86,51 @@ export function SeasonForm({ onDone, onCancel }: { onDone: () => void; onCancel:
         {t('season.sectionObjective')}
       </p>
       <ObjectiveFields />
+
+      <p className="pt-1 text-[11px] font-semibold tracking-wide uppercase text-moss-500 dark:text-moss-400">
+        {t('season.sectionPrefs')}
+      </p>
+      <div className="grid grid-cols-3 gap-3">
+        <label className="block">
+          <span className="text-sm font-medium">{t('season.runsPerWeek')}</span>
+          <select name="runsPerWeek" defaultValue="3" className={fieldClass}>
+            {[1, 2, 3, 4, 5, 6, 7].map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block">
+          <span className="text-sm font-medium">{t('season.gymPerWeek')}</span>
+          <select name="gymPerWeek" defaultValue="1" className={fieldClass}>
+            {[0, 1, 2, 3, 4].map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block">
+          <span className="text-sm font-medium">{t('season.focus')}</span>
+          <select name="focus" defaultValue="MAINTAIN" className={fieldClass}>
+            {(['MAINTAIN', 'SPEED', 'ENDURANCE'] as const).map((f) => (
+              <option key={f} value={f}>
+                {t(`season.focus${f}`)}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <label className="flex items-start gap-2 pt-1">
+        <input name="generateProgram" type="checkbox" defaultChecked className="mt-1 accent-pine-600" />
+        <span>
+          <span className="text-sm font-medium">{t('season.generateProgram')}</span>
+          <span className="block text-xs text-moss-500 dark:text-moss-400">
+            {t('season.generateProgramHint')}
+          </span>
+        </span>
+      </label>
 
       {(validationError || mutation.error instanceof ApiError) && (
         <ErrorAlert message={validationError ?? (mutation.error as ApiError).message} />

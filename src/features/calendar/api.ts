@@ -75,6 +75,8 @@ export interface SessionResponse {
   variantLabel: string | null
 }
 
+export type PlanFocus = 'MAINTAIN' | 'SPEED' | 'ENDURANCE'
+
 export interface PlanResponse {
   id: string
   name: string
@@ -82,6 +84,9 @@ export interface PlanResponse {
   status: 'DRAFT' | 'ACTIVE' | 'COMPLETED' | 'ARCHIVED'
   startDate: string
   endDate: string
+  runsPerWeek: number | null
+  gymPerWeek: number | null
+  focus: PlanFocus | null
 }
 
 export interface WeekResponse {
@@ -116,12 +121,20 @@ export interface CreatePlanRequest {
   goal?: string
   startDate: string
   endDate: string
+  runsPerWeek?: number
+  gymPerWeek?: number
+  focus?: PlanFocus
   /** Full MAIN objective details; the API builds a placeholder when omitted. */
   objective?: ObjectivePayload
 }
 
 export function createPlan(body: CreatePlanRequest): Promise<PlanResponse> {
   return api.post<PlanResponse>('/api/plans', body)
+}
+
+/** Scaffold the periodized weeks of an empty plan, optionally with default sessions. */
+export function scaffoldPlan(planId: string, fillSessions: boolean): Promise<WeekResponse[]> {
+  return api.post<WeekResponse[]>(`/api/plans/${planId}/scaffold?fillSessions=${fillSessions}`, undefined)
 }
 
 /** Deletes the season and everything in it (weeks, sessions, objectives). */
