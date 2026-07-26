@@ -301,7 +301,7 @@ export default {
     recentPrs: 'Recent records',
     prDate: 'on {{date}}',
     oneRmTitle: 'Estimated 1RM',
-    oneRmHint: 'Epley formula from your sets — an estimate, not a strength test.',
+    oneRmHint: 'Epley from your sets, corrected for reps in reserve — an estimate, not a strength test. Warm-up sets do not count.',
     oneRmValue: '{{value}} kg estimated',
     topSet: 'top set: {{value}} kg',
     weekOf: 'Week of {{date}}',

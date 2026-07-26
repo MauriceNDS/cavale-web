@@ -301,7 +301,7 @@ export default {
     recentPrs: 'Records récents',
     prDate: 'le {{date}}',
     oneRmTitle: '1RM estimé',
-    oneRmHint: "Formule d'Epley d'après tes séries — une estimation, pas un test de force.",
+    oneRmHint: "Epley d'après tes séries, corrigé des reps en réserve — une estimation, pas un test de force. Les séries d\u2019approche ne comptent pas.",
     oneRmValue: '{{value}} kg estimés',
     topSet: 'meilleure série : {{value}} kg',
     weekOf: 'Semaine du {{date}}',
