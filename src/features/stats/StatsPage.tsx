@@ -25,8 +25,8 @@ import { EvolutionCard } from './EvolutionCard'
 import { RecordsTab } from './RecordsTab'
 import { VerdictStrip } from './VerdictStrip'
 
-const RANGES = [1, 3, 6, 12] as const
-type RangeMonths = (typeof RANGES)[number]
+const RANGES = [1, 3, 6, 12, 'all'] as const
+type Range = (typeof RANGES)[number]
 
 const TABS = ['charge', 'volume', 'physio', 'records', 'renfo'] as const
 type StatsTab = (typeof TABS)[number]
@@ -53,9 +53,15 @@ export function StatsPage() {
   const navigate = useNavigate()
   const gymEnabled = useAuth().user?.gymEnabled ?? true
   const tab = resolveTab(search.tab, gymEnabled)
-  const [months, setMonths] = useState<RangeMonths>(3)
+  const [months, setMonths] = useState<Range>(3)
 
-  const query = useQuery({ queryKey: ['running-stats'], queryFn: fetchRunningStats })
+  const query = useQuery({ queryKey: ['running-stats'], queryFn: () => fetchRunningStats() })
+  // The all-time payload is heavier — fetched only once "Tout" is picked.
+  const allQuery = useQuery({
+    queryKey: ['running-stats', 'all'],
+    queryFn: () => fetchRunningStats(true),
+    enabled: months === 'all',
+  })
   const stats = query.data
 
   if (query.isLoading) {
@@ -64,6 +70,8 @@ export function StatsPage() {
   if (!stats) {
     return <p className="mt-10 text-center text-clay-500 dark:text-clay-300">{t('loadError')}</p>
   }
+  // Fall back to the 12-month series while the all-time payload loads.
+  const tabStats = months === 'all' && allQuery.data ? allQuery.data : stats
 
   const tabs: StatsTab[] = gymEnabled ? [...TABS] : TABS.filter((v) => v !== 'renfo')
 
@@ -99,16 +107,16 @@ export function StatsPage() {
                     : 'text-moss-500 hover:text-ink dark:text-moss-400 dark:hover:text-linen'
                 }`}
               >
-                {t('months', { count: r })}
+                {r === 'all' ? t('allTime') : t('months', { count: r })}
               </button>
             ))}
           </div>
         )}
       </div>
 
-      {tab === 'charge' && <ChargeTab stats={stats} months={months} />}
-      {tab === 'volume' && <VolumeTab stats={stats} months={months} />}
-      {tab === 'physio' && <PhysioTab stats={stats} months={months} />}
+      {tab === 'charge' && <ChargeTab stats={tabStats} months={months} />}
+      {tab === 'volume' && <VolumeTab stats={tabStats} months={months} />}
+      {tab === 'physio' && <PhysioTab stats={tabStats} months={months} />}
       {tab === 'records' && <RecordsTab stats={stats} />}
       {tab === 'renfo' && <GymStatsSection />}
     </div>
@@ -119,16 +127,23 @@ export function StatsPage() {
 
 interface TabProps {
   stats: RunningStatsResponse
-  months: RangeMonths
+  months: Range
 }
 
-function useCutoff(months: RangeMonths) {
-  return useMemo(() => subMonths(new Date(), months), [months])
+function useCutoff(months: Range) {
+  return useMemo(() => (months === 'all' ? new Date(0) : subMonths(new Date(), months)), [months])
+}
+
+/** Drill-down: any chart bucket opens the activities feed on its date range. */
+function useOpenRange() {
+  const navigate = useNavigate()
+  return (from: string, to: string) => void navigate({ to: '/activites', search: { from, to } })
 }
 
 function ChargeTab({ stats, months }: TabProps) {
   const { t } = useTranslation('stats')
   const cutoff = useCutoff(months)
+  const openRange = useOpenRange()
   const inRange = (date: string) => parseISO(date) >= cutoff
   const form = stats.form.filter((d) => inRange(d.date))
   const effort = stats.weeklyEffort.filter((w) => inRange(w.weekStart))
@@ -143,7 +158,7 @@ function ChargeTab({ stats, months }: TabProps) {
         hint={t('form.hint')}
         summary={stats.form.length > 0 ? t('form.summary', { value: stats.form.at(-1)!.formScore }) : undefined}
       >
-        <FormChart days={form} />
+        <FormChart days={form} onOpenRange={openRange} />
       </ChartCard>
 
       <ChartCard
@@ -152,13 +167,13 @@ function ChargeTab({ stats, months }: TabProps) {
         hint={t('effort.hint')}
         summary={currentEffort ? t('effort.summary', { value: currentEffort.effort }) : undefined}
       >
-        <EffortBandChart weeks={effort} />
+        <EffortBandChart weeks={effort} onOpenRange={openRange} />
         <EffortStatus weeks={stats.weeklyEffort} />
       </ChartCard>
 
       {stats.monotony.some((w) => w.monotony != null) && (
         <ChartCard id="monotony" title={t('monotony.title')} hint={t('monotony.hint')}>
-          <MonotonyChart weeks={monotony} />
+          <MonotonyChart weeks={monotony} onOpenRange={openRange} />
         </ChartCard>
       )}
     </div>
@@ -168,6 +183,7 @@ function ChargeTab({ stats, months }: TabProps) {
 function VolumeTab({ stats, months }: TabProps) {
   const { t } = useTranslation('stats')
   const cutoff = useCutoff(months)
+  const openRange = useOpenRange()
   const volume = stats.weeklyVolume.filter((w) => parseISO(w.weekStart) >= cutoff)
   const totalKm = Math.round(volume.reduce((sum, w) => sum + Number(w.distanceKm), 0))
 
@@ -179,7 +195,7 @@ function VolumeTab({ stats, months }: TabProps) {
         hint={t('volume.hint')}
         summary={t('volume.summary', { km: totalKm })}
       >
-        <VolumeChart weeks={volume} />
+        <VolumeChart weeks={volume} onOpenRange={openRange} />
         <VolumeTotals weeks={volume} />
       </ChartCard>
     </div>
@@ -189,8 +205,9 @@ function VolumeTab({ stats, months }: TabProps) {
 function PhysioTab({ stats, months }: TabProps) {
   const { t } = useTranslation('stats')
   const cutoff = useCutoff(months)
-  const efficiency = stats.efficiency.slice(-months)
-  const vo2max = stats.vo2maxTrend.slice(-months)
+  const openRange = useOpenRange()
+  const efficiency = months === 'all' ? stats.efficiency : stats.efficiency.slice(-months)
+  const vo2max = months === 'all' ? stats.vo2maxTrend : stats.vo2maxTrend.slice(-months)
   const durability = stats.durability.filter((p) => parseISO(p.date) >= cutoff)
   const currentVo2 = [...stats.vo2maxTrend].reverse().find((m) => m.vo2max != null)
 
@@ -203,24 +220,26 @@ function PhysioTab({ stats, months }: TabProps) {
           hint={t('vo2max.hint')}
           summary={currentVo2 ? t('vo2max.summary', { value: currentVo2.vo2max }) : undefined}
         >
-          {stats.vo2maxTrend.some((m) => m.vo2max != null) && <Vo2maxChart months={vo2max} />}
+          {stats.vo2maxTrend.some((m) => m.vo2max != null) && (
+            <Vo2maxChart months={vo2max} onOpenRange={openRange} />
+          )}
           {stats.criticalPace && <CriticalPaceStat cp={stats.criticalPace} />}
         </ChartCard>
       )}
 
       {efficiency.some((m) => m.metersPerBeat != null) && (
         <ChartCard id="efficiency" title={t('efficiency.title')} hint={t('efficiency.hint')}>
-          <EfficiencyChart months={efficiency} />
+          <EfficiencyChart months={efficiency} onOpenRange={openRange} />
         </ChartCard>
       )}
 
       {stats.durability.length > 0 && (
         <ChartCard id="durability" title={t('durability.title')} hint={t('durability.hint')}>
-          <DurabilityChart points={durability} />
+          <DurabilityChart points={durability} onOpenRange={openRange} />
         </ChartCard>
       )}
 
-      <EvolutionCard months={months} />
+      <EvolutionCard months={months === 'all' ? 24 : months} onOpenRange={openRange} />
 
       {stats.checkpoints.length > 0 && (
         <ChartCard id="checkpoints" title={t('checkpoints.title')} hint={t('checkpoints.hint')}>

@@ -42,9 +42,11 @@ interface PeriodBarsProps {
   periods: PeriodPoint[]
   value: (p: PeriodPoint) => number
   unit: string
+  /** Bucket click-through (drill-down) — receives the clicked period. */
+  onSelect?: (p: PeriodPoint) => void
 }
 
-export function PeriodBars({ periods, value, unit }: PeriodBarsProps) {
+export function PeriodBars({ periods, value, unit, onSelect }: PeriodBarsProps) {
   const { t } = useTranslation('athlete')
   const max = Math.max(...periods.map(value), 1)
   const ticks = niceTicks(max)
@@ -55,12 +57,14 @@ export function PeriodBars({ periods, value, unit }: PeriodBarsProps) {
       height={H}
       ariaLabel={t('charts.volumeAria', { unit })}
       count={periods.length}
+      onSelect={onSelect && ((i) => onSelect(periods[i]))}
       tooltip={(i) => (
         <TooltipLines
           lines={[
             periods[i].label,
             `${unit} : ${value(periods[i]).toLocaleString(numberLocale())}`,
             `${t('charts.runs')} : ${periods[i].runs}`,
+            onSelect ? t('charts.drill') : null,
           ]}
         />
       )}
@@ -103,9 +107,19 @@ interface TrendLineProps {
   /** Pace reads better inverted: up = faster. */
   invert?: boolean
   label: string
+  /** Bucket click-through (drill-down) — receives the clicked period. */
+  onSelect?: (p: PeriodPoint) => void
 }
 
-export function TrendLine({ periods, value, formatValue, formatTick, invert, label }: TrendLineProps) {
+export function TrendLine({
+  periods,
+  value,
+  formatValue,
+  formatTick,
+  invert,
+  label,
+  onSelect,
+}: TrendLineProps) {
   const { t } = useTranslation('athlete')
   const points = periods
     .map((p, i) => ({ i, v: value(p) }))
@@ -131,10 +145,15 @@ export function TrendLine({ periods, value, formatValue, formatTick, invert, lab
       count={periods.length}
       xFor={(i, frame) => pointX(frame, periods.length)(i)}
       crosshair
+      onSelect={onSelect && ((i) => onSelect(periods[i]))}
       tooltip={(i) => {
         const v = byIndex.get(i)
         if (v == null) return null
-        return <TooltipLines lines={[periods[i].label, `${label} : ${formatValue(v)}`]} />
+        return (
+          <TooltipLines
+            lines={[periods[i].label, `${label} : ${formatValue(v)}`, onSelect ? t('charts.drill') : null]}
+          />
+        )
       }}
     >
       {(frame, hover) => {

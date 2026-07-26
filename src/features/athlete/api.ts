@@ -367,8 +367,9 @@ export interface RunningStatsResponse {
   durability: DurabilityPoint[]
 }
 
-export function fetchRunningStats(): Promise<RunningStatsResponse> {
-  return api.get<RunningStatsResponse>('/api/athlete/running-stats')
+/** @param allTime stretch every series back to the first activity (months=0). */
+export function fetchRunningStats(allTime = false): Promise<RunningStatsResponse> {
+  return api.get<RunningStatsResponse>(`/api/athlete/running-stats${allTime ? '?months=0' : ''}`)
 }
 
 export interface SyncResult {

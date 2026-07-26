@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
+import { Link, useSearch } from '@tanstack/react-router'
 import { format, parseISO } from 'date-fns'
 import { useTranslation } from 'react-i18next'
 import { dateLocale } from '../../i18n'
@@ -24,15 +24,17 @@ function formatDuration(min: number): string {
   return rest === 0 ? `${h}h` : `${h}h${String(rest).padStart(2, '0')}`
 }
 
-/** The whole history: searchable by name and date range, page by page. */
+/** The whole history: searchable by name and date range, page by page.
+ *  ?from=&to= seed the date filters — the stats charts' drill-down entry. */
 export function ActivitiesPage() {
   const { t } = useTranslation('athlete')
   const { user } = useAuth()
+  const search = useSearch({ strict: false }) as { from?: string; to?: string }
   const [type, setType] = useState<FeedType>('ALL')
   const [page, setPage] = useState(0)
   const [q, setQ] = useState('')
-  const [from, setFrom] = useState('')
-  const [to, setTo] = useState('')
+  const [from, setFrom] = useState(search.from ?? '')
+  const [to, setTo] = useState(search.to ?? '')
 
   const filters: FeedFilters = { q, from: from || undefined, to: to || undefined }
   const query = useQuery({

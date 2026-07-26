@@ -3,6 +3,8 @@ export default {
   period: 'Period',
   months_one: '{{count}} month',
   months_other: '{{count}} months',
+  allTime: 'All',
+  drill: 'click: see the runs',
   loadError: 'Could not load the statistics.',
   tabs: {
     charge: 'Load',

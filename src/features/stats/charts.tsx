@@ -1,4 +1,4 @@
-import { format, parseISO } from 'date-fns'
+import { addDays, endOfMonth, format, parseISO } from 'date-fns'
 import { useTranslation } from 'react-i18next'
 import {
   ChartSurface,
@@ -28,9 +28,16 @@ import type {
 } from '../athlete/api'
 import { formatChrono, formatPace } from './format'
 
+/** Bucket click-through to the activities feed: (fromISO, toISO). */
+export type OpenRange = (from: string, to: string) => void
+
+const weekEnd = (weekStart: string) => format(addDays(parseISO(weekStart), 6), 'yyyy-MM-dd')
+const monthStart = (month: string) => `${month}-01`
+const monthEnd = (month: string) => format(endOfMonth(parseISO(`${month}-01`)), 'yyyy-MM-dd')
+
 /* ── Forme & Fitness: three series in one frame ────────────────────── */
 
-export function FormChart({ days }: { days: DayForm[] }) {
+export function FormChart({ days, onOpenRange }: { days: DayForm[]; onOpenRange?: OpenRange }) {
   const { t } = useTranslation('stats')
   if (days.length < 2) return <p className={`text-sm ${muted}`}>{t('form.notEnough')}</p>
   const values = days.flatMap((d) => [d.fitness, d.fatigue, d.formScore])
@@ -45,6 +52,7 @@ export function FormChart({ days }: { days: DayForm[] }) {
         count={days.length}
         crosshair
         xFor={(i, frame) => pointX(frame, days.length)(i)}
+        onSelect={onOpenRange && ((i) => onOpenRange(days[i].date, days[i].date))}
         tooltip={(i) => (
           <TooltipLines
             lines={[
@@ -52,6 +60,7 @@ export function FormChart({ days }: { days: DayForm[] }) {
               `${t('form.fitness')} ${days[i].fitness}`,
               `${t('form.fatigue')} ${days[i].fatigue}`,
               `${t('form.form')} ${days[i].formScore}`,
+              onOpenRange ? t('drill') : null,
             ]}
           />
         )}
@@ -95,7 +104,7 @@ export function FormChart({ days }: { days: DayForm[] }) {
 
 /* ── Weekly effort with the target band ────────────────────────────── */
 
-export function EffortBandChart({ weeks }: { weeks: WeekEffort[] }) {
+export function EffortBandChart({ weeks, onOpenRange }: { weeks: WeekEffort[]; onOpenRange?: OpenRange }) {
   const { t } = useTranslation('stats')
   if (weeks.length === 0) return <p className={`text-sm ${muted}`}>{t('effort.noData')}</p>
   const hi = Math.max(...weeks.flatMap((w) => [w.effort, w.bandHigh ?? 0]), 1) * 1.1
@@ -104,6 +113,7 @@ export function EffortBandChart({ weeks }: { weeks: WeekEffort[] }) {
     <ChartSurface
       ariaLabel={t('effort.aria')}
       count={weeks.length}
+      onSelect={onOpenRange && ((i) => onOpenRange(weeks[i].weekStart, weekEnd(weeks[i].weekStart)))}
       tooltip={(i) => {
         const week = weeks[i]
         return (
@@ -115,6 +125,7 @@ export function EffortBandChart({ weeks }: { weeks: WeekEffort[] }) {
                 ? t('effort.targetZone', { low: week.bandLow, high: week.bandHigh })
                 : t('effort.targetZoneNone'),
               week.partlyEstimated ? t('effort.estimatedNote') : null,
+              onOpenRange ? t('drill') : null,
             ]}
           />
         )
@@ -195,7 +206,7 @@ export function EffortStatus({ weeks }: { weeks: WeekEffort[] }) {
 
 /* ── Monotony (Foster) ─────────────────────────────────────────────── */
 
-export function MonotonyChart({ weeks }: { weeks: WeekMonotony[] }) {
+export function MonotonyChart({ weeks, onOpenRange }: { weeks: WeekMonotony[]; onOpenRange?: OpenRange }) {
   const { t } = useTranslation('stats')
   const points = weeks.filter((w) => w.monotony != null)
   if (points.length < 2) return <p className={`text-sm ${muted}`}>{t('monotony.notEnough')}</p>
@@ -207,6 +218,7 @@ export function MonotonyChart({ weeks }: { weeks: WeekMonotony[] }) {
       count={weeks.length}
       pad={{ right: 34 }}
       xFor={(i, frame) => pointX(frame, weeks.length)(i)}
+      onSelect={onOpenRange && ((i) => onOpenRange(weeks[i].weekStart, weekEnd(weeks[i].weekStart)))}
       tooltip={(i) => {
         const week = weeks[i]
         if (week.monotony == null) return null
@@ -217,6 +229,7 @@ export function MonotonyChart({ weeks }: { weeks: WeekMonotony[] }) {
               t('monotony.value', { value: week.monotony.toFixed(2) }),
               t('monotony.strain', { value: week.strain ?? 0 }),
               week.flagged ? t('monotony.flagged') : null,
+              onOpenRange ? t('drill') : null,
             ]}
           />
         )
@@ -269,7 +282,7 @@ export function MonotonyChart({ weeks }: { weeks: WeekMonotony[] }) {
 
 /* ── Volume: km bars + D+ line, two axes ───────────────────────────── */
 
-export function VolumeChart({ weeks }: { weeks: WeekVolume[] }) {
+export function VolumeChart({ weeks, onOpenRange }: { weeks: WeekVolume[]; onOpenRange?: OpenRange }) {
   const { t } = useTranslation('stats')
   if (weeks.length === 0) return <p className={`text-sm ${muted}`}>{t('effort.noData')}</p>
   const maxKm = Math.max(...weeks.map((w) => Number(w.distanceKm)), 1)
@@ -280,6 +293,7 @@ export function VolumeChart({ weeks }: { weeks: WeekVolume[] }) {
       ariaLabel={t('volume.aria')}
       count={weeks.length}
       pad={{ right: 44 }}
+      onSelect={onOpenRange && ((i) => onOpenRange(weeks[i].weekStart, weekEnd(weeks[i].weekStart)))}
       tooltip={(i) => {
         const week = weeks[i]
         return (
@@ -289,6 +303,7 @@ export function VolumeChart({ weeks }: { weeks: WeekVolume[] }) {
               t('volume.kmAndElevation', { km: week.distanceKm, elevation: week.elevationM }),
               `${t('volume.kmEffort', { value: week.kmEffort })} · ${t('volume.runs', { count: week.runs })}`,
               formatChrono(week.durationMin * 60),
+              onOpenRange ? t('drill') : null,
             ]}
           />
         )
@@ -380,7 +395,13 @@ export function CheckpointsTable({ checkpoints }: { checkpoints: DurationCheckpo
 
 /* ── Efficiency ────────────────────────────────────────────────────── */
 
-export function EfficiencyChart({ months }: { months: MonthEfficiency[] }) {
+export function EfficiencyChart({
+  months,
+  onOpenRange,
+}: {
+  months: MonthEfficiency[]
+  onOpenRange?: OpenRange
+}) {
   const { t } = useTranslation('stats')
   const points = months.filter((m) => m.metersPerBeat != null)
   if (points.length < 2) return <p className={`text-sm ${muted}`}>{t('efficiency.notEnough')}</p>
@@ -393,12 +414,14 @@ export function EfficiencyChart({ months }: { months: MonthEfficiency[] }) {
       ariaLabel={t('efficiency.aria')}
       count={points.length}
       xFor={(i, frame) => pointX(frame, points.length)(i)}
+      onSelect={onOpenRange && ((i) => onOpenRange(monthStart(points[i].month), monthEnd(points[i].month)))}
       tooltip={(i) => (
         <TooltipLines
           lines={[
             format(parseISO(`${points[i].month}-01`), 'MMMM yyyy', { locale: dateLocale() }),
             t('efficiency.metersPerBeat', { value: points[i].metersPerBeat }),
             t('efficiency.runsWithHr', { count: points[i].runs }),
+            onOpenRange ? t('drill') : null,
           ]}
         />
       )}
@@ -433,7 +456,7 @@ export function EfficiencyChart({ months }: { months: MonthEfficiency[] }) {
 
 /* ── VO2max trend & critical pace ──────────────────────────────────── */
 
-export function Vo2maxChart({ months }: { months: Vo2maxPoint[] }) {
+export function Vo2maxChart({ months, onOpenRange }: { months: Vo2maxPoint[]; onOpenRange?: OpenRange }) {
   const { t } = useTranslation('stats')
   const points = months.filter((m) => m.vo2max != null)
   if (points.length < 2) return <p className={`text-sm ${muted}`}>{t('vo2max.notEnough')}</p>
@@ -446,12 +469,14 @@ export function Vo2maxChart({ months }: { months: Vo2maxPoint[] }) {
       ariaLabel={t('vo2max.aria')}
       count={points.length}
       xFor={(i, frame) => pointX(frame, points.length)(i)}
+      onSelect={onOpenRange && ((i) => onOpenRange(monthStart(points[i].month), monthEnd(points[i].month)))}
       tooltip={(i) => (
         <TooltipLines
           lines={[
             format(parseISO(`${points[i].month}-01`), 'MMMM yyyy', { locale: dateLocale() }),
             t('vo2max.value', { value: points[i].vo2max }),
             t('vo2max.runs', { count: points[i].runs }),
+            onOpenRange ? t('drill') : null,
           ]}
         />
       )}
@@ -515,7 +540,13 @@ export function CriticalPaceStat({ cp }: { cp: CriticalPace }) {
 
 /* ── Durability: aerobic decoupling on long runs ───────────────────── */
 
-export function DurabilityChart({ points }: { points: DurabilityPoint[] }) {
+export function DurabilityChart({
+  points,
+  onOpenRange,
+}: {
+  points: DurabilityPoint[]
+  onOpenRange?: OpenRange
+}) {
   const { t } = useTranslation('stats')
   if (points.length < 2) return <p className={`text-sm ${muted}`}>{t('durability.notEnough')}</p>
   const values = points.map((p) => p.decouplingPct)
@@ -528,12 +559,14 @@ export function DurabilityChart({ points }: { points: DurabilityPoint[] }) {
       count={points.length}
       pad={{ right: 34 }}
       xFor={(i, frame) => pointX(frame, points.length)(i)}
+      onSelect={onOpenRange && ((i) => onOpenRange(points[i].date, points[i].date))}
       tooltip={(i) => (
         <TooltipLines
           lines={[
             format(parseISO(points[i].date), 'd MMMM yyyy', { locale: dateLocale() }),
             t('durability.decoupling', { value: points[i].decouplingPct.toFixed(1) }),
             `${points[i].distanceKm ?? '—'} km · ${formatChrono(points[i].durationMin * 60)}`,
+            onOpenRange ? t('drill') : null,
           ]}
         />
       )}

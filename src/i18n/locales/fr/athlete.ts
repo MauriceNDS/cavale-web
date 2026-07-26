@@ -99,6 +99,7 @@ export default {
     volumeAria: 'Volume par période ({{unit}})',
     noData: 'Pas encore de données.',
     runs: 'Sorties',
+    drill: 'clic : voir les sorties',
   },
   activities: {
     title: 'Activités',

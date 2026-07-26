@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
-import { differenceInCalendarDays, differenceInYears, format, parseISO } from 'date-fns'
+import { Link, useNavigate } from '@tanstack/react-router'
+import { addDays, differenceInCalendarDays, differenceInYears, endOfMonth, format, parseISO } from 'date-fns'
 import { Trans, useTranslation } from 'react-i18next'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { dateLocale, numberLocale } from '../../i18n'
@@ -94,7 +94,7 @@ const TRAINING_STATUS_STYLE: Record<TrainingStatusLabel, string> = {
 /** The single fused training-status verdict, glanceable over the metric wall. */
 function TrainingStatusPill() {
   const { t } = useTranslation('athlete')
-  const stats = useQuery({ queryKey: ['running-stats'], queryFn: fetchRunningStats })
+  const stats = useQuery({ queryKey: ['running-stats'], queryFn: () => fetchRunningStats() })
   const status = stats.data?.trainingStatus
   if (!status) return null
   const trend = `${status.fitnessTrendPct > 0 ? '+' : ''}${status.fitnessTrendPct}%`
@@ -457,6 +457,7 @@ const RANGES: Record<Granularity, number[]> = {
 
 function TrendsSection({ hub }: { hub: AthleteHub }) {
   const { t } = useTranslation('athlete')
+  const navigate = useNavigate()
   const [volumeMetric, setVolumeMetric] = useState<VolumeMetric>('km')
   const [granularity, setGranularity] = useState<Granularity>('month')
   const [range, setRange] = useState<Record<Granularity, number>>({ week: 16, month: 12 })
@@ -525,6 +526,13 @@ function TrendsSection({ hub }: { hub: AthleteHub }) {
           periods={periods}
           value={(p) => (volumeMetric === 'km' ? Math.round(p.distanceKm) : p.elevationM)}
           unit={volumeMetric === 'km' ? 'km' : 'm D+'}
+          onSelect={(p) => {
+            const [from, to] =
+              granularity === 'month'
+                ? [`${p.key}-01`, format(endOfMonth(parseISO(`${p.key}-01`)), 'yyyy-MM-dd')]
+                : [p.key, format(addDays(parseISO(p.key), 6), 'yyyy-MM-dd')]
+            void navigate({ to: '/activites', search: { from, to } })
+          }}
         />
       </div>
       <p className={`mt-2 text-xs ${muted}`}>

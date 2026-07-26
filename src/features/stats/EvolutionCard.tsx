@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { endOfMonth, format, parseISO } from 'date-fns'
 import { useTranslation } from 'react-i18next'
 import { ChartCard } from '../../components/chartkit'
 import { muted } from '../../lib/ui'
@@ -17,7 +18,13 @@ const pill = (active: boolean) =>
   }`
 
 /** Monthly pace / HR / cadence evolution — the descriptive performance trend. */
-export function EvolutionCard({ months }: { months: number }) {
+export function EvolutionCard({
+  months,
+  onOpenRange,
+}: {
+  months: number
+  onOpenRange?: (from: string, to: string) => void
+}) {
   const { t } = useTranslation('athlete')
   const { t: ts } = useTranslation('stats')
   const [metric, setMetric] = useState<TrendMetric>('pace')
@@ -73,6 +80,14 @@ export function EvolutionCard({ months }: { months: number }) {
         formatTick={trend.tick}
         invert={trend.invert}
         label={trend.label}
+        onSelect={
+          onOpenRange &&
+          ((p) =>
+            onOpenRange(
+              `${p.key}-01`,
+              format(endOfMonth(parseISO(`${p.key}-01`)), 'yyyy-MM-dd'),
+            ))
+        }
       />
     </ChartCard>
   )

@@ -3,6 +3,8 @@ export default {
   period: 'Période',
   months_one: '{{count}} mois',
   months_other: '{{count}} mois',
+  allTime: 'Tout',
+  drill: 'clic : voir les sorties',
   loadError: 'Impossible de charger les statistiques.',
   tabs: {
     charge: 'Charge',
