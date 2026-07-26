@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link, useSearch } from '@tanstack/react-router'
 import { format, parseISO } from 'date-fns'
 import { useTranslation } from 'react-i18next'
+import { Bike, Dumbbell, Footprints } from 'lucide-react'
 import { dateLocale } from '../../i18n'
 import { muted } from '../../lib/ui'
 import { useAuth } from '../auth/session'
@@ -208,13 +209,13 @@ function FeedRow({ item }: { item: FeedItem }) {
         aria-hidden="true"
         className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-base ${
           isRun
-            ? 'bg-pine-100 dark:bg-pine-900'
+            ? 'bg-pine-100 text-pine-700 dark:bg-pine-900 dark:text-pine-300'
             : isBike
-              ? 'bg-lake-600/15 dark:bg-lake-300/15'
-              : 'bg-copper-600/15 dark:bg-copper-300/15'
+              ? 'bg-lake-600/15 text-lake-600 dark:bg-lake-300/15 dark:text-lake-300'
+              : 'bg-copper-600/15 text-copper-600 dark:bg-copper-300/15 dark:text-copper-300'
         }`}
       >
-        {isRun ? '🏃' : isBike ? '🚴' : '🏋'}
+        {isRun ? <Footprints size={18} /> : isBike ? <Bike size={18} /> : <Dumbbell size={18} />}
       </span>
       <div className="min-w-0 flex-1">
         <p className="truncate font-medium">

@@ -2,6 +2,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { addDays, format, parseISO } from 'date-fns'
 import { useTranslation } from 'react-i18next'
+import { Dumbbell } from 'lucide-react'
 import { dateLocale } from '../../i18n'
 import { muted } from '../../lib/ui'
 import { fetchActiveWorkout, startWorkout } from '../gym/api'
@@ -59,10 +60,13 @@ export function TodayCard() {
           params={{ workoutId: activeWorkout.data.log.id }}
           className="mb-3 flex items-center justify-between gap-2 rounded-lg border border-copper-600/40 bg-copper-600/10 px-3 py-2.5 text-sm font-semibold text-copper-600 transition hover:bg-copper-600/20 dark:border-copper-300/40 dark:bg-copper-300/10 dark:text-copper-300"
         >
-          <span>
-            {t('today.activeWorkout', {
-              name: activeWorkout.data.log.templateName ?? t('kind.GYM'),
-            })}
+          <span className="inline-flex min-w-0 items-center gap-1.5">
+            <Dumbbell size={14} className="shrink-0" aria-hidden />
+            <span className="truncate">
+              {t('today.activeWorkout', {
+                name: activeWorkout.data.log.templateName ?? t('kind.GYM'),
+              })}
+            </span>
           </span>
           <span>{t('today.resume')}</span>
         </Link>
@@ -144,8 +148,9 @@ function SessionRow({ session }: { session: SessionResponse }) {
           <button
             onClick={() => startMutation.mutate()}
             disabled={startMutation.isPending}
-            className="rounded-lg bg-copper-600 px-3 py-1.5 text-sm font-semibold text-moss-25 transition hover:opacity-90 disabled:opacity-50 dark:bg-copper-300 dark:text-moss-950"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-copper-600 px-3 py-1.5 text-sm font-semibold text-moss-25 transition hover:opacity-90 disabled:opacity-50 dark:bg-copper-300 dark:text-moss-950"
           >
+            <Dumbbell size={14} aria-hidden />
             {startMutation.isPending ? t('session.starting') : t('today.start')}
           </button>
         )}

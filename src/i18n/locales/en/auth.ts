@@ -30,7 +30,7 @@ export default {
     },
   },
   onboarding: {
-    title: 'Welcome to Cavale 🏔',
+    title: 'Welcome to Cavale',
     intro: 'Two minutes to personalize your training — everything stays editable in your profile.',
     profile: {
       title: 'Your athlete profile',

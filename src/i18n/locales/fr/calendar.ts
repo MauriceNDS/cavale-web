@@ -130,7 +130,7 @@ export default {
     unvalidateConfirm: "La validation est annulée : la séance redevient planifiée et l'activité enregistrée est détachée (l'activité elle-même est conservée).",
     undoSkip: 'Annuler « passée »',
     backToPlanned: 'Remettre à planifiée',
-    startWorkout: '🏋 Démarrer la séance',
+    startWorkout: 'Démarrer la séance',
     starting: 'Démarrage…',
   },
   wizard: {
@@ -207,13 +207,13 @@ export default {
     splitsPartial: '{{km}} km',
   },
   today: {
-    activeWorkout: '🏋 Séance en cours : {{name}}',
+    activeWorkout: 'Séance en cours : {{name}}',
     resume: 'Reprendre →',
     nextSession: 'Prochaine séance',
     nothingToday: "Rien de prévu aujourd'hui.",
     noneThisWeek: 'Aucune séance planifiée cette semaine —',
     seeCalendar: 'voir le planning',
-    start: '🏋 Démarrer',
+    start: 'Démarrer',
   },
   builder: {
     addStep: '+ Bloc',

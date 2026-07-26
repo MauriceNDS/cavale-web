@@ -31,8 +31,8 @@ export default {
     usage: {
       title: 'Usage',
       intro: 'Running only, or running + strength. Turning strength off hides it from the interface — your programs and sessions are kept.',
-      runningOnly: '🏃 Running only',
-      runningAndGym: '🏔 Running + strength',
+      runningOnly: 'Running only',
+      runningAndGym: 'Running + strength',
     },
     language: {
       title: 'Language',

@@ -130,7 +130,7 @@ export default {
     unvalidateConfirm: 'The validation is undone: the session goes back to planned and its recorded activity is detached (the activity itself is kept).',
     undoSkip: 'Undo skip',
     backToPlanned: 'Back to planned',
-    startWorkout: '🏋 Start workout',
+    startWorkout: 'Start workout',
     starting: 'Starting…',
   },
   wizard: {
@@ -207,13 +207,13 @@ export default {
     splitsPartial: '{{km}} km',
   },
   today: {
-    activeWorkout: '🏋 Workout in progress: {{name}}',
+    activeWorkout: 'Workout in progress: {{name}}',
     resume: 'Resume →',
     nextSession: 'Next session',
     nothingToday: 'Nothing planned today.',
     noneThisWeek: 'No sessions planned this week —',
     seeCalendar: 'see the planning',
-    start: '🏋 Start',
+    start: 'Start',
   },
   builder: {
     addStep: '+ Block',

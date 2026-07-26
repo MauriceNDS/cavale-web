@@ -15,7 +15,7 @@ import {
   type IssuedToken,
   type PersonalToken,
 } from '../athlete/api'
-import { Trash2 } from 'lucide-react'
+import { Footprints, Mountain, Trash2 } from 'lucide-react'
 import { useAuth } from '../auth/session'
 import { setCredentials } from '../auth/api'
 import { ErrorAlert, Field, SubmitButton } from '../../components/form'
@@ -88,7 +88,7 @@ function UsageCard() {
   if (!user) return null
 
   const cls = (active: boolean) =>
-    `flex-1 rounded-lg px-4 py-2 text-center text-sm font-semibold transition disabled:opacity-50 sm:flex-none ${
+    `inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-center text-sm font-semibold transition disabled:opacity-50 sm:flex-none ${
       active
         ? 'bg-pine-600 text-moss-25 dark:bg-pine-350 dark:text-moss-950'
         : 'border border-moss-200 text-moss-500 hover:bg-moss-100 dark:border-moss-750 dark:text-moss-400 dark:hover:bg-moss-800'
@@ -107,6 +107,7 @@ function UsageCard() {
           {...radioProps(0)}
           className={cls(!user.gymEnabled)}
         >
+          <Footprints size={14} aria-hidden />
           {t('parameters.usage.runningOnly')}
         </button>
         <button
@@ -117,6 +118,7 @@ function UsageCard() {
           {...radioProps(1)}
           className={cls(user.gymEnabled)}
         >
+          <Mountain size={14} aria-hidden />
           {t('parameters.usage.runningAndGym')}
         </button>
       </div>

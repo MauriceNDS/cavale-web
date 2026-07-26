@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Flag } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { format, parseISO } from 'date-fns'
 import { dateLocale, numberLocale } from '../../i18n'
@@ -256,7 +257,12 @@ export function WeeklyChart({ weeks, metric, races }: WeeklyChartProps) {
                     </dd>
                   </div>
                 </dl>
-                {race && <p className="mt-1 text-copper-600 dark:text-copper-300">🏁 {race.name}</p>}
+                {race && (
+                  <p className="mt-1 flex items-center gap-1.5 text-copper-600 dark:text-copper-300">
+                    <Flag size={13} className="shrink-0" aria-hidden />
+                    {race.name}
+                  </p>
+                )}
               </>
             )
           })()}

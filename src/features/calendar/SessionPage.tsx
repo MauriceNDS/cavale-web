@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { format, parseISO } from 'date-fns'
 import { useTranslation } from 'react-i18next'
+import { Dumbbell } from 'lucide-react'
 import { dateLocale } from '../../i18n'
 import { ApiError } from '../../lib/api'
 import { GlossaryText } from '../../lib/glossary'
@@ -543,8 +544,9 @@ function StartWorkoutButton({ sessionId }: { sessionId: string }) {
     <button
       onClick={() => mutation.mutate()}
       disabled={mutation.isPending}
-      className="rounded-lg bg-copper-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:opacity-90 disabled:opacity-50 dark:bg-copper-300 dark:text-moss-950"
+      className="inline-flex items-center gap-1.5 rounded-lg bg-copper-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:opacity-90 disabled:opacity-50 dark:bg-copper-300 dark:text-moss-950"
     >
+      <Dumbbell size={14} aria-hidden />
       {mutation.isPending ? t('session.starting') : t('session.startWorkout')}
     </button>
   )

@@ -31,8 +31,8 @@ export default {
     usage: {
       title: 'Utilisation',
       intro: "Course uniquement, ou course + renfo. Désactiver le renfo le masque de l'interface — tes programmes et séances restent conservés.",
-      runningOnly: '🏃 Course uniquement',
-      runningAndGym: '🏔 Course + renfo',
+      runningOnly: 'Course uniquement',
+      runningAndGym: 'Course + renfo',
     },
     language: {
       title: 'Langue',

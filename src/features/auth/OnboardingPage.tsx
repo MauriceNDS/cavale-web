@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+import { Footprints, Mountain, type LucideIcon } from 'lucide-react'
 import { fieldClass } from '../../components/form'
 import { ApiError } from '../../lib/api'
 import { muted } from '../../lib/ui'
@@ -93,14 +94,14 @@ export function OnboardingPage() {
             <UsageCard
               selected={!gym}
               onSelect={() => setGym(false)}
-              emoji="🏃"
+              icon={Footprints}
               title={t('onboarding.usage.runningOnly.title')}
               description={t('onboarding.usage.runningOnly.description')}
             />
             <UsageCard
               selected={gym}
               onSelect={() => setGym(true)}
-              emoji="🏔"
+              icon={Mountain}
               title={t('onboarding.usage.runningAndGym.title')}
               description={t('onboarding.usage.runningAndGym.description')}
             />
@@ -137,13 +138,13 @@ export function OnboardingPage() {
 function UsageCard({
   selected,
   onSelect,
-  emoji,
+  icon: Icon,
   title,
   description,
 }: {
   selected: boolean
   onSelect: () => void
-  emoji: string
+  icon: LucideIcon
   title: string
   description: string
 }) {
@@ -158,7 +159,7 @@ function UsageCard({
           : 'border-moss-200 bg-moss-25 hover:border-pine-600/50 dark:border-moss-750 dark:bg-moss-850 dark:hover:border-pine-350/50'
       }`}
     >
-      <p className="text-xl">{emoji}</p>
+      <Icon size={22} className="text-pine-600 dark:text-pine-350" aria-hidden />
       <p className="mt-1 font-semibold">{title}</p>
       <p className="mt-1 text-xs text-moss-500 dark:text-moss-400">{description}</p>
     </button>
