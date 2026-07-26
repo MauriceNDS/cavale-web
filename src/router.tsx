@@ -24,6 +24,7 @@ import { HomePage } from './features/athlete/HomePage'
 import { CalendarPage } from './features/calendar/CalendarPage'
 import { SessionPage } from './features/calendar/SessionPage'
 import { ExercisesPage } from './features/gym/ExercisesPage'
+import { ExerciseHistoryPage } from './features/gym/ExerciseHistoryPage'
 import { TemplateEditorPage } from './features/gym/TemplateEditorPage'
 import { TemplatesPage } from './features/gym/TemplatesPage'
 import { WorkoutPage } from './features/gym/WorkoutPage'
@@ -574,6 +575,12 @@ const exercisesRoute = createRoute({
   component: ExercisesPage,
 })
 
+const exerciseHistoryRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/renfo/exercices/$exerciseId',
+  component: ExerciseHistoryPage,
+})
+
 const templateEditorRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/renfo/programmes/$templateId',
@@ -687,6 +694,7 @@ const routeTree = rootRoute.addChildren([
   coachRoute,
   renfoRoute,
   exercisesRoute,
+  exerciseHistoryRoute,
   templateEditorRoute,
   workoutRoute,
   gymStatsRoute,

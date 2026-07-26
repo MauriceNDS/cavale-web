@@ -502,8 +502,11 @@ export interface ExerciseTrend {
 export interface WeekTonnage {
   weekStart: string
   tonnageKg: number
+  /** Working sets — warm-ups excluded. */
   sets: number
   workouts: number
+  /** Total hold time, so gainage and mobility stop reading as nothing. */
+  secondsUnderTension: number
 }
 
 export interface MuscleVolume {
@@ -525,6 +528,44 @@ export interface WeekAdherence {
   weekStart: string
   plannedGym: number
   doneGym: number
+}
+
+export interface PerformedSet {
+  setNumber: number
+  reps: number | null
+  weightKg: number | null
+  seconds: number | null
+  warmup: boolean
+  rir: number | null
+}
+
+export interface ExerciseHistorySession {
+  workoutLogId: string
+  date: string
+  templateName: string | null
+  sets: PerformedSet[]
+  topWeightKg: number | null
+  estOneRmKg: number | null
+  tonnageKg: number
+}
+
+/** One lift's whole story — every session, the curve, and whether it moved. */
+export interface ExerciseHistoryResponse {
+  exerciseId: string
+  name: string
+  /** Newest first. */
+  sessions: ExerciseHistorySession[]
+  /** Oldest first, for the curve. */
+  oneRmTrend: { date: string; estOneRmKg: number }[]
+  bestWeightKg: number | null
+  bestOneRmKg: number | null
+  totalSets: number
+  /** Sessions since the estimated max last improved. */
+  sessionsSinceProgress: number | null
+}
+
+export function fetchExerciseHistory(exerciseId: string): Promise<ExerciseHistoryResponse> {
+  return api.get<ExerciseHistoryResponse>(`/api/gym/stats/exercises/${exerciseId}`)
 }
 
 export interface GymStatsResponse {
