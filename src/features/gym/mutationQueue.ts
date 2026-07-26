@@ -57,11 +57,15 @@ class MutationQueue {
   private seq = 0
 
   constructor() {
-    window.addEventListener('online', () => this.drain())
+    window.addEventListener('online', () => void this.drain())
     // a tab coming back to life is the other moment worth retrying
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') this.drain()
+      if (document.visibilityState === 'visible') void this.drain()
     })
+    // Writes restored from a previous session are already waiting: without
+    // this they would sit untouched until the connection happened to flap,
+    // which for a workout logged offline and reopened later means never.
+    if (this.ops.length > 0) setTimeout(() => void this.drain(), 0)
   }
 
   subscribe(listener: Listener): () => void {

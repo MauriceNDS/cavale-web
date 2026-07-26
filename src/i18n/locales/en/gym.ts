@@ -242,7 +242,7 @@ export default {
     loop: 'Loop {{n}}/{{total}}',
     extraTag: 'added',
     removeExtraConfirm: 'Remove this exercise? Its logged sets will be deleted.',
-    addExercise: '＋ Add an exercise',
+    addExercise: '+ Add an exercise',
     addExerciseTitle: 'Add an exercise (this workout only)',
     exerciseLabel: 'Exercise',
     pickExercise: 'Pick an exercise…',

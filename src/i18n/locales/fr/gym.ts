@@ -242,7 +242,7 @@ export default {
     loop: 'Tour {{n}}/{{total}}',
     extraTag: 'ajouté',
     removeExtraConfirm: 'Retirer cet exercice ? Ses séries enregistrées seront supprimées.',
-    addExercise: '＋ Ajouter un exercice',
+    addExercise: '+ Ajouter un exercice',
     addExerciseTitle: 'Ajouter un exercice (cette séance uniquement)',
     exerciseLabel: 'Exercice',
     pickExercise: 'Choisir un exercice…',
