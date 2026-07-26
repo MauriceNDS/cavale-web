@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
 import { format, parseISO } from 'date-fns'
@@ -8,7 +9,9 @@ import { card, muted } from '../../lib/ui'
 import { effortLabel } from '../calendar/labels'
 import { ActivityShoeRow } from '../shoes/ActivityShoeRow'
 import { fetchSession, type PerceivedEffort } from '../calendar/api'
-import { fetchActivityDetail, fetchActivityStreams } from './api'
+import { ActivityMap } from './ActivityMap'
+import { ZoneBars } from './ZoneBars'
+import { fetchActivityDetail, fetchActivityStreams, fetchHub } from './api'
 
 function formatDuration(min: number): string {
   if (min < 60) return `${min}′`
@@ -42,6 +45,10 @@ export function ActivityDetailPage() {
     queryFn: () => fetchSession(query.data!.sessionId!),
     enabled: query.data?.sessionId != null,
   })
+  // Profile HR bounds for the zone bars (hub is cached from the home page).
+  const hub = useQuery({ queryKey: ['hub'], queryFn: fetchHub })
+  // The charts' shared cursor, in km — also drives the map marker.
+  const [hoverKm, setHoverKm] = useState<number | null>(null)
 
   if (query.isLoading) {
     return <p className={`mt-16 text-center ${muted}`}>{t('common:loading')}</p>
@@ -63,10 +70,19 @@ export function ActivityDetailPage() {
       ? Math.round((a.durationMin * 60) / a.distanceKm)
       : null
 
-  // Two-tier stat hierarchy: the three numbers a runner checks first, big;
+  // km-effort (km + D+/100) IS the distance of a mountain run — promoted to
+  // the primary row when the outing is genuinely hilly (≥ 25 m D+/km).
+  const kmEffort =
+    a.distanceKm != null && a.distanceKm > 0 && a.elevationM != null
+      ? Math.round((Number(a.distanceKm) + a.elevationM / 100) * 10) / 10
+      : null
+  const hilly = kmEffort != null && a.elevationM! / Number(a.distanceKm) >= 25
+
+  // Two-tier stat hierarchy: the numbers a runner checks first, big;
   // the rest compact underneath.
   const primaryTiles = [
     a.distanceKm != null && { label: t('activityDetail.distance'), value: `${a.distanceKm} km` },
+    hilly && { label: t('activityDetail.kmEffort'), value: `${kmEffort} km-e` },
     { label: t('activityDetail.time'), value: formatDuration(a.durationMin) },
     pace != null && { label: t('activityDetail.avgPace'), value: formatPace(pace) },
   ].filter(Boolean) as { label: string; value: string }[]
@@ -76,6 +92,9 @@ export function ActivityDetailPage() {
       label: t('activityDetail.elevation'),
       value: `${a.elevationM.toLocaleString(numberLocale())} m`,
     },
+    !hilly &&
+      kmEffort != null &&
+      a.elevationM! > 0 && { label: t('activityDetail.kmEffort'), value: `${kmEffort} km-e` },
     a.avgHr != null && { label: t('activityDetail.avgHr'), value: `${a.avgHr} bpm` },
     a.maxHr != null && { label: t('activityDetail.maxHr'), value: `${a.maxHr} bpm` },
     a.avgCadenceSpm != null && {
@@ -86,7 +105,20 @@ export function ActivityDetailPage() {
       label: t('activityDetail.relativeEffort'),
       value: String(a.relativeEffort),
     },
-  ].filter(Boolean) as { label: string; value: string }[]
+    a.decouplingPct != null && {
+      label: t('activityDetail.decoupling'),
+      value: `${a.decouplingPct.toFixed(1)} %`,
+      tone:
+        a.decouplingPct <= 5
+          ? 'text-pine-700 dark:text-pine-300'
+          : a.decouplingPct <= 8
+            ? 'text-gold-600 dark:text-gold-300'
+            : 'text-clay-500 dark:text-clay-300',
+    },
+  ].filter(Boolean) as { label: string; value: string; tone?: string }[]
+
+  const profile = hub.data?.profile
+  const totalKm = a.distanceKm != null ? Number(a.distanceKm) : null
 
   return (
     <div className="mx-auto mt-6 max-w-3xl space-y-4 pb-10">
@@ -121,7 +153,7 @@ export function ActivityDetailPage() {
           </Link>
         )}
 
-        <div className="mt-4 grid grid-cols-3 gap-3">
+        <div className={`mt-4 grid gap-3 ${primaryTiles.length === 4 ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3'}`}>
           {primaryTiles.map((tile) => (
             <div key={tile.label} className="rounded-xl border border-moss-200 bg-moss-50 p-3 dark:border-moss-750 dark:bg-moss-900">
               <p className={`text-xs ${muted}`}>{tile.label}</p>
@@ -137,7 +169,7 @@ export function ActivityDetailPage() {
             {secondaryTiles.map((tile) => (
               <div key={tile.label} className="rounded-xl border border-moss-200 bg-moss-50 px-3 py-2 dark:border-moss-750 dark:bg-moss-900">
                 <p className={`text-[11px] ${muted}`}>{tile.label}</p>
-                <p className="mt-0.5 text-base font-semibold">{tile.value}</p>
+                <p className={`mt-0.5 text-base font-semibold ${tile.tone ?? ''}`}>{tile.value}</p>
               </div>
             ))}
           </div>
@@ -172,8 +204,22 @@ export function ActivityDetailPage() {
           </div>
         )}
 
+        {a.mapPolyline && (
+          <ActivityMap
+            polyline={a.mapPolyline}
+            hoverFraction={hoverKm != null && totalKm ? hoverKm / totalKm : null}
+          />
+        )}
+
         {a.hasStreams && streams.data && (
-          <StreamCharts streams={streams.data} workout={session.data?.workout} />
+          <StreamCharts
+            streams={streams.data}
+            workout={session.data?.workout}
+            onHoverX={setHoverKm}
+          />
+        )}
+        {a.hasStreams && streams.data && profile?.maxHr != null && (
+          <ZoneBars streams={streams.data} maxHr={profile.maxHr} restingHr={profile.restingHr} />
         )}
         {a.hasStreams && streams.isLoading && (
           <p className={`mt-4 text-sm ${muted}`}>{t('activityDetail.loadingCharts')}</p>

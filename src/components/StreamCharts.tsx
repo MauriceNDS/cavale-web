@@ -41,8 +41,20 @@ interface Split {
   label: string
   distKm: number
   paceSecPerKm: number
+  /** Grade-adjusted pace — the flat-equivalent effort of a hilly km. */
+  gapSecPerKm: number | null
   avgHr: number | null
   dplus: number
+}
+
+/**
+ * Minetti (2002) energy cost of running at grade g, relative to flat.
+ * Uphill costs more → the flat-equivalent distance is longer → GAP faster.
+ */
+function gapCostFactor(grade: number): number {
+  const g = Math.max(-0.35, Math.min(0.35, grade))
+  const cost = 155.4 * g ** 5 - 30.4 * g ** 4 - 43.3 * g ** 3 + 46.3 * g ** 2 + 19.5 * g + 3.6
+  return Math.max(0.5, cost / 3.6)
 }
 
 /** Cut the streams into 1-km bins, splitting samples across boundaries. */
@@ -54,23 +66,29 @@ function computeSplits(streams: ActivityStreams): Split[] {
   interface Bin {
     sec: number
     distKm: number
+    flatKm: number
     dplus: number
     hrWeighted: number
     hrSec: number
   }
   const bins: Bin[] = []
   const bin = (i: number): Bin => {
-    while (bins.length <= i) bins.push({ sec: 0, distKm: 0, dplus: 0, hrWeighted: 0, hrSec: 0 })
+    while (bins.length <= i) {
+      bins.push({ sec: 0, distKm: 0, flatKm: 0, dplus: 0, hrWeighted: 0, hrSec: 0 })
+    }
     return bins[i]
   }
 
+  const hasAlt = (alt?.length ?? 0) >= n
   for (let i = 1; i < n; i++) {
     let d0 = distance[i - 1] / 1000
     const d1 = distance[i] / 1000
     const t0 = time[i - 1]
     const t1 = time[i]
     if (d1 <= d0 || t1 <= t0) continue
-    const climb = alt?.[i] != null && alt?.[i - 1] != null ? Math.max(0, alt[i] - alt[i - 1]) : 0
+    const rise = hasAlt && alt[i] != null && alt[i - 1] != null ? alt[i] - alt[i - 1] : null
+    const climb = rise != null ? Math.max(0, rise) : 0
+    const factor = rise != null ? gapCostFactor(rise / ((d1 - d0) * 1000)) : 1
     const sampleHr = hr?.[i] != null && hr[i] > 0 ? hr[i] : null
     const totalDist = d1 - d0
     const totalSec = t1 - t0
@@ -83,6 +101,7 @@ function computeSplits(streams: ActivityStreams): Split[] {
       const sec = totalSec * fraction
       const b = bin(binIndex)
       b.distKm += boundary - d0
+      b.flatKm += (boundary - d0) * factor
       b.sec += sec
       b.dplus += climb * fraction
       if (sampleHr != null) {
@@ -102,6 +121,7 @@ function computeSplits(streams: ActivityStreams): Split[] {
       label: partial ? (i + b.distKm).toFixed(1) : String(i + 1),
       distKm: b.distKm,
       paceSecPerKm: Math.round(b.sec / b.distKm),
+      gapSecPerKm: hasAlt && b.flatKm > 0 ? Math.round(b.sec / b.flatKm) : null,
       avgHr: b.hrSec > 0 ? Math.round(b.hrWeighted / b.hrSec) : null,
       dplus: Math.round(b.dplus),
     })
@@ -223,9 +243,10 @@ function computeSegments(streams: ActivityStreams, steps: FlatStep[]): Segment[]
 function SplitsTable({ splits }: { splits: Split[] }) {
   const { t } = useTranslation('calendar')
   const fastest = Math.min(...splits.map((s) => s.paceSecPerKm))
+  const hasGap = splits.some((s) => s.gapSecPerKm != null && s.dplus > 0)
   const hasHr = splits.some((s) => s.avgHr != null)
   const hasDplus = splits.some((s) => s.dplus > 0)
-  const cols = `2.25rem minmax(0,1fr)${hasHr ? ' 3rem' : ''}${hasDplus ? ' 3.25rem' : ''}`
+  const cols = `2.25rem minmax(0,1fr)${hasGap ? ' 3rem' : ''}${hasHr ? ' 3rem' : ''}${hasDplus ? ' 3.25rem' : ''}`
 
   return (
     <div className="space-y-1 text-xs tabular-nums">
@@ -235,6 +256,7 @@ function SplitsTable({ splits }: { splits: Split[] }) {
       >
         <span>{t('report.splitsKm')}</span>
         <span>{t('report.splitsPace')}</span>
+        {hasGap && <span className="text-right">{t('report.splitsGap')}</span>}
         {hasHr && <span className="text-right">{t('report.splitsHr')}</span>}
         {hasDplus && <span className="text-right">{t('report.splitsDplus')}</span>}
       </div>
@@ -253,6 +275,11 @@ function SplitsTable({ splits }: { splits: Split[] }) {
             />
             <span className="font-medium">{fmtPaceCompact(split.paceSecPerKm / 60)}</span>
           </span>
+          {hasGap && (
+            <span className="text-right text-moss-500 dark:text-moss-400">
+              {split.gapSecPerKm != null ? fmtPaceCompact(split.gapSecPerKm / 60) : '—'}
+            </span>
+          )}
           {hasHr && (
             <span className="text-right text-moss-500 dark:text-moss-400">
               {split.avgHr ?? '—'}
@@ -272,17 +299,20 @@ function SplitsTable({ splits }: { splits: Split[] }) {
 /* ── Chart panel ───────────────────────────────────────────────────── */
 
 type ChartMode = 'linear' | 'perKm' | 'perSegment'
-type LinearTab = 'pace' | 'hr' | 'cadence' | 'elevation'
 type KmTab = 'pace' | 'hr' | 'dplus'
 
 export function StreamCharts({
   streams,
   workout,
+  onHoverX,
 }: {
   streams: ActivityStreams
   /** Planned workout structure of the linked session — enables the
    *  per-segment mode when the recorded duration matches the prescription. */
   workout?: WorkoutNode[]
+  /** Shared-cursor hook: the hovered distance (km), null when the cursor leaves.
+   *  Lets the page sync external panels (the map marker) to the charts. */
+  onHoverX?: (x: number | null) => void
 }) {
   const { t } = useTranslation('calendar')
   const km = streams.distance.map((d) => d / 1000)
@@ -348,12 +378,8 @@ export function StreamCharts({
   const backdrop = altitude.length > 1 ? altitude : undefined
   const fmtPace = (y: number) => `${fmtPaceCompact(y)} /km`
 
-  const linearTabs: LinearTab[] = [
-    ...(pace.length > 1 ? (['pace'] as const) : []),
-    ...(hr.length > 1 ? (['hr'] as const) : []),
-    ...(cadence.length > 1 ? (['cadence'] as const) : []),
-    ...(altitude.length > 1 ? (['elevation'] as const) : []),
-  ]
+  const linearCount =
+    (pace.length > 1 ? 1 : 0) + (hr.length > 1 ? 1 : 0) + (cadence.length > 1 ? 1 : 0)
   const kmTabs: KmTab[] =
     splits.length >= 2
       ? [
@@ -372,14 +398,22 @@ export function StreamCharts({
       : []
 
   const [mode, setMode] = useState<ChartMode>('linear')
-  const [linearSel, setLinearSel] = useState<LinearTab>('pace')
   const [kmSel, setKmSel] = useState<KmTab>('pace')
   const [segSel, setSegSel] = useState<KmTab>('pace')
+  // One cursor for every stacked panel: the hovered distance in km.
+  const [sharedX, setSharedX] = useState<number | null>(null)
 
-  if (linearTabs.length === 0 && kmTabs.length === 0 && segTabs.length === 0) return null
+  if (linearCount === 0 && altitude.length < 2 && kmTabs.length === 0 && segTabs.length === 0) {
+    return null
+  }
+
+  const hoverX = (x: number | null) => {
+    setSharedX(x)
+    onHoverX?.(x)
+  }
 
   const tabsFor: Record<ChartMode, number> = {
-    linear: linearTabs.length,
+    linear: linearCount + (altitude.length > 1 ? 1 : 0),
     perKm: kmTabs.length,
     perSegment: segTabs.length,
   }
@@ -388,71 +422,84 @@ export function StreamCharts({
     tabsFor[mode] > 0
       ? mode
       : (['linear', 'perKm', 'perSegment'] as const).find((m) => tabsFor[m] > 0)!
-  const linearTab = linearTabs.includes(linearSel) ? linearSel : linearTabs[0]
   const kmTab = kmTabs.includes(kmSel) ? kmSel : kmTabs[0]
   const segTab = segTabs.includes(segSel) ? segSel : segTabs[0]
 
-  const tabLabel: Record<LinearTab | KmTab, string> = {
+  const tabLabel: Record<KmTab, string> = {
     pace: t('report.tabPace'),
     hr: t('report.tabHr'),
-    cadence: t('report.tabCadence'),
-    elevation: t('report.tabElevation'),
     dplus: t('report.tabDplus'),
   }
 
-  const linearChart = {
-    elevation: (
-      <StreamChart
-        title={t('report.chartElevation')}
-        points={altitude}
-        colorClass="text-pine-600 dark:text-pine-350"
-        area
-        yFormat={(y) => `${Math.round(y)} m`}
-        yTick={(y) => `${Math.round(y)}`}
-      />
-    ),
-    pace: (
-      <StreamChart
-        title={t('report.chartPace')}
-        points={pace}
-        colorClass="text-teal-600 dark:text-teal-300"
-        invertY
-        yFormat={fmtPace}
-        yTick={fmtPaceCompact}
-        backdrop={backdrop}
-        extraAt={altAt}
-      />
-    ),
-    hr: (
-      <StreamChart
-        title={t('report.chartHr')}
-        points={hr}
-        colorClass="text-rowan-600 dark:text-rowan-300"
-        yFormat={(y) => `${Math.round(y)} bpm`}
-        yTick={(y) => `${Math.round(y)}`}
-        backdrop={backdrop}
-        extraAt={altAt}
-      />
-    ),
-    cadence: (
-      <StreamChart
-        title={t('report.chartCadence')}
-        points={cadence}
-        colorClass="text-copper-600 dark:text-copper-300"
-        yFormat={(y) => `${Math.round(y)} spm`}
-        yTick={(y) => `${Math.round(y)}`}
-        backdrop={backdrop}
-        extraAt={altAt}
-      />
-    ),
-  }[linearTab]
+  // Stacked panels, one shared cursor — hovering any panel scrubs them all.
+  const panelHeight = linearCount > 1 ? 150 : 200
+  const stacked = (
+    <div className="space-y-2">
+      {pace.length > 1 && (
+        <StreamChart
+          title={t('report.chartPace')}
+          points={pace}
+          height={panelHeight}
+          colorClass="text-teal-600 dark:text-teal-300"
+          invertY
+          yFormat={fmtPace}
+          yTick={fmtPaceCompact}
+          backdrop={backdrop}
+          extraAt={altAt}
+          hoverX={sharedX}
+          onHoverX={hoverX}
+        />
+      )}
+      {hr.length > 1 && (
+        <StreamChart
+          title={t('report.chartHr')}
+          points={hr}
+          height={panelHeight}
+          colorClass="text-rowan-600 dark:text-rowan-300"
+          yFormat={(y) => `${Math.round(y)} bpm`}
+          yTick={(y) => `${Math.round(y)}`}
+          backdrop={backdrop}
+          extraAt={altAt}
+          hoverX={sharedX}
+          onHoverX={hoverX}
+        />
+      )}
+      {cadence.length > 1 && (
+        <StreamChart
+          title={t('report.chartCadence')}
+          points={cadence}
+          height={panelHeight}
+          colorClass="text-copper-600 dark:text-copper-300"
+          yFormat={(y) => `${Math.round(y)} spm`}
+          yTick={(y) => `${Math.round(y)}`}
+          backdrop={backdrop}
+          extraAt={altAt}
+          hoverX={sharedX}
+          onHoverX={hoverX}
+        />
+      )}
+      {linearCount === 0 && altitude.length > 1 && (
+        <StreamChart
+          title={t('report.chartElevation')}
+          points={altitude}
+          height={200}
+          colorClass="text-pine-600 dark:text-pine-350"
+          area
+          yFormat={(y) => `${Math.round(y)} m`}
+          yTick={(y) => `${Math.round(y)}`}
+          hoverX={sharedX}
+          onHoverX={hoverX}
+        />
+      )}
+    </div>
+  )
 
   return (
     <div className="mt-4 space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         {(() => {
           const modeOptions = [
-            ...(linearTabs.length > 0
+            ...(tabsFor.linear > 0
               ? [{ value: 'linear' as const, label: t('report.chartModeLinear') }]
               : []),
             ...(kmTabs.length > 0
@@ -474,15 +521,6 @@ export function StreamCharts({
             <span />
           )
         })()}
-        {effectiveMode === 'linear' && linearTabs.length > 1 && (
-          <SegmentedControl
-            size="sm"
-            ariaLabel={t('report.chartMetricAria')}
-            options={linearTabs.map((v) => ({ value: v, label: tabLabel[v] }))}
-            value={linearTab}
-            onChange={setLinearSel}
-          />
-        )}
         {effectiveMode === 'perKm' && kmTabs.length > 1 && (
           <SegmentedControl
             size="sm"
@@ -502,7 +540,7 @@ export function StreamCharts({
           />
         )}
       </div>
-      {effectiveMode === 'linear' && linearChart}
+      {effectiveMode === 'linear' && stacked}
       {effectiveMode === 'perKm' && (
         <>
           <KmBarChart splits={splits} metric={kmTab} />
@@ -533,8 +571,11 @@ function StreamChart({
   yTick,
   area = false,
   invertY = false,
+  height = H,
   backdrop,
   extraAt,
+  hoverX = null,
+  onHoverX,
 }: {
   title: string
   points: Point[]
@@ -544,14 +585,19 @@ function StreamChart({
   yTick: (y: number) => string
   area?: boolean
   invertY?: boolean
+  height?: number
   /** Elevation profile drawn muted behind the metric, on its own scale. */
   backdrop?: Point[]
   /** Extra crosshair readout (altitude at x), shown after the y value. */
   extraAt?: (x: number) => number | null
+  /** Controlled cursor: the hovered distance (km), shared across panels. */
+  hoverX?: number | null
+  onHoverX?: (x: number | null) => void
 }) {
   const { ref, width: W } = useMeasuredWidth<HTMLDivElement>(FALLBACK_W)
-  const [hover, setHover] = useState<number | null>(null)
+  const [localHover, setLocalHover] = useState<number | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
+  const effectiveHoverX = onHoverX ? hoverX : localHover
 
   const xMin = points[0].x
   const xMax = points[points.length - 1].x
@@ -562,7 +608,7 @@ function StreamChart({
   yMin -= padY
   yMax += padY
 
-  const plotH = H - PAD.top - PAD.bottom
+  const plotH = height - PAD.top - PAD.bottom
   const sx = (x: number) => PAD.left + ((x - xMin) / (xMax - xMin || 1)) * (W - PAD.left - PAD.right)
   const sy = (y: number) => {
     const t = (y - yMin) / (yMax - yMin || 1)
@@ -570,7 +616,7 @@ function StreamChart({
   }
 
   const line = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${sx(p.x).toFixed(1)},${sy(p.y).toFixed(1)}`).join('')
-  const baseline = invertY ? PAD.top : H - PAD.bottom
+  const baseline = invertY ? PAD.top : height - PAD.bottom
   const areaPath = `${line}L${sx(xMax).toFixed(1)},${baseline}L${sx(xMin).toFixed(1)},${baseline}Z`
 
   // Elevation backdrop on its own scale — terrain context, not a second axis.
@@ -583,27 +629,38 @@ function StreamChart({
     const bLine = backdrop
       .map((p, i) => `${i === 0 ? 'M' : 'L'}${sx(p.x).toFixed(1)},${by(p.y).toFixed(1)}`)
       .join('')
-    return `${bLine}L${sx(backdrop[backdrop.length - 1].x).toFixed(1)},${H - PAD.bottom}L${sx(backdrop[0].x).toFixed(1)},${H - PAD.bottom}Z`
+    return `${bLine}L${sx(backdrop[backdrop.length - 1].x).toFixed(1)},${height - PAD.bottom}L${sx(backdrop[0].x).toFixed(1)},${height - PAD.bottom}Z`
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [backdrop, W, xMin, xMax])
+  }, [backdrop, W, xMin, xMax, height])
 
   // Pointer events cover mouse AND touch: a finger drag scrubs the crosshair.
   function handleMove(event: React.PointerEvent<SVGSVGElement>) {
     const rect = svgRef.current!.getBoundingClientRect()
-    const x = ((event.clientX - rect.left) / rect.width) * W
-    let best = 0
-    let bestDist = Infinity
-    points.forEach((p, i) => {
-      const d = Math.abs(sx(p.x) - x)
-      if (d < bestDist) {
-        bestDist = d
-        best = i
-      }
-    })
-    setHover(best)
+    const px = ((event.clientX - rect.left) / rect.width) * W
+    const plotW = W - PAD.left - PAD.right
+    const x = xMin + (Math.min(Math.max(px - PAD.left, 0), plotW) / (plotW || 1)) * (xMax - xMin)
+    if (onHoverX) onHoverX(x)
+    else setLocalHover(x)
+  }
+  function handleLeave() {
+    if (onHoverX) onHoverX(null)
+    else setLocalHover(null)
   }
 
-  const hovered = hover != null ? points[hover] : null
+  // The panel's own nearest sample to the shared cursor position.
+  const hovered = useMemo(() => {
+    if (effectiveHoverX == null) return null
+    let best: Point | null = null
+    let bestDist = Infinity
+    for (const p of points) {
+      const d = Math.abs(p.x - effectiveHoverX)
+      if (d < bestDist) {
+        bestDist = d
+        best = p
+      }
+    }
+    return best
+  }, [effectiveHoverX, points])
   const hoveredAlt = hovered && extraAt ? extraAt(hovered.x) : null
 
   // Grid values, top to bottom: the value shown at each hairline.
@@ -627,11 +684,11 @@ function StreamChart({
       <div ref={ref} className={colorClass}>
         <svg
           ref={svgRef}
-          viewBox={`0 0 ${W} ${H}`}
+          viewBox={`0 0 ${W} ${height}`}
           className="mt-1 w-full touch-pan-y"
           onPointerMove={handleMove}
           onPointerDown={handleMove}
-          onPointerLeave={() => setHover(null)}
+          onPointerLeave={handleLeave}
           role="img"
           aria-label={title}
         >
@@ -668,7 +725,7 @@ function StreamChart({
                 x1={sx(hovered.x)}
                 x2={sx(hovered.x)}
                 y1={PAD.top}
-                y2={H - PAD.bottom}
+                y2={height - PAD.bottom}
                 className="stroke-moss-400 dark:stroke-moss-500"
                 strokeWidth="1"
                 strokeDasharray="3 3"
@@ -677,10 +734,10 @@ function StreamChart({
             </>
           )}
           {/* x labels */}
-          <text x={PAD.left} y={H - 4} className="fill-moss-400 dark:fill-moss-500" fontSize="10">
+          <text x={PAD.left} y={height - 4} className="fill-moss-400 dark:fill-moss-500" fontSize="10">
             {xMin.toFixed(0)} km
           </text>
-          <text x={W - PAD.right} y={H - 4} textAnchor="end" className="fill-moss-400 dark:fill-moss-500" fontSize="10">
+          <text x={W - PAD.right} y={height - 4} textAnchor="end" className="fill-moss-400 dark:fill-moss-500" fontSize="10">
             {xMax.toFixed(1)} km
           </text>
         </svg>

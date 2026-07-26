@@ -199,6 +199,7 @@ export default {
     splitsKm: 'Km',
     splitsPace: 'Pace',
     splitsHr: 'HR',
+    splitsGap: 'GAP',
     splitsDplus: 'D+',
     splitsPartial: '{{km}} km',
   },
