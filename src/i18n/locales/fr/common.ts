@@ -1,5 +1,6 @@
 /** Strings shared across features — reference from any component as `common:key`. */
 export default {
+  ok: 'OK',
   save: 'Enregistrer',
   saving: 'Enregistrement…',
   cancel: 'Annuler',

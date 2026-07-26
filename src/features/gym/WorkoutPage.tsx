@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+import { Check, ChevronLeft, ChevronRight, Link2, List, Unlink2, X } from 'lucide-react'
 import { ApiError } from '../../lib/api'
 import { muted } from '../../lib/ui'
 import { Modal } from '../../components/Modal'
@@ -10,16 +11,10 @@ import { ExerciseDetailSheet } from './ExerciseDetailSheet'
 import {
   abandonWorkout,
   addExtraBlock,
-  adjustBlockSets,
-  adjustExtraBlockSets,
-  deleteSet,
   fetchExercises,
   fetchWorkout,
   finishWorkout,
-  logSet,
-  removeExtraBlock,
-  restoreWorkoutBlock,
-  skipWorkoutBlock,
+  regroupWorkout,
   swapWorkoutBlock,
   type ExerciseResponse,
   type PerceivedEffort,
@@ -27,44 +22,29 @@ import {
   type WorkoutBlockResponse,
   type WorkoutDetailResponse,
 } from './api'
-import { CATEGORY_BADGE, CATEGORY_EDGE, categoryLabel, formatRest, muscleLabel } from './labels'
+import { gymQueue, type QueueState } from './mutationQueue'
+import { useRestTimer, useWakeLock, type RestTimer } from './useRestTimer'
+import {
+  blockId,
+  blocksInRound,
+  buildSteps,
+  firstUnfinished,
+  restAfter,
+  setKey,
+  totalRows,
+  type Step,
+} from './workoutModel'
+import { CATEGORY_BADGE, categoryLabel, muscleLabel } from './labels'
 
-const inputCls =
-  'w-full rounded-lg border border-moss-200 bg-moss-100 px-2 py-2 text-center text-base font-semibold tabular-nums outline-none focus:border-pine-600 focus:ring-2 focus:ring-pine-600/25 dark:border-moss-750 dark:bg-moss-800 dark:focus:border-pine-350 dark:focus:ring-pine-350/25'
-
-/** 40px touch targets — mid-workout taps are made with shaky thumbs. */
-const iconBtn =
-  'grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-moss-200 text-moss-500 transition hover:bg-moss-100 hover:text-ink disabled:opacity-40 dark:border-moss-750 dark:text-moss-400 dark:hover:bg-moss-800 dark:hover:text-linen'
+/** 44px targets — mid-workout taps are made with shaky, chalky thumbs. */
+const tapBtn =
+  'grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-moss-200 text-moss-500 transition active:scale-95 hover:bg-moss-100 hover:text-ink disabled:opacity-40 dark:border-moss-750 dark:text-moss-400 dark:hover:bg-moss-800 dark:hover:text-linen'
 
 const EFFORTS: PerceivedEffort[] = [
   'TROP_FACILE', 'FACILE', 'COMME_PREVU', 'DIFFICILE', 'TROP_DIFFICILE',
 ]
 
-/* ── Inline icons (no icon dependency; stroke follows the text color) ── */
-
-function SwapIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M16 3h5v5" /><path d="M21 3l-7 7" /><path d="M8 21H3v-5" /><path d="M3 21l7-7" />
-    </svg>
-  )
-}
-
-function InfoIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
-      <circle cx="12" cy="12" r="9" /><path d="M12 16v-5" /><path d="M12 8h.01" />
-    </svg>
-  )
-}
-
-function CrossIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
-      <path d="M18 6L6 18" /><path d="M6 6l12 12" />
-    </svg>
-  )
-}
+const RIR_CHOICES = [0, 1, 2, 3] as const
 
 function formatElapsed(startedAt: string): string {
   const sec = Math.max(0, Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000))
@@ -80,44 +60,73 @@ function formatCountdown(sec: number): string {
   return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`
 }
 
-/** Rows to render for a block: the effective sets, never hiding a logged set. */
-function totalRows(block: WorkoutBlockResponse, loggedSets: SetLogResponse[]): number {
-  const maxLogged = loggedSets
-    .filter((s) => s.exerciseId === block.exercise.id)
-    .reduce((max, s) => Math.max(max, s.setNumber), 0)
-  return Math.max(block.sets, maxLogged)
+/** Trailing zeros are noise on a plate: 82.5 kg, but 80 kg. */
+function kg(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, '')
 }
 
-/**
- * "Last time every set hit the target at weight w" → suggest w + 2.5 kg.
- * Null when the history is incomplete or the exercise isn't weight-based.
- */
-function progressionHint(block: WorkoutBlockResponse): number | null {
-  if (block.targetReps == null || block.prescribedSets === 0) return null
-  const done = block.lastSets.filter((s) => s.reps != null)
-  if (done.length < block.prescribedSets) return null
-  if (!done.every((s) => (s.reps ?? 0) >= (block.targetReps ?? 0))) return null
-  const weights = done.map((s) => s.weightKg).filter((w): w is number => w != null && w > 0)
-  if (weights.length < done.length) return null
-  return Math.max(...weights) + 2.5
+/* ── The values being entered for one set ──────────────────────────── */
+
+interface Draft {
+  weightKg?: number
+  reps?: number
+  seconds?: number
+  warmup?: boolean
 }
 
-/** The live workout: tick a set, it's saved; lock your phone, nothing is lost. */
+/* ══════════════════════════════════════════════════════════════════════
+   The live workout: one thing at a time, every tap saved locally first.
+   ══════════════════════════════════════════════════════════════════════ */
+
 export function WorkoutPage() {
   const { t } = useTranslation('gym')
   const params = useParams({ strict: false }) as { workoutId?: string }
   const workoutId = params.workoutId!
   const queryClient = useQueryClient()
   const navigate = useNavigate()
-  const [finishing, setFinishing] = useState(false)
-  const [addingExercise, setAddingExercise] = useState(false)
 
   const query = useQuery({
     queryKey: ['workout', workoutId],
     queryFn: () => fetchWorkout(workoutId),
+    // the cache is the source of truth mid-workout: refetching would undo
+    // optimistic ticks that are still queued
+    refetchOnWindowFocus: false,
   })
-
   const detail = query.data
+
+  const rest = useRestTimer()
+  const finished = detail?.log.status === 'FINISHED'
+  useWakeLock(detail != null && !finished)
+
+  const [mode, setMode] = useState<'focus' | 'list'>('focus')
+  const [stepIndex, setStepIndex] = useState(0)
+  const [round, setRound] = useState(1)
+  const [drafts, setDrafts] = useState<Record<string, Draft>>({})
+  const [ratingSetId, setRatingSetId] = useState<string | null>(null)
+  const [finishing, setFinishing] = useState(false)
+  const [addingExercise, setAddingExercise] = useState(false)
+  const [placed, setPlaced] = useState(false)
+
+  const steps = useMemo(() => (detail ? buildSteps(detail) : []), [detail])
+
+  // land where the session actually is, once, on first load
+  useEffect(() => {
+    if (placed || !detail || steps.length === 0) return
+    const at = firstUnfinished(steps, detail.log.sets)
+    setStepIndex(at.stepIndex)
+    setRound(at.round)
+    setPlaced(true)
+  }, [placed, detail, steps])
+
+  /** Patch the cached workout in place — no round trip, no flicker. */
+  const patch = useCallback(
+    (update: (current: WorkoutDetailResponse) => WorkoutDetailResponse) => {
+      queryClient.setQueryData<WorkoutDetailResponse>(['workout', workoutId], (current) =>
+        current ? update(current) : current,
+      )
+    },
+    [queryClient, workoutId],
+  )
 
   if (query.isLoading) {
     return <p className={`mt-10 text-center ${muted}`}>{t('common:loading')}</p>
@@ -128,61 +137,273 @@ export function WorkoutPage() {
     )
   }
 
-  const finished = detail.log.status === 'FINISHED'
-  const circuit = detail.circuitLoops != null
-  const templateBlocks = detail.blocks.filter((b) => b.templateExerciseId != null)
-  const extraBlocks = detail.blocks.filter((b) => b.extraBlockId != null)
+  const step = steps[Math.min(stepIndex, steps.length - 1)]
+
+  /* ── Logging a set: local first, network whenever it can ──────────── */
+
+  function logSet(block: WorkoutBlockResponse, setNumber: number, draft: Draft) {
+    const seconds = block.exercise.measure === 'SECONDS'
+    const body = {
+      exerciseId: block.exercise.id,
+      position: 0,
+      setNumber,
+      reps: seconds ? undefined : draft.reps,
+      weightKg: seconds ? undefined : draft.weightKg,
+      seconds: seconds ? draft.seconds : undefined,
+      warmup: draft.warmup ?? false,
+    }
+    const key = setKey(block.exercise.id, setNumber)
+    const localId = `local:${key}`
+
+    patch((current) => {
+      const others = current.log.sets.filter(
+        (s) => !(s.exerciseId === block.exercise.id && s.setNumber === setNumber),
+      )
+      const existing = current.log.sets.find(
+        (s) => s.exerciseId === block.exercise.id && s.setNumber === setNumber,
+      )
+      const logged: SetLogResponse = {
+        id: existing?.id ?? localId,
+        exerciseId: block.exercise.id,
+        exerciseName: block.exercise.name,
+        position: 0,
+        setNumber,
+        reps: body.reps ?? null,
+        weightKg: body.weightKg ?? null,
+        seconds: body.seconds ?? null,
+        warmup: body.warmup,
+        rir: existing?.rir ?? null,
+      }
+      return { ...current, log: { ...current.log, sets: [...others, logged] } }
+    })
+
+    gymQueue.push({
+      key: `set:${workoutId}:${key}`,
+      method: 'PUT',
+      path: `/api/workouts/${workoutId}/sets`,
+      body,
+    })
+
+    // rest is dead time — that is where the rating question goes
+    setRatingSetId(localId)
+    const owed = restAfter(step, block, setNumber, detail!.log.sets)
+    if (owed != null && owed > 0) rest.start(owed)
+  }
+
+  function unlogSet(block: WorkoutBlockResponse, setNumber: number) {
+    const key = setKey(block.exercise.id, setNumber)
+    const logged = detail!.log.sets.find(
+      (s) => s.exerciseId === block.exercise.id && s.setNumber === setNumber,
+    )
+    patch((current) => ({
+      ...current,
+      log: {
+        ...current.log,
+        sets: current.log.sets.filter(
+          (s) => !(s.exerciseId === block.exercise.id && s.setNumber === setNumber),
+        ),
+      },
+    }))
+    const wasStillQueued = gymQueue.cancel(`set:${workoutId}:${key}`)
+    // if the write never left, the server never knew: nothing to delete
+    if (!wasStillQueued && logged && !logged.id.startsWith('local:')) {
+      gymQueue.push({
+        key: `unset:${workoutId}:${key}`,
+        method: 'DELETE',
+        path: `/api/workouts/sets/${logged.id}`,
+      })
+    }
+    setRatingSetId(null)
+  }
+
+  function rateSet(setId: string, rir: number) {
+    patch((current) => ({
+      ...current,
+      log: {
+        ...current.log,
+        sets: current.log.sets.map((s) => (s.id === setId ? { ...s, rir } : s)),
+      },
+    }))
+    if (setId.startsWith('local:')) {
+      // the set itself hasn't reached the server yet; fold the rating into
+      // the pending write rather than racing it
+      const key = setId.slice('local:'.length)
+      const [exerciseId, setNumber] = key.split(':')
+      const logged = detail!.log.sets.find(
+        (s) => s.exerciseId === exerciseId && s.setNumber === Number(setNumber),
+      )
+      const block = detail!.blocks.find((b) => b.exercise.id === exerciseId)
+      if (logged && block) {
+        const seconds = block.exercise.measure === 'SECONDS'
+        gymQueue.push({
+          key: `set:${workoutId}:${key}`,
+          method: 'PUT',
+          path: `/api/workouts/${workoutId}/sets`,
+          body: {
+            exerciseId,
+            position: 0,
+            setNumber: Number(setNumber),
+            reps: seconds ? undefined : logged.reps ?? undefined,
+            weightKg: seconds ? undefined : logged.weightKg ?? undefined,
+            seconds: seconds ? logged.seconds ?? undefined : undefined,
+            warmup: logged.warmup,
+            rir,
+          },
+        })
+      }
+      return
+    }
+    gymQueue.push({
+      key: `rating:${setId}`,
+      method: 'PATCH',
+      path: `/api/workouts/sets/${setId}/rating`,
+      body: { rir },
+    })
+  }
+
+  function adjustSets(block: WorkoutBlockResponse, sets: number) {
+    if (sets < 0 || sets > 10) return
+    const id = blockId(block)
+    patch((current) => ({
+      ...current,
+      blocks: current.blocks.map((b) => (blockId(b) === id ? { ...b, sets } : b)),
+    }))
+    gymQueue.push({
+      key: `sets:${workoutId}:${id}`,
+      method: 'PUT',
+      path: block.templateExerciseId != null
+        ? `/api/workouts/${workoutId}/blocks/${block.templateExerciseId}/sets`
+        : `/api/workouts/${workoutId}/extra-blocks/${block.extraBlockId}/sets`,
+      body: { sets },
+    })
+  }
+
+  function toggleSkip(block: WorkoutBlockResponse) {
+    if (block.templateExerciseId == null) return
+    const id = block.templateExerciseId
+    const skipped = !block.skipped
+    patch((current) => ({
+      ...current,
+      blocks: current.blocks.map((b) => (b.templateExerciseId === id ? { ...b, skipped } : b)),
+    }))
+    gymQueue.push({
+      key: `skip:${workoutId}:${id}`,
+      method: 'POST',
+      path: `/api/workouts/${workoutId}/blocks/${id}/${skipped ? 'skip' : 'restore'}`,
+    })
+  }
+
+  const draftFor = (block: WorkoutBlockResponse, setNumber: number): Draft => {
+    const key = setKey(block.exercise.id, setNumber)
+    if (drafts[key]) return drafts[key]
+    const logged = detail.log.sets.find(
+      (s) => s.exerciseId === block.exercise.id && s.setNumber === setNumber,
+    )
+    if (logged) {
+      return {
+        weightKg: logged.weightKg ?? undefined,
+        reps: logged.reps ?? undefined,
+        seconds: logged.seconds ?? undefined,
+        warmup: logged.warmup,
+      }
+    }
+    const lastSame = block.lastSets.find((s) => s.setNumber === setNumber)
+    return {
+      weightKg: block.suggestedWeightKg ?? lastSame?.weightKg ?? undefined,
+      reps: block.targetReps ?? lastSame?.reps ?? undefined,
+      seconds: block.targetSeconds ?? lastSame?.seconds ?? undefined,
+      warmup: false,
+    }
+  }
+
+  const setDraft = (block: WorkoutBlockResponse, setNumber: number, patchDraft: Draft) => {
+    const key = setKey(block.exercise.id, setNumber)
+    setDrafts((current) => ({ ...current, [key]: { ...draftFor(block, setNumber), ...patchDraft } }))
+  }
+
+  function goTo(nextStep: number, nextRound: number) {
+    setStepIndex(Math.max(0, Math.min(steps.length - 1, nextStep)))
+    setRound(Math.max(1, nextRound))
+    setMode('focus')
+  }
+
+  /** Advance past the round that was just completed. */
+  function advance() {
+    if (!step) return
+    if (round < step.rounds) {
+      setRound(round + 1)
+    } else if (stepIndex < steps.length - 1) {
+      setStepIndex(stepIndex + 1)
+      setRound(1)
+    }
+  }
 
   return (
-    <div className="mx-auto mt-4 max-w-2xl pb-10">
+    <div className="mx-auto mt-3 max-w-2xl pb-28" onPointerDownCapture={() => rest.unlockSound()}>
       <WorkoutHeader
         detail={detail}
         finished={finished}
+        mode={mode}
+        onToggleMode={() => setMode(mode === 'focus' ? 'list' : 'focus')}
         onFinish={() => setFinishing(true)}
       />
 
       {finished && (
-        <p className="mt-4 rounded-lg bg-pine-100 p-3 text-sm font-medium text-pine-700 dark:bg-pine-900 dark:text-pine-300">
+        <p className="mt-3 rounded-lg bg-pine-100 p-3 text-sm font-medium text-pine-700 dark:bg-pine-900 dark:text-pine-300">
           {t('workout.finishedIn', { min: detail.log.durationMin })}{' '}
           {detail.log.sessionId && (
-            <Link
-              to="/session/$sessionId"
-              params={{ sessionId: detail.log.sessionId }}
-              className="underline"
-            >
+            <Link to="/session/$sessionId" params={{ sessionId: detail.log.sessionId }}
+              className="underline">
               {t('workout.viewSession')}
             </Link>
           )}
         </p>
       )}
 
-      <div className="mt-4 space-y-3">
-        {circuit ? (
-          <CircuitView workoutId={workoutId} detail={detail} readOnly={finished} />
-        ) : (
-          templateBlocks.map((block) => (
-            <BlockCard key={block.templateExerciseId} workoutId={workoutId}
-              block={block} loggedSets={detail.log.sets} readOnly={finished} />
-          ))
-        )}
-        {extraBlocks.map((block) => (
-          <BlockCard key={block.extraBlockId} workoutId={workoutId}
-            block={block} loggedSets={detail.log.sets} readOnly={finished} />
-        ))}
-        {detail.blocks.length === 0 && (
-          <p className={`text-center text-sm ${muted}`}>
-            {t('workout.templateGone')}
-          </p>
-        )}
-        {!finished && (
-          <button
-            onClick={() => setAddingExercise(true)}
-            className={`w-full rounded-xl border border-dashed border-moss-200 px-3 py-2.5 text-sm font-medium ${muted} transition hover:bg-moss-100 dark:border-moss-750 dark:hover:bg-moss-800`}
-          >
-            {t('workout.addExercise')}
-          </button>
-        )}
-      </div>
+      {steps.length === 0 && (
+        <p className={`mt-8 text-center text-sm ${muted}`}>{t('workout.templateGone')}</p>
+      )}
+
+      {mode === 'focus' && step && (
+        <FocusStep
+          detail={detail}
+          steps={steps}
+          step={step}
+          stepIndex={stepIndex}
+          round={round}
+          readOnly={finished}
+          draftFor={draftFor}
+          onDraft={setDraft}
+          onLog={(block, setNumber, draft) => logSet(block, setNumber, draft)}
+          onUnlog={unlogSet}
+          onAdjustSets={adjustSets}
+          onToggleSkip={toggleSkip}
+          onAdvance={advance}
+          onGoTo={goTo}
+        />
+      )}
+
+      {mode === 'list' && (
+        <StepList
+          detail={detail}
+          steps={steps}
+          activeStep={stepIndex}
+          readOnly={finished}
+          onPick={(index) => goTo(index, 1)}
+          onToggleSkip={toggleSkip}
+          onRegrouped={() => void queryClient.invalidateQueries({ queryKey: ['workout', workoutId] })}
+          workoutId={workoutId}
+          onAddExercise={() => setAddingExercise(true)}
+        />
+      )}
+
+      <RestBar
+        rest={rest}
+        ratingSet={detail.log.sets.find((s) => s.id === ratingSetId) ?? null}
+        onRate={(rir) => {
+          if (ratingSetId) rateSet(ratingSetId, rir)
+        }}
+      />
 
       {addingExercise && !finished && (
         <AddExerciseModal
@@ -196,12 +417,11 @@ export function WorkoutPage() {
         <FinishPanel
           detail={detail}
           onDone={(sessionId) => {
+            rest.skip()
             void queryClient.invalidateQueries()
-            if (sessionId) {
-              void navigate({ to: '/session/$sessionId', params: { sessionId } })
-            } else {
-              void navigate({ to: '/renfo' })
-            }
+            void navigate(sessionId
+              ? { to: '/session/$sessionId', params: { sessionId } }
+              : { to: '/renfo' })
           }}
           onCancel={() => setFinishing(false)}
         />
@@ -210,24 +430,30 @@ export function WorkoutPage() {
   )
 }
 
+/* ── Header: elapsed, sync state, view switch, finish ──────────────── */
+
 function WorkoutHeader({
   detail,
   finished,
+  mode,
+  onToggleMode,
   onFinish,
 }: {
   detail: WorkoutDetailResponse
   finished: boolean
+  mode: 'focus' | 'list'
+  onToggleMode: () => void
   onFinish: () => void
 }) {
   const { t } = useTranslation('gym')
-  const [, forceTick] = useState(0)
+  const [, tick] = useState(0)
   const [confirmingAbandon, setConfirmingAbandon] = useState(false)
   const navigate = useNavigate()
 
   useEffect(() => {
     if (finished) return
-    const interval = setInterval(() => forceTick((n) => n + 1), 1000)
-    return () => clearInterval(interval)
+    const id = setInterval(() => tick((n) => n + 1), 1000)
+    return () => clearInterval(id)
   }, [finished])
 
   const abandonMutation = useMutation({
@@ -235,32 +461,35 @@ function WorkoutHeader({
     onSuccess: () => void navigate({ to: '/renfo' }),
   })
 
-  const circuitRest = detail.circuitRestSec != null ? formatRest(detail.circuitRestSec) : null
-
   return (
-    <div className="sticky top-0 z-30 -mx-4 border-b border-moss-200 bg-moss-50/95 px-4 py-3 backdrop-blur md:mx-0 md:rounded-xl md:border dark:border-moss-750 dark:bg-moss-900/95">
-      <div className="flex items-center gap-3">
+    <div className="sticky top-0 z-30 -mx-4 border-b border-moss-200 bg-moss-50/95 px-4 py-2.5 backdrop-blur md:mx-0 md:rounded-xl md:border dark:border-moss-750 dark:bg-moss-900/95">
+      <div className="flex items-center gap-2">
         <div className="min-w-0 flex-1">
-          <p className="truncate font-display text-lg font-semibold">
+          <p className="truncate font-display text-base font-semibold">
             {detail.log.templateName ?? t('workout.untitled')}
           </p>
-          <p className={`text-sm tabular-nums ${muted}`}>
-            {!finished && <>⏱ {formatElapsed(detail.log.startedAt)}</>}
-            {detail.circuitLoops != null && (
-              <span className="ml-2 rounded-full bg-teal-600/15 px-2 py-0.5 text-xs font-medium text-teal-600 dark:bg-teal-300/15 dark:text-teal-300">
-                {t('workout.circuitTag', { loops: detail.circuitLoops })}
-                {circuitRest != null && ` · ${circuitRest}`}
-              </span>
-            )}
+          <p className={`flex items-center gap-2 text-xs tabular-nums ${muted}`}>
+            {!finished && <span>⏱ {formatElapsed(detail.log.startedAt)}</span>}
+            <SyncChip />
           </p>
         </div>
         {!finished && (
           <>
             <button
-              onClick={() => setConfirmingAbandon(true)}
-              className="rounded-lg px-2.5 py-2 text-xs font-medium text-clay-500 transition hover:bg-clay-100 dark:text-clay-300 dark:hover:bg-clay-900"
+              onClick={onToggleMode}
+              aria-label={t(mode === 'focus' ? 'workout.showList' : 'workout.showFocus')}
+              title={t(mode === 'focus' ? 'workout.showList' : 'workout.showFocus')}
+              className={tapBtn}
             >
-              {t('workout.abandon')}
+              {mode === 'focus' ? <List size={18} aria-hidden /> : <ChevronLeft size={18} aria-hidden />}
+            </button>
+            <button
+              onClick={() => setConfirmingAbandon(true)}
+              aria-label={t('workout.abandon')}
+              title={t('workout.abandon')}
+              className={`${tapBtn} hover:text-clay-500 dark:hover:text-clay-300`}
+            >
+              <X size={18} aria-hidden />
             </button>
             {confirmingAbandon && (
               <ConfirmDialog
@@ -275,7 +504,7 @@ function WorkoutHeader({
             )}
             <button
               onClick={onFinish}
-              className="rounded-lg bg-pine-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
+              className="rounded-xl bg-pine-600 px-3.5 py-2.5 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
             >
               {t('workout.finish')}
             </button>
@@ -286,113 +515,765 @@ function WorkoutHeader({
   )
 }
 
-/* ── Rest countdown with quick controls ─────────────────────────────── */
-
-function RestTimer({
-  secondsLeft,
-  onExtend,
-  onSkip,
-}: {
-  secondsLeft: number
-  onExtend: () => void
-  onSkip: () => void
-}) {
+/** Only speaks up when there is something to say. */
+function SyncChip() {
   const { t } = useTranslation('gym')
+  const [state, setState] = useState<QueueState>(() => gymQueue.state())
+  useEffect(() => gymQueue.subscribe(setState), [])
+
+  if (state.lastError) {
+    return (
+      <span role="alert" className="rounded-full bg-clay-100 px-2 py-0.5 text-[11px] font-medium text-clay-500 dark:bg-clay-900 dark:text-clay-300">
+        {t('workout.syncFailed')}
+      </span>
+    )
+  }
+  if (state.pending === 0) return null
   return (
-    <div className="mt-2 flex items-center gap-2 rounded-lg bg-copper-600/15 px-3 py-1.5 dark:bg-copper-300/15">
-      <p className="flex-1 text-sm font-semibold text-copper-600 tabular-nums dark:text-copper-300">
-        {t('workout.restCountdown', { time: formatCountdown(secondsLeft) })}
-      </p>
-      <button
-        onClick={onExtend}
-        className="rounded-full px-2.5 py-1 text-xs font-semibold text-copper-600 transition hover:bg-copper-600/15 dark:text-copper-300 dark:hover:bg-copper-300/15"
-      >
-        {t('workout.restPlus30')}
-      </button>
-      <button
-        onClick={onSkip}
-        className="rounded-full px-2.5 py-1 text-xs font-medium text-copper-600/80 transition hover:bg-copper-600/15 dark:text-copper-300/80 dark:hover:bg-copper-300/15"
-      >
-        {t('workout.restSkip')}
-      </button>
-    </div>
+    <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+      state.online
+        ? 'bg-moss-100 text-moss-500 dark:bg-moss-800 dark:text-moss-400'
+        : 'bg-copper-600/15 text-copper-600 dark:bg-copper-300/15 dark:text-copper-300'
+    }`}>
+      {state.online
+        ? t('workout.syncing', { count: state.pending })
+        : t('workout.offlinePending', { count: state.pending })}
+    </span>
   )
 }
 
-/** Shared countdown state: ticks every second, vibrates at zero. */
-function useRestCountdown() {
-  const [restLeft, setRestLeft] = useState<number | null>(null)
-  useEffect(() => {
-    if (restLeft == null || restLeft <= 0) return
-    const timer = setTimeout(() => {
-      const next = restLeft - 1
-      setRestLeft(next > 0 ? next : null)
-      if (next <= 0 && 'vibrate' in navigator) navigator.vibrate?.(300)
-    }, 1000)
-    return () => clearTimeout(timer)
-  }, [restLeft])
-  return { restLeft, setRestLeft }
-}
+/* ── The runner: one exercise (or one superset) at a time ──────────── */
 
-/* ── Sets stepper: the set count is elastic, persisted, floor at zero ── */
-
-function SetsStepper({
-  block,
-  workoutId,
+function FocusStep({
+  detail,
+  steps,
+  step,
+  stepIndex,
+  round,
+  readOnly,
+  draftFor,
+  onDraft,
+  onLog,
+  onUnlog,
+  onAdjustSets,
+  onToggleSkip,
+  onAdvance,
+  onGoTo,
 }: {
-  block: WorkoutBlockResponse
-  workoutId: string
+  detail: WorkoutDetailResponse
+  steps: Step[]
+  step: Step
+  stepIndex: number
+  round: number
+  readOnly: boolean
+  draftFor: (block: WorkoutBlockResponse, setNumber: number) => Draft
+  onDraft: (block: WorkoutBlockResponse, setNumber: number, draft: Draft) => void
+  onLog: (block: WorkoutBlockResponse, setNumber: number, draft: Draft) => void
+  onUnlog: (block: WorkoutBlockResponse, setNumber: number) => void
+  onAdjustSets: (block: WorkoutBlockResponse, sets: number) => void
+  onToggleSkip: (block: WorkoutBlockResponse) => void
+  onAdvance: () => void
+  onGoTo: (stepIndex: number, round: number) => void
 }) {
   const { t } = useTranslation('gym')
-  const queryClient = useQueryClient()
-  const mutation = useMutation({
-    mutationFn: (sets: number) =>
-      block.templateExerciseId != null
-        ? adjustBlockSets(workoutId, block.templateExerciseId, sets)
-        : adjustExtraBlockSets(workoutId, block.extraBlockId!, sets),
-    onSuccess: () =>
-      void queryClient.invalidateQueries({ queryKey: ['workout', workoutId] }),
-  })
-  const adjusted = block.sets !== block.prescribedSets
+  const [detailOf, setDetailOf] = useState<ExerciseResponse | null>(null)
+  const [replacing, setReplacing] = useState<WorkoutBlockResponse | null>(null)
+
+  const due = blocksInRound(step, round, detail.log.sets)
+  const superset = step.blocks.length > 1
+  const nextStep = steps[stepIndex + 1]
+
+  const roundDone = due.every((block) =>
+    detail.log.sets.some((s) => s.exerciseId === block.exercise.id && s.setNumber === round),
+  )
 
   return (
-    <div className="mt-2 flex items-center gap-2">
-      <div className="flex items-center overflow-hidden rounded-lg border border-moss-200 dark:border-moss-750">
+    <>
+      {/* the map, compressed to a strip: where am I, and how much is left */}
+      <div className="mt-3 flex items-center gap-1.5">
+        {steps.map((s, i) => (
+          <button
+            key={s.id}
+            onClick={() => onGoTo(i, 1)}
+            aria-label={t('workout.goToStep', { name: s.blocks[0].exercise.name })}
+            className={`h-1.5 flex-1 rounded-full transition ${
+              i < stepIndex
+                ? 'bg-pine-600 dark:bg-pine-350'
+                : i === stepIndex
+                  ? 'bg-copper-600 dark:bg-copper-300'
+                  : 'bg-moss-200 dark:bg-moss-750'
+            }`}
+          />
+        ))}
+      </div>
+      <p className={`mt-1.5 text-center text-xs ${muted}`}>
+        {t('workout.stepOf', { current: stepIndex + 1, total: steps.length })}
+      </p>
+
+      <div className="mt-2 rounded-2xl border border-moss-200 bg-moss-25 p-4 dark:border-moss-750 dark:bg-moss-850">
+        {superset && (
+          <p className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-teal-600/15 px-2.5 py-1 text-xs font-semibold text-teal-600 dark:bg-teal-300/15 dark:text-teal-300">
+            <Link2 size={13} aria-hidden />
+            {t('workout.supersetRound', { key: step.groupKey, round, total: step.rounds })}
+          </p>
+        )}
+
+        {due.length === 0 && (
+          <p className={`py-6 text-center text-sm ${muted}`}>{t('workout.roundEmpty')}</p>
+        )}
+
+        <div className="space-y-4">
+          {due.map((block, i) => (
+            <BlockSet
+              key={blockId(block)}
+              detail={detail}
+              block={block}
+              setNumber={round}
+              label={superset ? `${step.groupKey}${i + 1}` : null}
+              readOnly={readOnly}
+              draft={draftFor(block, round)}
+              onDraft={(d) => onDraft(block, round, d)}
+              onLog={(d) => onLog(block, round, d)}
+              onUnlog={() => onUnlog(block, round)}
+              onOpenDetail={() => setDetailOf(block.exercise)}
+              onReplace={() => setReplacing(block)}
+              onSkip={() => onToggleSkip(block)}
+              onAdjustSets={(sets) => onAdjustSets(block, sets)}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-3 flex items-center gap-2">
         <button
-          onClick={() => mutation.mutate(block.sets - 1)}
-          disabled={block.sets <= 0 || mutation.isPending}
-          aria-label={t('workout.removeSetAria')}
-          className="grid h-10 w-11 place-items-center text-lg font-semibold text-moss-500 transition hover:bg-moss-100 disabled:opacity-30 dark:text-moss-400 dark:hover:bg-moss-800"
+          onClick={() => onGoTo(round > 1 ? stepIndex : stepIndex - 1, round > 1 ? round - 1 : 1)}
+          disabled={stepIndex === 0 && round === 1}
+          aria-label={t('workout.previous')}
+          className={tapBtn}
         >
-          −
+          <ChevronLeft size={18} aria-hidden />
         </button>
-        <span className="min-w-20 border-x border-moss-200 px-2 text-center text-sm font-semibold tabular-nums dark:border-moss-750">
-          {t('workout.setsCount', { count: block.sets })}
-        </span>
         <button
-          onClick={() => mutation.mutate(block.sets + 1)}
-          disabled={block.sets >= 10 || mutation.isPending}
-          aria-label={t('workout.addSetAria')}
-          className="grid h-10 w-11 place-items-center text-lg font-semibold text-moss-500 transition hover:bg-moss-100 disabled:opacity-30 dark:text-moss-400 dark:hover:bg-moss-800"
+          onClick={onAdvance}
+          className={`flex-1 rounded-xl px-4 py-3 text-sm font-semibold transition ${
+            roundDone
+              ? 'bg-pine-600 text-moss-25 hover:bg-pine-700 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300'
+              : 'border border-moss-200 text-moss-500 hover:bg-moss-100 dark:border-moss-750 dark:text-moss-400 dark:hover:bg-moss-800'
+          }`}
         >
-          +
+          {round < step.rounds
+            ? t('workout.nextRound', { round: round + 1 })
+            : nextStep
+              ? t('workout.nextExercise', { name: nextStep.blocks[0].exercise.name })
+              : t('workout.lastStep')}
+        </button>
+        <button
+          onClick={() => onGoTo(stepIndex + 1, 1)}
+          disabled={stepIndex >= steps.length - 1}
+          aria-label={t('workout.next')}
+          className={tapBtn}
+        >
+          <ChevronRight size={18} aria-hidden />
         </button>
       </div>
-      {adjusted && (
-        <span className={`text-xs ${muted}`}>
-          {t('workout.prescribedSets', { count: block.prescribedSets })}
-        </span>
+
+      {detailOf && <ExerciseDetailSheet exercise={detailOf} onClose={() => setDetailOf(null)} />}
+      {replacing?.templateExerciseId != null && (
+        <ReplaceModal
+          workoutId={detail.log.id}
+          block={replacing}
+          onClose={() => setReplacing(null)}
+        />
       )}
-      {mutation.error instanceof ApiError && (
-        <span role="alert" className="text-xs text-clay-500 dark:text-clay-300">
-          {t('workout.adjustFailed')}
-        </span>
+    </>
+  )
+}
+
+/* ── One block's current set: the whole point of the screen ────────── */
+
+function BlockSet({
+  detail,
+  block,
+  setNumber,
+  label,
+  readOnly,
+  draft,
+  onDraft,
+  onLog,
+  onUnlog,
+  onOpenDetail,
+  onReplace,
+  onSkip,
+  onAdjustSets,
+}: {
+  detail: WorkoutDetailResponse
+  block: WorkoutBlockResponse
+  setNumber: number
+  label: string | null
+  readOnly: boolean
+  draft: Draft
+  onDraft: (draft: Draft) => void
+  onLog: (draft: Draft) => void
+  onUnlog: () => void
+  onOpenDetail: () => void
+  onReplace: () => void
+  onSkip: () => void
+  onAdjustSets: (sets: number) => void
+}) {
+  const { t } = useTranslation('gym')
+  const [keypad, setKeypad] = useState<'weight' | 'reps' | 'seconds' | null>(null)
+
+  const seconds = block.exercise.measure === 'SECONDS'
+  const logged = detail.log.sets.find(
+    (s) => s.exerciseId === block.exercise.id && s.setNumber === setNumber,
+  )
+  const saved = logged != null
+  const rows = totalRows(block, detail.log.sets)
+  const step_ = block.exercise.effectiveIncrementKg || 2.5
+
+  const target = seconds
+    ? t('workout.targetSeconds', { count: block.targetSeconds ?? 0 })
+    : t('workout.targetReps', { count: block.targetReps ?? 0 })
+
+  return (
+    <div>
+      <div className="flex items-start gap-2">
+        {label && (
+          <span className="mt-0.5 shrink-0 rounded bg-teal-600/15 px-1.5 py-0.5 text-[11px] font-bold text-teal-600 dark:bg-teal-300/15 dark:text-teal-300">
+            {label}
+          </span>
+        )}
+        <button onClick={onOpenDetail} className="min-w-0 flex-1 text-left">
+          <span className="block font-display text-lg leading-tight font-semibold">
+            {block.exercise.name}
+          </span>
+          <span className={`mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs ${muted}`}>
+            <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${CATEGORY_BADGE[block.exercise.category]}`}>
+              {categoryLabel(block.exercise.category)}
+            </span>
+            <span>{t('workout.setOf', { current: setNumber, total: rows })}</span>
+            <span>· {target}</span>
+            {block.intensityPct != null && <span>· {block.intensityPct} %</span>}
+          </span>
+          {block.swappedFrom && (
+            <span className={`block text-xs ${muted}`}>
+              {t('workout.insteadOf', { name: block.swappedFrom.name })}
+            </span>
+          )}
+        </button>
+        {!readOnly && block.templateExerciseId != null && (
+          <div className="flex shrink-0 gap-1">
+            <button onClick={onReplace} aria-label={t('workout.replaceAria', { name: block.exercise.name })} className={tapBtn}>
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M16 3h5v5" /><path d="M21 3l-7 7" /><path d="M8 21H3v-5" /><path d="M3 21l7-7" />
+              </svg>
+            </button>
+            <button onClick={onSkip} aria-label={t('workout.skipAria', { name: block.exercise.name })}
+              className={`${tapBtn} hover:text-clay-500 dark:hover:text-clay-300`}>
+              <X size={16} aria-hidden />
+            </button>
+          </div>
+        )}
+      </div>
+
+      <SuggestionCaption block={block} />
+
+      {/* the numbers, thumb-sized */}
+      <div className="mt-2.5 space-y-2">
+        {seconds ? (
+          <Stepper
+            label={t('workout.secondsUnit')}
+            value={draft.seconds ?? block.targetSeconds ?? 30}
+            step={5}
+            min={1}
+            disabled={readOnly}
+            onChange={(seconds) => onDraft({ seconds })}
+            onTap={() => setKeypad('seconds')}
+          />
+        ) : (
+          <>
+            <Stepper
+              label="kg"
+              value={draft.weightKg ?? 0}
+              step={step_}
+              min={0}
+              disabled={readOnly}
+              placeholder={block.exercise.measure === 'BODYWEIGHT_REPS'
+                ? t('workout.bodyweight') : undefined}
+              onChange={(weightKg) => onDraft({ weightKg })}
+              onTap={() => setKeypad('weight')}
+            />
+            <Stepper
+              label={t('workout.repsUnit')}
+              value={draft.reps ?? block.targetReps ?? 1}
+              step={1}
+              min={1}
+              disabled={readOnly}
+              onChange={(reps) => onDraft({ reps })}
+              onTap={() => setKeypad('reps')}
+            />
+          </>
+        )}
+      </div>
+
+      {!readOnly && (
+        <>
+          <button
+            onClick={() => (saved ? onUnlog() : onLog(draft))}
+            className={`mt-2.5 w-full rounded-xl py-3.5 text-base font-bold tracking-wide transition active:scale-[0.98] ${
+              saved
+                ? 'bg-pine-600 text-moss-25 dark:bg-pine-350 dark:text-moss-950'
+                : 'bg-copper-600 text-moss-25 hover:bg-copper-700 dark:bg-copper-300 dark:text-moss-950'
+            }`}
+          >
+            {saved ? (
+              <span className="inline-flex items-center gap-2">
+                <Check size={18} aria-hidden />
+                {t('workout.logged')}
+              </span>
+            ) : (
+              t('workout.validate')
+            )}
+          </button>
+
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <button
+              onClick={() => onDraft({ warmup: !draft.warmup })}
+              aria-pressed={draft.warmup ?? false}
+              className={`text-xs font-medium transition ${
+                draft.warmup
+                  ? 'text-copper-600 dark:text-copper-300'
+                  : `${muted} hover:text-ink dark:hover:text-linen`
+              }`}
+            >
+              {draft.warmup ? t('workout.warmupOn') : t('workout.warmupOff')}
+            </button>
+            <span className="ml-auto flex items-center gap-1">
+              <button onClick={() => onAdjustSets(block.sets - 1)} disabled={block.sets <= 1}
+                aria-label={t('workout.removeSetAria')}
+                className={`text-xs font-medium ${muted} disabled:opacity-30`}>
+                − {t('workout.setWord')}
+              </button>
+              <span className={`text-xs ${muted}`}>·</span>
+              <button onClick={() => onAdjustSets(block.sets + 1)} disabled={block.sets >= 10}
+                aria-label={t('workout.addSetAria')}
+                className={`text-xs font-medium ${muted} disabled:opacity-30`}>
+                + {t('workout.setWord')}
+              </button>
+            </span>
+          </div>
+        </>
+      )}
+
+      <DoneSets block={block} detail={detail} />
+
+      {keypad && (
+        <Keypad
+          title={keypad === 'weight' ? 'kg' : keypad === 'reps' ? t('workout.repsUnit') : t('workout.secondsUnit')}
+          value={keypad === 'weight' ? draft.weightKg : keypad === 'reps' ? draft.reps : draft.seconds}
+          decimals={keypad === 'weight'}
+          onDone={(value) => {
+            onDraft(keypad === 'weight' ? { weightKg: value }
+              : keypad === 'reps' ? { reps: value } : { seconds: value })
+            setKeypad(null)
+          }}
+          onClose={() => setKeypad(null)}
+        />
       )}
     </div>
   )
 }
 
-/* ── Replace modal: declared alternatives first, then ranked suggestions ── */
+/** Where the proposed load came from — never a number out of nowhere. */
+function SuggestionCaption({ block }: { block: WorkoutBlockResponse }) {
+  const { t } = useTranslation('gym')
+  const source = block.suggestionSource
+  if (block.suggestedWeightKg == null || source === 'NONE') return null
+
+  const why =
+    source === 'INTENSITY_OF_ONE_RM'
+      ? t('workout.why.intensity', { pct: block.intensityPct, basis: kg(block.suggestionBasisKg ?? 0) })
+      : source === 'PROGRESSED_FROM_LAST'
+        ? t('workout.why.progressed', { basis: kg(block.suggestionBasisKg ?? 0) })
+        : source === 'SAME_AS_LAST'
+          ? t('workout.why.sameAsLast', { basis: kg(block.suggestionBasisKg ?? 0) })
+          : t('workout.why.reference')
+
+  return <p className={`mt-1 text-[11px] ${muted}`}>{why}</p>
+}
+
+/** The sets already banked for this block, tappable to review. */
+function DoneSets({ block, detail }: { block: WorkoutBlockResponse; detail: WorkoutDetailResponse }) {
+  const { t } = useTranslation('gym')
+  const done = detail.log.sets
+    .filter((s) => s.exerciseId === block.exercise.id)
+    .sort((a, b) => a.setNumber - b.setNumber)
+  if (done.length === 0) return null
+  return (
+    <p className={`mt-2 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] ${muted}`}>
+      {done.map((s) => (
+        <span key={s.id} className={s.warmup ? 'opacity-60' : ''}>
+          {s.seconds != null
+            ? t('workout.doneSeconds', { n: s.setNumber, seconds: s.seconds })
+            : t('workout.doneSet', {
+                n: s.setNumber,
+                weight: s.weightKg != null ? kg(s.weightKg) : '—',
+                reps: s.reps ?? '—',
+              })}
+          {s.rir != null && ` · RIR ${s.rir}`}
+          {s.warmup && ` · ${t('workout.warmupShort')}`}
+        </span>
+      ))}
+    </p>
+  )
+}
+
+/* ── A number with thumb-sized handles; tap it for the pad ─────────── */
+
+function Stepper({
+  label,
+  value,
+  step,
+  min,
+  disabled,
+  placeholder,
+  onChange,
+  onTap,
+}: {
+  label: string
+  value: number
+  step: number
+  min: number
+  disabled?: boolean
+  placeholder?: string
+  onChange: (value: number) => void
+  onTap: () => void
+}) {
+  const round = (v: number) => Math.round(v * 100) / 100
+  return (
+    <div className="flex items-center gap-2">
+      <button
+        onClick={() => onChange(Math.max(min, round(value - step)))}
+        disabled={disabled || value <= min}
+        aria-label={`− ${step} ${label}`}
+        className={`${tapBtn} h-12 w-14 text-xl font-semibold`}
+      >
+        −
+      </button>
+      <button
+        onClick={onTap}
+        disabled={disabled}
+        className="flex h-12 flex-1 items-baseline justify-center gap-1.5 rounded-xl border border-moss-200 bg-moss-100 transition active:scale-95 dark:border-moss-750 dark:bg-moss-800"
+      >
+        <span className="font-display text-2xl font-semibold tabular-nums">
+          {value > 0 || !placeholder ? kg(value) : placeholder}
+        </span>
+        <span className={`text-xs ${muted}`}>{label}</span>
+      </button>
+      <button
+        onClick={() => onChange(round(value + step))}
+        disabled={disabled}
+        aria-label={`+ ${step} ${label}`}
+        className={`${tapBtn} h-12 w-14 text-xl font-semibold`}
+      >
+        +
+      </button>
+    </div>
+  )
+}
+
+/** The OS keyboard covers the row you are editing; this does not. */
+function Keypad({
+  title,
+  value,
+  decimals,
+  onDone,
+  onClose,
+}: {
+  title: string
+  value: number | undefined
+  decimals: boolean
+  onDone: (value: number) => void
+  onClose: () => void
+}) {
+  const { t } = useTranslation('gym')
+  const [text, setText] = useState(value != null ? kg(value) : '')
+  const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', decimals ? '.' : '', '0', '⌫']
+
+  return (
+    <Modal title={title} onClose={onClose}>
+      <p className="mb-3 rounded-xl border border-moss-200 bg-moss-100 py-3 text-center font-display text-3xl font-semibold tabular-nums dark:border-moss-750 dark:bg-moss-800">
+        {text || '0'}
+      </p>
+      <div className="grid grid-cols-3 gap-2">
+        {keys.map((key, i) =>
+          key === '' ? (
+            <span key={i} />
+          ) : (
+            <button
+              key={i}
+              onClick={() => {
+                if (key === '⌫') setText((current) => current.slice(0, -1))
+                else if (key === '.' && text.includes('.')) return
+                else setText((current) => (current === '0' ? key : current + key))
+              }}
+              className="rounded-xl border border-moss-200 py-3.5 font-display text-xl font-semibold transition active:scale-95 hover:bg-moss-100 dark:border-moss-750 dark:hover:bg-moss-800"
+            >
+              {key}
+            </button>
+          ),
+        )}
+      </div>
+      <button
+        onClick={() => onDone(Number(text) || 0)}
+        className="mt-3 w-full rounded-xl bg-pine-600 py-3 text-sm font-semibold text-moss-25 dark:bg-pine-350 dark:text-moss-950"
+      >
+        {t('common:save')}
+      </button>
+    </Modal>
+  )
+}
+
+/* ── The rest countdown: visible everywhere, alarm that lands ──────── */
+
+function RestBar({
+  rest,
+  ratingSet,
+  onRate,
+}: {
+  rest: RestTimer
+  ratingSet: SetLogResponse | null
+  onRate: (rir: number) => void
+}) {
+  const { t } = useTranslation('gym')
+  if (rest.secondsLeft == null && !rest.ringing) return null
+
+  const over = rest.ringing
+  return (
+    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-moss-200 bg-moss-50/97 px-4 pt-2.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur dark:border-moss-750 dark:bg-moss-900/97">
+      <div className="mx-auto max-w-2xl">
+        <div
+          className={`flex items-center gap-2 rounded-xl px-3 py-2.5 transition ${
+            over
+              ? 'animate-pulse bg-pine-600 text-moss-25 dark:bg-pine-350 dark:text-moss-950'
+              : 'bg-copper-600/15 text-copper-600 dark:bg-copper-300/15 dark:text-copper-300'
+          }`}
+        >
+          <p className="flex-1 font-display text-lg font-bold tabular-nums">
+            {over ? t('workout.restOver') : t('workout.restCountdown', {
+              time: formatCountdown(rest.secondsLeft ?? 0),
+            })}
+          </p>
+          {!over && (
+            <>
+              <button onClick={() => rest.extend(30)}
+                className="rounded-lg px-2.5 py-1.5 text-xs font-bold">
+                {t('workout.restPlus30')}
+              </button>
+              <button onClick={rest.skip}
+                className="rounded-lg px-2.5 py-1.5 text-xs font-medium opacity-80">
+                {t('workout.restSkip')}
+              </button>
+            </>
+          )}
+          {over && (
+            <button onClick={rest.skip} className="rounded-lg px-2.5 py-1.5 text-xs font-bold">
+              {t('common:ok')}
+            </button>
+          )}
+        </div>
+
+        {/* dead time, so the question costs nothing in the critical path */}
+        {ratingSet && ratingSet.rir == null && !ratingSet.warmup && (
+          <div className="mt-2 flex items-center gap-1.5">
+            <span className={`text-xs ${muted}`}>{t('workout.rirQuestion')}</span>
+            {RIR_CHOICES.map((rir) => (
+              <button
+                key={rir}
+                onClick={() => onRate(rir)}
+                className="h-9 min-w-9 flex-1 rounded-lg border border-moss-200 text-sm font-bold transition active:scale-95 hover:bg-moss-100 dark:border-moss-750 dark:hover:bg-moss-800"
+              >
+                {rir === 3 ? '3+' : rir}
+              </button>
+            ))}
+          </div>
+        )}
+        {ratingSet?.rir != null && (
+          <p className={`mt-1.5 text-center text-[11px] ${muted}`}>
+            {t('workout.rirNoted', { rir: ratingSet.rir })}
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/* ── The map: everything at a glance, and where pairing happens ────── */
+
+function StepList({
+  detail,
+  steps,
+  activeStep,
+  readOnly,
+  workoutId,
+  onPick,
+  onToggleSkip,
+  onRegrouped,
+  onAddExercise,
+}: {
+  detail: WorkoutDetailResponse
+  steps: Step[]
+  activeStep: number
+  readOnly: boolean
+  workoutId: string
+  onPick: (index: number) => void
+  onToggleSkip: (block: WorkoutBlockResponse) => void
+  onRegrouped: () => void
+  onAddExercise: () => void
+}) {
+  const { t } = useTranslation('gym')
+  const prescribed = detail.blocks.filter((b) => b.templateExerciseId != null)
+
+  const regroupMutation = useMutation({
+    mutationFn: (assignments: { templateExerciseId: string; groupKey: string | null }[]) =>
+      regroupWorkout(workoutId, assignments),
+    onSuccess: onRegrouped,
+  })
+
+  function pairWith(index: number, unpair: boolean) {
+    const keys = prescribed.map((b) => b.groupKey)
+    if (unpair) {
+      const key = keys[index]
+      const fresh = freeKey(keys)
+      for (let i = index + 1; i < keys.length && keys[i] === key; i++) keys[i] = fresh
+    } else {
+      const here = keys[index]
+      const below = keys[index + 1]
+      if (here && below) {
+        for (let i = 0; i < keys.length; i++) if (keys[i] === below) keys[i] = here
+      } else if (here) keys[index + 1] = here
+      else if (below) keys[index] = below
+      else {
+        const key = freeKey(keys)
+        keys[index] = key
+        keys[index + 1] = key
+      }
+    }
+    regroupMutation.mutate(
+      prescribed.map((b, i) => ({ templateExerciseId: b.templateExerciseId!, groupKey: keys[i] })),
+    )
+  }
+
+  return (
+    <div className="mt-3 space-y-2">
+      {steps.map((step, index) => {
+        const doneSets = detail.log.sets.filter((s) =>
+          step.blocks.some((b) => b.exercise.id === s.exerciseId),
+        ).length
+        const totalSets = step.blocks.reduce((sum, b) => sum + b.sets, 0)
+        const complete = totalSets > 0 && doneSets >= totalSets
+        return (
+          <div
+            key={step.id}
+            className={`rounded-xl border p-3 transition ${
+              index === activeStep
+                ? 'border-copper-600 dark:border-copper-300'
+                : 'border-moss-200 dark:border-moss-750'
+            } ${step.groupKey ? 'ring-1 ring-teal-600/30 dark:ring-teal-300/25' : ''} bg-moss-25 dark:bg-moss-850`}
+          >
+            <button onClick={() => onPick(index)} className="w-full text-left">
+              {step.groupKey && (
+                <span className="mb-1 inline-flex items-center gap-1 rounded bg-teal-600/15 px-1.5 py-0.5 text-[10px] font-bold text-teal-600 dark:bg-teal-300/15 dark:text-teal-300">
+                  <Link2 size={11} aria-hidden />
+                  {t('workout.supersetTag', { key: step.groupKey })}
+                </span>
+              )}
+              {step.blocks.map((block) => (
+                <span key={blockId(block)} className="flex items-baseline justify-between gap-2">
+                  <span className={`truncate font-medium ${block.skipped ? `line-through ${muted}` : ''}`}>
+                    {block.exercise.name}
+                  </span>
+                  <span className={`shrink-0 text-xs tabular-nums ${muted}`}>
+                    {block.sets} ×{' '}
+                    {block.targetSeconds != null ? `${block.targetSeconds}s` : block.targetReps ?? '?'}
+                  </span>
+                </span>
+              ))}
+              <span className={`mt-1 block text-xs ${complete ? 'text-pine-700 dark:text-pine-300' : muted}`}>
+                {complete
+                  ? t('workout.stepComplete')
+                  : t('workout.stepProgress', { done: doneSets, total: totalSets })}
+              </span>
+            </button>
+
+            {!readOnly && step.blocks[0].templateExerciseId != null && (
+              <div className="mt-2 flex flex-wrap items-center gap-3 border-t border-dashed border-moss-200 pt-2 dark:border-moss-750">
+                <button
+                  onClick={() => onToggleSkip(step.blocks[0])}
+                  className={`text-xs font-medium ${muted} hover:text-clay-500 dark:hover:text-clay-300`}
+                >
+                  {step.blocks[0].skipped ? t('workout.restoreBlock') : t('workout.skipShort')}
+                </button>
+                {(() => {
+                  const last = step.blocks.at(-1)!
+                  const at = prescribed.findIndex((b) => blockId(b) === blockId(last))
+                  const paired = step.blocks.length > 1
+                  if (paired) {
+                    const first = prescribed.findIndex((b) => blockId(b) === blockId(step.blocks[0]))
+                    return (
+                      <button
+                        onClick={() => pairWith(first, true)}
+                        disabled={regroupMutation.isPending}
+                        className="inline-flex items-center gap-1 text-xs font-medium text-teal-600 disabled:opacity-50 dark:text-teal-300"
+                      >
+                        <Unlink2 size={12} aria-hidden />
+                        {t('workout.unpair')}
+                      </button>
+                    )
+                  }
+                  if (at < 0 || at >= prescribed.length - 1) return null
+                  return (
+                    <button
+                      onClick={() => pairWith(at, false)}
+                      disabled={regroupMutation.isPending}
+                      className={`inline-flex items-center gap-1 text-xs font-medium ${muted} hover:text-teal-600 disabled:opacity-50 dark:hover:text-teal-300`}
+                    >
+                      <Link2 size={12} aria-hidden />
+                      {t('workout.pairWithNext')}
+                    </button>
+                  )
+                })()}
+              </div>
+            )}
+          </div>
+        )
+      })}
+
+      {regroupMutation.error instanceof ApiError && (
+        <p role="alert" className="text-xs text-clay-500 dark:text-clay-300">
+          {regroupMutation.error.message}
+        </p>
+      )}
+
+      {!readOnly && (
+        <button
+          onClick={onAddExercise}
+          className={`w-full rounded-xl border border-dashed border-moss-200 px-3 py-3 text-sm font-medium ${muted} transition hover:bg-moss-100 dark:border-moss-750 dark:hover:bg-moss-800`}
+        >
+          {t('workout.addExercise')}
+        </button>
+      )}
+    </div>
+  )
+}
+
+function freeKey(keys: (string | null)[]): string {
+  const taken = new Set(keys.filter(Boolean))
+  for (const letter of 'ABCDEFGHIJKLMNOPQRSTUVWXYZ') if (!taken.has(letter)) return letter
+  return 'Z'
+}
+
+/* ── Replace a block's exercise (machine taken) ────────────────────── */
 
 function ReplaceModal({
   workoutId,
@@ -422,7 +1303,7 @@ function ReplaceModal({
       onClick={() => (current ? onClose() : mutation.mutate(exercise.id))}
       disabled={mutation.isPending}
       aria-pressed={current}
-      className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2.5 text-left transition disabled:opacity-50 ${
+      className={`flex w-full items-center gap-2 rounded-lg border px-3 py-3 text-left transition disabled:opacity-50 ${
         current
           ? 'border-pine-600 bg-pine-100/60 dark:border-pine-350 dark:bg-pine-900/40'
           : 'border-moss-200 hover:bg-moss-100 dark:border-moss-750 dark:hover:bg-moss-800'
@@ -451,7 +1332,6 @@ function ReplaceModal({
       <div className="space-y-2">
         {option(prescribed, block.swappedFrom == null)}
         {block.swappedFrom != null && option(block.exercise, true)}
-
         {block.alternatives.length > 0 && (
           <>
             <p className={`pt-1 text-xs font-semibold tracking-wide uppercase ${muted}`}>
@@ -462,7 +1342,6 @@ function ReplaceModal({
               .map((alt) => option(alt, false))}
           </>
         )}
-
         {block.suggestedAlternatives.length > 0 && (
           <>
             <p className={`pt-1 text-xs font-semibold tracking-wide uppercase ${muted}`}>
@@ -471,7 +1350,6 @@ function ReplaceModal({
             {block.suggestedAlternatives.map((alt) => option(alt, false))}
           </>
         )}
-
         {mutation.error instanceof ApiError && (
           <p role="alert" className="text-xs text-clay-500 dark:text-clay-300">
             {mutation.error.message}
@@ -479,494 +1357,6 @@ function ReplaceModal({
         )}
       </div>
     </Modal>
-  )
-}
-
-/* ── One exercise block (classic sets×reps mode) ────────────────────── */
-
-function BlockCard({
-  workoutId,
-  block,
-  loggedSets,
-  readOnly,
-}: {
-  workoutId: string
-  block: WorkoutBlockResponse
-  loggedSets: SetLogResponse[]
-  readOnly: boolean
-}) {
-  const { t } = useTranslation('gym')
-  const queryClient = useQueryClient()
-  const [replacing, setReplacing] = useState(false)
-  const [confirmingRemove, setConfirmingRemove] = useState(false)
-  const [detailOpen, setDetailOpen] = useState(false)
-  const { restLeft, setRestLeft } = useRestCountdown()
-
-  const exercise = block.exercise
-  const swapped = block.swappedFrom != null
-  const isExtra = block.extraBlockId != null
-  const invalidate = () =>
-    void queryClient.invalidateQueries({ queryKey: ['workout', workoutId] })
-
-  const skipMutation = useMutation({
-    mutationFn: () => skipWorkoutBlock(workoutId, block.templateExerciseId!),
-    onSuccess: invalidate,
-  })
-  const restoreMutation = useMutation({
-    mutationFn: () => restoreWorkoutBlock(workoutId, block.templateExerciseId!),
-    onSuccess: invalidate,
-  })
-  const removeExtraMutation = useMutation({
-    mutationFn: () => removeExtraBlock(workoutId, block.extraBlockId!),
-    onSuccess: invalidate,
-  })
-
-  const rows = totalRows(block, loggedSets)
-
-  if (block.skipped) {
-    return (
-      <div className="flex items-center gap-2 rounded-xl border border-dashed border-moss-200 bg-moss-25/60 px-3 py-2.5 dark:border-moss-750 dark:bg-moss-850/60">
-        <p className={`min-w-0 flex-1 truncate text-sm line-through ${muted}`}>{exercise.name}</p>
-        <span className={`shrink-0 text-xs ${muted}`}>{t('workout.skipped')}</span>
-        {!readOnly && (
-          <button
-            onClick={() => restoreMutation.mutate()}
-            disabled={restoreMutation.isPending}
-            className="shrink-0 rounded-lg px-2.5 py-2 text-xs font-semibold text-pine-700 transition hover:bg-pine-100 disabled:opacity-50 dark:text-pine-300 dark:hover:bg-pine-900"
-          >
-            {t('workout.restoreBlock')}
-          </button>
-        )}
-      </div>
-    )
-  }
-
-  const seconds = exercise.measure === 'SECONDS'
-
-  const target = seconds
-    ? `${block.sets} × ${block.targetSeconds ?? '?'} sec`
-    : `${block.sets} × ${block.targetReps ?? '?'}`
-  const prescription = [
-    target,
-    block.intensityPct != null ? `${block.intensityPct} %` : null,
-    formatRest(block.restSec),
-    block.note,
-  ].filter(Boolean).join(' · ')
-
-  const lastLine = block.lastSets.length > 0
-    ? t('workout.lastTime', {
-        values: block.lastSets
-          .map((s) => (s.seconds != null ? `${s.seconds}s` : `${s.weightKg ?? t('workout.bodyweight')}${s.weightKg != null ? ' kg' : ''}`))
-          .join(' / '),
-      })
-    : null
-  const recordLine = block.recordWeightKg != null
-    ? t('workout.record', { weight: block.recordWeightKg, reps: block.targetReps })
-    : null
-  const nextWeight = !readOnly && !seconds ? progressionHint(block) : null
-
-  return (
-    <div
-      className={`rounded-xl border border-l-4 border-moss-200 bg-moss-25 p-3 dark:border-moss-750 dark:bg-moss-850 ${CATEGORY_EDGE[exercise.category]}`}
-    >
-      <div className="flex items-start gap-2">
-        <button
-          onClick={() => setDetailOpen(true)}
-          className="min-w-0 flex-1 text-left"
-          aria-label={t('workout.detailsAria', { name: exercise.name })}
-        >
-          <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-            <span className="inline-flex items-center gap-1 font-medium">
-              {exercise.name}
-              <span className={muted}><InfoIcon /></span>
-            </span>
-            <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${CATEGORY_BADGE[exercise.category]}`}>
-              {categoryLabel(exercise.category)}
-            </span>
-            {isExtra && (
-              <span className="rounded-full bg-copper-600/15 px-2 py-0.5 text-[11px] font-medium text-copper-600 dark:bg-copper-300/15 dark:text-copper-300">
-                {t('workout.extraTag')}
-              </span>
-            )}
-          </span>
-          {swapped && (
-            <span className={`block text-xs ${muted}`}>{t('workout.insteadOf', { name: block.swappedFrom!.name })}</span>
-          )}
-        </button>
-        {!readOnly && (
-          <span className="flex shrink-0 gap-1.5">
-            {!isExtra && (
-              <button
-                onClick={() => setReplacing(true)}
-                aria-label={t('workout.replaceAria', { name: exercise.name })}
-                title={t('workout.replaceAria', { name: exercise.name })}
-                className={iconBtn}
-              >
-                <SwapIcon />
-              </button>
-            )}
-            <button
-              onClick={() => {
-                if (isExtra) {
-                  setConfirmingRemove(true)
-                } else {
-                  skipMutation.mutate()
-                }
-              }}
-              disabled={skipMutation.isPending || removeExtraMutation.isPending}
-              aria-label={t('workout.skipAria', { name: exercise.name })}
-              title={t('workout.skipAria', { name: exercise.name })}
-              className={`${iconBtn} hover:text-clay-500 dark:hover:text-clay-300`}
-            >
-              <CrossIcon />
-            </button>
-            {confirmingRemove && (
-              <ConfirmDialog
-                title={t('workout.skipAria', { name: exercise.name })}
-                message={t('workout.removeExtraConfirm')}
-                confirmLabel={t('common:delete')}
-                danger
-                busy={removeExtraMutation.isPending}
-                onConfirm={() => removeExtraMutation.mutate()}
-                onCancel={() => setConfirmingRemove(false)}
-              />
-            )}
-          </span>
-        )}
-      </div>
-      <p className={`mt-0.5 text-xs ${muted}`}>{prescription}</p>
-      {(recordLine || lastLine) && (
-        <p className={`mt-0.5 text-xs ${muted}`}>
-          {[recordLine, lastLine].filter(Boolean).join(' · ')}
-        </p>
-      )}
-      {nextWeight != null && (
-        <p className="mt-1 inline-block rounded-full bg-pine-100 px-2.5 py-0.5 text-xs font-medium text-pine-700 dark:bg-pine-900 dark:text-pine-300">
-          {t('workout.progressHint', { weight: nextWeight })}
-        </p>
-      )}
-
-      {skipMutation.error instanceof ApiError && (
-        <p role="alert" className="mt-1 text-xs text-clay-500 dark:text-clay-300">
-          {t('workout.adjustFailed')}
-        </p>
-      )}
-
-      {restLeft != null && (
-        <RestTimer
-          secondsLeft={restLeft}
-          onExtend={() => setRestLeft(restLeft + 30)}
-          onSkip={() => setRestLeft(null)}
-        />
-      )}
-
-      <div className="mt-2 space-y-1.5">
-        {Array.from({ length: rows }, (_, i) => i + 1).map((setNumber) => (
-          <SetRow
-            key={`${exercise.id}-${setNumber}`}
-            workoutId={workoutId}
-            block={block}
-            exercise={exercise}
-            setNumber={setNumber}
-            logged={loggedSets.find(
-              (s) => s.exerciseId === exercise.id && s.setNumber === setNumber,
-            )}
-            readOnly={readOnly}
-            onSaved={() => {
-              if (block.restSec != null && setNumber < rows) setRestLeft(block.restSec)
-            }}
-          />
-        ))}
-      </div>
-      {!readOnly && <SetsStepper block={block} workoutId={workoutId} />}
-
-      {replacing && block.templateExerciseId != null && (
-        <ReplaceModal workoutId={workoutId} block={block} onClose={() => setReplacing(false)} />
-      )}
-      {detailOpen && <ExerciseDetailSheet exercise={exercise} onClose={() => setDetailOpen(false)} />}
-    </div>
-  )
-}
-
-/* ── Circuit mode: the exercises, then one card per loop ────────────── */
-
-function CircuitView({
-  workoutId,
-  detail,
-  readOnly,
-}: {
-  workoutId: string
-  detail: WorkoutDetailResponse
-  readOnly: boolean
-}) {
-  const { t } = useTranslation('gym')
-  const queryClient = useQueryClient()
-  const [replacing, setReplacing] = useState<WorkoutBlockResponse | null>(null)
-  const [detailOf, setDetailOf] = useState<ExerciseResponse | null>(null)
-  const { restLeft, setRestLeft } = useRestCountdown()
-
-  const blocks = detail.blocks.filter((b) => b.templateExerciseId != null)
-  const active = blocks.filter((b) => !b.skipped)
-  const loops = Math.max(
-    detail.circuitLoops ?? 1,
-    ...active.map((b) => totalRows(b, detail.log.sets)),
-  )
-  const invalidate = () =>
-    void queryClient.invalidateQueries({ queryKey: ['workout', workoutId] })
-
-  const skipMutation = useMutation({
-    mutationFn: (templateExerciseId: string) => skipWorkoutBlock(workoutId, templateExerciseId),
-    onSuccess: invalidate,
-  })
-  const restoreMutation = useMutation({
-    mutationFn: (templateExerciseId: string) => restoreWorkoutBlock(workoutId, templateExerciseId),
-    onSuccess: invalidate,
-  })
-
-  return (
-    <>
-      {/* the circuit's exercise list — details, swaps and skips live here */}
-      <div className="rounded-xl border border-moss-200 bg-moss-25 p-3 dark:border-moss-750 dark:bg-moss-850">
-        <p className={`text-xs font-semibold tracking-wide uppercase ${muted}`}>
-          {t('workout.circuitExercises')}
-        </p>
-        <div className="mt-1.5 space-y-1">
-          {blocks.map((block) => (
-            <div key={block.templateExerciseId} className="flex items-center gap-1.5">
-              <button
-                onClick={() => setDetailOf(block.exercise)}
-                className={`min-w-0 flex-1 truncate rounded-lg px-2 py-2 text-left text-sm transition hover:bg-moss-100 dark:hover:bg-moss-800 ${block.skipped ? `line-through ${muted}` : ''}`}
-                aria-label={t('workout.detailsAria', { name: block.exercise.name })}
-              >
-                <span className="font-medium">{block.exercise.name}</span>
-                <span className={`ml-1.5 text-xs ${muted}`}>
-                  {block.exercise.measure === 'SECONDS'
-                    ? `${block.targetSeconds ?? '?'} sec`
-                    : `× ${block.targetReps ?? '?'}`}
-                </span>
-              </button>
-              {!readOnly && !block.skipped && (
-                <>
-                  <button
-                    onClick={() => setReplacing(block)}
-                    aria-label={t('workout.replaceAria', { name: block.exercise.name })}
-                    className={iconBtn}
-                  >
-                    <SwapIcon />
-                  </button>
-                  <button
-                    onClick={() => skipMutation.mutate(block.templateExerciseId!)}
-                    disabled={skipMutation.isPending}
-                    aria-label={t('workout.skipAria', { name: block.exercise.name })}
-                    className={`${iconBtn} hover:text-clay-500 dark:hover:text-clay-300`}
-                  >
-                    <CrossIcon />
-                  </button>
-                </>
-              )}
-              {!readOnly && block.skipped && (
-                <button
-                  onClick={() => restoreMutation.mutate(block.templateExerciseId!)}
-                  disabled={restoreMutation.isPending}
-                  className="shrink-0 rounded-lg px-2.5 py-2 text-xs font-semibold text-pine-700 transition hover:bg-pine-100 disabled:opacity-50 dark:text-pine-300 dark:hover:bg-pine-900"
-                >
-                  {t('workout.restoreBlock')}
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {restLeft != null && (
-        <RestTimer
-          secondsLeft={restLeft}
-          onExtend={() => setRestLeft(restLeft + 30)}
-          onSkip={() => setRestLeft(null)}
-        />
-      )}
-
-      {Array.from({ length: loops }, (_, i) => i + 1).map((loop) => {
-        const rows = active.filter((b) => loop <= totalRows(b, detail.log.sets))
-        if (rows.length === 0) return null
-        return (
-          <div
-            key={loop}
-            className="rounded-xl border border-l-4 border-moss-200 border-l-teal-600 bg-moss-25 p-3 dark:border-moss-750 dark:border-l-teal-300 dark:bg-moss-850"
-          >
-            <p className="text-sm font-semibold">{t('workout.loop', { n: loop, total: loops })}</p>
-            <div className="mt-2 space-y-1.5">
-              {rows.map((block, index) => (
-                <SetRow
-                  key={`${block.exercise.id}-${loop}`}
-                  workoutId={workoutId}
-                  block={block}
-                  exercise={block.exercise}
-                  setNumber={loop}
-                  label={block.exercise.name}
-                  logged={detail.log.sets.find(
-                    (s) => s.exerciseId === block.exercise.id && s.setNumber === loop,
-                  )}
-                  readOnly={readOnly}
-                  onSaved={() => {
-                    if (detail.circuitRestSec != null && detail.circuitRestSec > 0
-                        && index === rows.length - 1 && loop < loops) {
-                      setRestLeft(detail.circuitRestSec)
-                    }
-                  }}
-                />
-              ))}
-            </div>
-          </div>
-        )
-      })}
-
-      {replacing?.templateExerciseId != null && (
-        <ReplaceModal workoutId={workoutId} block={replacing} onClose={() => setReplacing(null)} />
-      )}
-      {detailOf && <ExerciseDetailSheet exercise={detailOf} onClose={() => setDetailOf(null)} />}
-    </>
-  )
-}
-
-/* ── One set row: inputs prefilled with last time, one tap to save ──── */
-
-function SetRow({
-  workoutId,
-  block,
-  exercise,
-  setNumber,
-  label,
-  logged,
-  readOnly,
-  onSaved,
-}: {
-  workoutId: string
-  block: WorkoutBlockResponse
-  exercise: ExerciseResponse
-  setNumber: number
-  label?: string
-  logged: SetLogResponse | undefined
-  readOnly: boolean
-  onSaved: () => void
-}) {
-  const { t } = useTranslation('gym')
-  const queryClient = useQueryClient()
-  const weightRef = useRef<HTMLInputElement>(null)
-  const repsRef = useRef<HTMLInputElement>(null)
-  const secondsRef = useRef<HTMLInputElement>(null)
-
-  // Saved = the server has it: the tick reflects detail.log.sets, so a
-  // second tap can honestly undo (delete) a set logged by mistake.
-  const saved = logged != null
-
-  const seconds = exercise.measure === 'SECONDS'
-  const bodyweight = exercise.measure === 'BODYWEIGHT_REPS'
-  // prefill: what I did on this set LAST time, else the prescription target
-  const lastSame = block.lastSets.find((s) => s.setNumber === setNumber)
-
-  const invalidate = () =>
-    void queryClient.invalidateQueries({ queryKey: ['workout', workoutId] })
-
-  const mutation = useMutation({
-    mutationFn: () =>
-      logSet(workoutId, {
-        exerciseId: exercise.id,
-        position: 0,
-        setNumber,
-        reps: seconds ? undefined : Number(repsRef.current?.value) || undefined,
-        weightKg: seconds
-          ? undefined
-          : weightRef.current?.value
-            ? Number(weightRef.current.value)
-            : undefined,
-        seconds: seconds ? Number(secondsRef.current?.value) || undefined : undefined,
-      }),
-    onSuccess: () => {
-      onSaved()
-      // Refresh the workout so detail.log.sets (loggedSets) reflects this save.
-      invalidate()
-    },
-  })
-  const unsaveMutation = useMutation({
-    mutationFn: () => deleteSet(logged!.id),
-    onSuccess: invalidate,
-  })
-
-  return (
-    <div className="flex items-center gap-2">
-      {label != null ? (
-        <span className="w-24 shrink-0 truncate text-xs font-medium">{label}</span>
-      ) : (
-        <span className={`w-5 shrink-0 text-center text-xs font-semibold ${muted}`}>{setNumber}</span>
-      )}
-      {seconds ? (
-        <div className="flex-1">
-          <input
-            ref={secondsRef}
-            type="number"
-            inputMode="numeric"
-            min={1}
-            aria-label={t('workout.setSecondsAria', { n: setNumber })}
-            defaultValue={logged?.seconds ?? lastSame?.seconds ?? block.targetSeconds ?? ''}
-            className={inputCls}
-            disabled={readOnly}
-          />
-        </div>
-      ) : (
-        <>
-          <div className="flex-1">
-            <input
-              ref={weightRef}
-              type="number"
-              inputMode="decimal"
-              step="0.5"
-              min={0}
-              aria-label={t('workout.setWeightAria', { n: setNumber })}
-              placeholder={bodyweight ? t('workout.bodyweight') : 'kg'}
-              defaultValue={logged?.weightKg ?? lastSame?.weightKg ?? ''}
-              className={inputCls}
-              disabled={readOnly}
-            />
-          </div>
-          <span className={`text-xs ${muted}`}>kg ×</span>
-          <div className="w-16 shrink-0">
-            <input
-              ref={repsRef}
-              type="number"
-              inputMode="numeric"
-              min={1}
-              aria-label={t('workout.setRepsAria', { n: setNumber })}
-              defaultValue={logged?.reps ?? lastSame?.reps ?? block.targetReps ?? ''}
-              className={inputCls}
-              disabled={readOnly}
-            />
-          </div>
-        </>
-      )}
-      {!readOnly && (
-        <button
-          onClick={() => (saved ? unsaveMutation.mutate() : mutation.mutate())}
-          disabled={mutation.isPending || unsaveMutation.isPending}
-          aria-label={saved
-            ? t('workout.unsaveSetAria', { n: setNumber })
-            : t('workout.saveSetAria', { n: setNumber })}
-          aria-pressed={saved}
-          className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg text-lg font-semibold transition disabled:opacity-50 ${
-            saved
-              ? 'bg-pine-600 text-moss-25 dark:bg-pine-350 dark:text-moss-950'
-              : 'border border-moss-200 text-moss-500 hover:bg-moss-100 dark:border-moss-750 dark:text-moss-400 dark:hover:bg-moss-800'
-          }`}
-        >
-          ✓
-        </button>
-      )}
-      {(mutation.error ?? unsaveMutation.error) instanceof ApiError && (
-        <span role="alert" className="text-xs text-clay-500 dark:text-clay-300">
-          {t('workout.saveFailed')}
-        </span>
-      )}
-    </div>
   )
 }
 
@@ -985,11 +1375,7 @@ function AddExerciseModal({
   const queryClient = useQueryClient()
   const [exerciseId, setExerciseId] = useState('')
 
-  const exercisesQuery = useQuery({
-    queryKey: ['exercises'],
-    queryFn: fetchExercises,
-  })
-  // an exercise already on screen (prescribed, swapped-in or added) can't be added twice
+  const exercisesQuery = useQuery({ queryKey: ['exercises'], queryFn: fetchExercises })
   const taken = new Set(
     blocks.flatMap((b) => [b.exercise.id, b.swappedFrom?.id]).filter(Boolean) as string[],
   )
@@ -1005,6 +1391,9 @@ function AddExerciseModal({
       onClose()
     },
   })
+
+  const field =
+    'w-full rounded-lg border border-moss-200 bg-moss-100 px-2 py-2.5 text-center text-base font-semibold tabular-nums outline-none focus:border-pine-600 dark:border-moss-750 dark:bg-moss-800'
 
   return (
     <Modal title={t('workout.addExerciseTitle')} onClose={onClose}>
@@ -1026,39 +1415,33 @@ function AddExerciseModal({
           value={exerciseId}
           onChange={(event) => setExerciseId(event.target.value)}
           aria-label={t('workout.exerciseLabel')}
-          className={`${inputCls} text-left font-normal`}
+          className={`${field} text-left font-normal`}
         >
           <option value="">{t('workout.pickExercise')}</option>
           {candidates.map((e) => (
-            <option key={e.id} value={e.id}>
-              {e.name}
-            </option>
+            <option key={e.id} value={e.id}>{e.name}</option>
           ))}
         </select>
         {chosen && (
           <div className="flex gap-2">
             <label className="flex-1 text-xs font-medium">
               {t('workout.setsLabel')}
-              <input name="sets" type="number" inputMode="numeric" min={1} defaultValue={3}
-                className={`${inputCls} mt-1`} />
+              <input name="sets" type="number" inputMode="numeric" min={1} defaultValue={3} className={`${field} mt-1`} />
             </label>
             {seconds ? (
               <label className="flex-1 text-xs font-medium">
                 {t('workout.secondsLabel')}
-                <input name="seconds" type="number" inputMode="numeric" min={1} defaultValue={30}
-                  className={`${inputCls} mt-1`} />
+                <input name="seconds" type="number" inputMode="numeric" min={1} defaultValue={30} className={`${field} mt-1`} />
               </label>
             ) : (
               <label className="flex-1 text-xs font-medium">
                 {t('workout.repsLabel')}
-                <input name="reps" type="number" inputMode="numeric" min={1} defaultValue={10}
-                  className={`${inputCls} mt-1`} />
+                <input name="reps" type="number" inputMode="numeric" min={1} defaultValue={10} className={`${field} mt-1`} />
               </label>
             )}
             <label className="flex-1 text-xs font-medium">
               {t('workout.restLabel')}
-              <input name="restSec" type="number" inputMode="numeric" min={0} step={15}
-                className={`${inputCls} mt-1`} />
+              <input name="restSec" type="number" inputMode="numeric" min={0} step={15} className={`${field} mt-1`} />
             </label>
           </div>
         )}
@@ -1068,18 +1451,11 @@ function AddExerciseModal({
           </p>
         )}
         <div className="flex gap-2 pt-1">
-          <button
-            type="submit"
-            disabled={!chosen || mutation.isPending}
-            className="rounded-lg bg-pine-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
-          >
+          <button type="submit" disabled={!chosen || mutation.isPending}
+            className="rounded-lg bg-pine-600 px-4 py-2.5 text-sm font-semibold text-moss-25 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950">
             {t('workout.addBlock')}
           </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className={`px-2 py-1.5 text-sm font-medium ${muted}`}
-          >
+          <button type="button" onClick={onClose} className={`px-2 py-1.5 text-sm font-medium ${muted}`}>
             {t('common:cancel')}
           </button>
         </div>
@@ -1107,11 +1483,17 @@ function FinishPanel({
   const [effort, setEffort] = useState<PerceivedEffort>('COMME_PREVU')
   const [pain, setPain] = useState(false)
 
+  // anything still queued must land before the workout is closed server-side
   const mutation = useMutation({
-    mutationFn: (body: { durationMin: number; comment?: string }) =>
-      finishWorkout(detail.log.id, { ...body, perceivedEffort: effort, painFlag: pain }),
+    mutationFn: async (body: { durationMin: number; comment?: string }) => {
+      await gymQueue.drain()
+      return finishWorkout(detail.log.id, { ...body, perceivedEffort: effort, painFlag: pain })
+    },
     onSuccess: () => onDone(detail.log.sessionId),
   })
+
+  const field =
+    'w-full rounded-lg border border-moss-200 bg-moss-100 px-2 py-2 text-base outline-none focus:border-pine-600 dark:border-moss-750 dark:bg-moss-800'
 
   return (
     <Modal title={t('workout.finishTitle')} onClose={onCancel}>
@@ -1128,13 +1510,8 @@ function FinishPanel({
       >
         <label className="block">
           <span className="text-sm font-medium">{t('workout.totalDuration')}</span>
-          <input
-            name="durationMin"
-            type="number"
-            min={1}
-            defaultValue={elapsedMin}
-            className={`${inputCls} mt-1 max-w-32 text-left`}
-          />
+          <input name="durationMin" type="number" min={1} defaultValue={elapsedMin}
+            className={`${field} mt-1 max-w-32 tabular-nums`} />
         </label>
         <div>
           <span className="text-sm font-medium">{t('workout.howWasIt')}</span>
@@ -1145,7 +1522,7 @@ function FinishPanel({
                 type="button"
                 onClick={() => setEffort(e)}
                 aria-pressed={effort === e}
-                className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${
+                className={`rounded-full px-3 py-2 text-sm font-medium transition ${
                   effort === e
                     ? 'bg-pine-600 text-moss-25 dark:bg-pine-350 dark:text-moss-950'
                     : 'bg-moss-100 text-moss-500 hover:text-ink dark:bg-moss-800 dark:text-moss-400 dark:hover:text-linen'
@@ -1157,17 +1534,13 @@ function FinishPanel({
           </div>
         </div>
         <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={pain}
-            onChange={(event) => setPain(event.target.checked)}
-            className="h-4 w-4 accent-clay-500"
-          />
+          <input type="checkbox" checked={pain} onChange={(e) => setPain(e.target.checked)}
+            className="h-4 w-4 accent-clay-500" />
           {t('workout.pain')}
         </label>
         <label className="block">
           <span className="text-sm font-medium">{t('workout.commentLabel')}</span>
-          <textarea name="comment" rows={2} className={`${inputCls} mt-1 text-left font-normal`} />
+          <textarea name="comment" rows={2} className={`${field} mt-1`} />
         </label>
         {mutation.error instanceof ApiError && (
           <p role="alert" className="text-sm text-clay-500 dark:text-clay-300">
@@ -1175,11 +1548,8 @@ function FinishPanel({
           </p>
         )}
         <div className="flex gap-2">
-          <button
-            type="submit"
-            disabled={mutation.isPending}
-            className="rounded-lg bg-pine-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
-          >
+          <button type="submit" disabled={mutation.isPending}
+            className="rounded-lg bg-pine-600 px-4 py-2.5 text-sm font-semibold text-moss-25 disabled:opacity-50 dark:bg-pine-350 dark:text-moss-950">
             {mutation.isPending ? t('common:saving') : t('workout.saveWorkout')}
           </button>
           <button type="button" onClick={onCancel} className={`px-3 py-2 text-sm font-medium ${muted}`}>

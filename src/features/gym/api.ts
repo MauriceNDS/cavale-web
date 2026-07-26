@@ -288,9 +288,22 @@ export interface WorkoutBlockResponse {
   note: string | null
   /** Superset this block belongs to — shared with its neighbours. */
   groupKey: string | null
+  /** The load to propose, already rounded to a step the kit can make. */
+  suggestedWeightKg: number | null
+  /** Which rule produced it, so the runner can show its work. */
+  suggestionSource: SuggestionSource
+  /** What that rule worked from: the estimated 1RM, or last time's load. */
+  suggestionBasisKg: number | null
   lastSets: SetLogResponse[]
   recordWeightKg: number | null
 }
+
+export type SuggestionSource =
+  | 'INTENSITY_OF_ONE_RM'
+  | 'PROGRESSED_FROM_LAST'
+  | 'SAME_AS_LAST'
+  | 'REFERENCE'
+  | 'NONE'
 
 export interface WorkoutDetailResponse {
   log: WorkoutLogResponse
@@ -335,6 +348,14 @@ export interface LogSetRequest {
 
 export function logSet(workoutLogId: string, body: LogSetRequest): Promise<SetLogResponse> {
   return api.put<SetLogResponse>(`/api/workouts/${workoutLogId}/sets`, body)
+}
+
+/** Pair or unpair blocks for THIS workout — the whole prescribed list at once. */
+export function regroupWorkout(
+  workoutLogId: string,
+  assignments: { templateExerciseId: string; groupKey: string | null }[],
+): Promise<WorkoutDetailResponse> {
+  return api.put<WorkoutDetailResponse>(`/api/workouts/${workoutLogId}/groups`, { assignments })
 }
 
 /** Answer "how many reps were left?" after the fact, from the rest countdown. */
