@@ -1,29 +1,30 @@
 import { useTranslation } from 'react-i18next'
-import type { WorkoutNode } from './api'
-import { allureLabel, terrainLabel, allureStyle, formatSeconds } from './labels'
+import type { PaceContextResponse, WorkoutNode } from './api'
+import { allureLabel, allurePaceBand, terrainLabel, allureStyle, formatSeconds } from './labels'
 
 /**
  * Read-only workout tree: allure-titled blocks, times in letters, loop
  * gutters with the repeat count — mirrors the .fit export exactly.
+ * With a road pace context, each block also shows its derived pace band.
  */
-export function WorkoutTree({ nodes }: { nodes: WorkoutNode[] }) {
+export function WorkoutTree({ nodes, pace }: { nodes: WorkoutNode[]; pace?: PaceContextResponse | null }) {
   return (
     <div className="space-y-1.5">
       {nodes.map((node, index) => (
-        <NodeView key={index} node={node} />
+        <NodeView key={index} node={node} pace={pace} />
       ))}
     </div>
   )
 }
 
-function NodeView({ node }: { node: WorkoutNode }) {
+function NodeView({ node, pace }: { node: WorkoutNode; pace?: PaceContextResponse | null }) {
   const { t } = useTranslation('calendar')
   if (node.type === 'repeat') {
     return (
       <div className="flex overflow-hidden rounded-lg border border-moss-200 bg-moss-25 dark:border-moss-750 dark:bg-moss-850">
         <div className="min-w-0 flex-1 space-y-1.5 p-1.5">
           {(node.children ?? []).map((child, i) => (
-            <NodeView key={i} node={child} />
+            <NodeView key={i} node={child} pace={pace} />
           ))}
         </div>
         <div
@@ -53,14 +54,29 @@ function NodeView({ node }: { node: WorkoutNode }) {
   ]
     .filter(Boolean)
     .join(' ')
+  const band = node.allure && node.allure !== 'LENTE' ? allurePaceBand(pace, node.allure) : null
   return (
     <div
-      className={`rounded-lg border border-l-4 border-moss-200 bg-moss-50 px-3 py-2 dark:border-moss-750 dark:bg-moss-800 ${style.edge}`}
+      className={`flex items-center justify-between gap-3 rounded-lg border border-l-4 border-moss-200 bg-moss-50 px-3 py-2 dark:border-moss-750 dark:bg-moss-800 ${style.edge}`}
     >
-      <p className={`text-xs font-semibold ${style.title}`}>
-        {node.allure ? allureLabel(node.allure) : t('workout.step')}
-      </p>
-      <p className="font-display text-base font-semibold tabular-nums">{body || '—'}</p>
+      <div className="min-w-0">
+        <p className={`text-xs font-semibold ${style.title}`}>
+          {node.allure ? allureLabel(node.allure) : t('workout.step')}
+        </p>
+        <p className="font-display text-base font-semibold tabular-nums">{body || '—'}</p>
+      </div>
+      {band && (
+        <div className="shrink-0 text-right">
+          {band.goal && (
+            <p className="text-[10px] font-semibold tracking-wide text-copper-600 uppercase dark:text-copper-300">
+              {t('workout.goalPace')}
+            </p>
+          )}
+          <p className="text-xs font-medium text-moss-500 tabular-nums dark:text-moss-400">
+            {band.label}
+          </p>
+        </div>
+      )}
     </div>
   )
 }

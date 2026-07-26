@@ -15,6 +15,7 @@ import { fetchShoes } from '../shoes/api'
 import { ShoePicker } from '../shoes/ShoePicker'
 import { fetchStravaActivities } from '../strava/api'
 import {
+  fetchPaceModel,
   fetchSession,
   fetchSessionProposal,
   fetchSessionStreams,
@@ -28,6 +29,7 @@ import {
   type WorkoutNode,
 } from './api'
 import {
+  allurePaceBand,
   disciplineLabel,
   EFFORTS,
   effortLabel,
@@ -35,6 +37,7 @@ import {
   formatDuration,
   formatSeconds,
   totalWorkoutSeconds,
+  zoneAllure,
 } from './labels'
 import { WorkoutTree } from './WorkoutView'
 import {
@@ -122,6 +125,16 @@ function SessionView({
   const { t } = useTranslation('calendar')
   const [editingStructure, setEditingStructure] = useState(false)
 
+  // derived road pace bands — the query is cheap and cached; bands render
+  // only when the season's main objective is ROAD
+  const paceQuery = useQuery({
+    queryKey: ['pace-model'],
+    queryFn: fetchPaceModel,
+    staleTime: 5 * 60_000,
+    enabled: session.discipline === 'RUN',
+  })
+  const pace = paceQuery.data ?? null
+
   const totalSec =
     session.workout.length > 0
       ? totalWorkoutSeconds(session.workout)
@@ -162,6 +175,11 @@ function SessionView({
           />
         )}
         {session.zone && <HeaderChip label={t('session.chipZone')} value={session.zone} />}
+        {session.discipline === 'RUN' &&
+          (() => {
+            const band = allurePaceBand(pace, zoneAllure(session.zone))
+            return band ? <HeaderChip label={t('session.chipPace')} value={band.label} /> : null
+          })()}
         {session.templateName && (
           <span className="rounded-lg border border-copper-600/40 bg-copper-600/10 px-2.5 py-1 text-xs font-semibold text-copper-600 dark:border-copper-300/40 dark:bg-copper-300/10 dark:text-copper-300">
             {session.templateName} · {session.variantLabel}
@@ -200,7 +218,7 @@ function SessionView({
             session.discipline === 'RUN' && (
               <div className="mt-5">
                 {session.workout.length > 0 ? (
-                  <WorkoutTree nodes={session.workout} />
+                  <WorkoutTree nodes={session.workout} pace={pace} />
                 ) : (
                   <p className="text-sm text-moss-400 dark:text-moss-500">
                     {t('session.noStructure')}

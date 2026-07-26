@@ -108,6 +108,7 @@ export default {
     chipElevation: 'D+',
     chipRpe: 'RPE',
     chipZone: 'Zone',
+    chipPace: 'Pace',
     instructions: 'Instructions',
     noStructure: 'No structure yet.',
     editStructure: 'Edit structure',
@@ -234,6 +235,7 @@ export default {
   workout: {
     step: 'Step',
     recovery: 'recovery',
+    goalPace: 'Goal pace',
     repeatTimes: 'Repeat {{count}} times',
   },
   season: {

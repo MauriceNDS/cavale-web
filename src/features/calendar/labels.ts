@@ -112,7 +112,7 @@ export const KIND_LEGEND: TrainingKind[] = [
   'HIKE',
 ]
 
-import type { Allure, PerceivedEffort, Terrain, WorkoutNode } from './api'
+import type { Allure, PaceContextResponse, PerceivedEffort, Terrain, WorkoutNode } from './api'
 
 export function effortLabel(e: PerceivedEffort): string {
   return i18n.t(`calendar:effort.${e}`)
@@ -179,6 +179,53 @@ export function allureStyle(allure: Allure | null): { title: string; edge: strin
     default:
       return { title: 'text-moss-500 dark:text-moss-400', edge: 'border-l-moss-300 dark:border-l-moss-700' }
   }
+}
+
+/* ── Derived pace bands (road seasons only) ────────────────────────── */
+
+export function formatPace(secPerKm: number): string {
+  const m = Math.floor(secPerKm / 60)
+  const s = Math.round(secPerKm % 60)
+  return `${m}:${String(s).padStart(2, '0')}`
+}
+
+const round5 = (sec: number) => Math.round(sec / 5) * 5
+
+function paceBandLabel(secPerKm: number, pct: number): string {
+  return `${formatPace(round5(secPerKm * (1 - pct)))}–${formatPace(round5(secPerKm * (1 + pct)))} /km`
+}
+
+/**
+ * The pace band an allure should be run in, derived from the athlete's own
+ * model at DISPLAY time (so the same plan speeds up as fitness improves).
+ * Race-pace blocks anchor to the objective's goal pace when one is set.
+ * Null outside a road season — trail thinks in km-effort, not min/km.
+ */
+export function allurePaceBand(
+  pace: PaceContextResponse | null | undefined,
+  allure: Allure | null,
+): { label: string; goal: boolean } | null {
+  if (!pace?.roadContext || !allure) return null
+  if (allure === 'COURSE' && pace.goalPaceSecPerKm) {
+    return { label: paceBandLabel(pace.goalPaceSecPerKm, 0.03), goal: true }
+  }
+  const sec = pace.flatSecPerKm[allure]
+  if (!sec) return null
+  // wide comfort band for easy running, tighter for quality work
+  return { label: paceBandLabel(sec, allure === 'EF' || allure === 'LENTE' ? 0.06 : 0.04), goal: false }
+}
+
+/** Session zone label → the allure whose pace band applies. */
+export function zoneAllure(zone: string | null): Allure | null {
+  if (!zone) return null
+  if (zone.includes('VMA') || zone.includes('Test')) return 'VMA'
+  if (zone.includes('Seuil 30')) return 'SEUIL30'
+  if (zone.includes('Seuil')) return 'SEUIL60'
+  if (zone.includes('Tempo') || zone.includes('AC') || zone.includes('Course')) return 'COURSE'
+  if (zone.includes('Sprint')) return 'SPRINT'
+  if (zone.includes('Récup')) return 'LENTE'
+  if (zone.includes('EF') || zone.includes('SL')) return 'EF'
+  return null
 }
 
 /** Times written with letters: "10 sec", "3 min", "45 min", "1h30". */

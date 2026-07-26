@@ -137,6 +137,20 @@ export function scaffoldPlan(planId: string, fillSessions: boolean): Promise<Wee
   return api.post<WeekResponse[]>(`/api/plans/${planId}/scaffold?fillSessions=${fillSessions}`, undefined)
 }
 
+/** The athlete's derived paces — bands are shown only in a road season. */
+export interface PaceContextResponse {
+  flatSecPerKm: Record<Allure, number>
+  climbSecPerMeter: number
+  sampleSize: number
+  personal: boolean
+  roadContext: boolean
+  goalPaceSecPerKm: number | null
+}
+
+export function fetchPaceModel(): Promise<PaceContextResponse> {
+  return api.get<PaceContextResponse>('/api/pace-model')
+}
+
 /** Deletes the season and everything in it (weeks, sessions, objectives). */
 export function deletePlan(planId: string): Promise<void> {
   return api.delete(`/api/plans/${planId}`)
