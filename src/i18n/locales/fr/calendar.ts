@@ -115,7 +115,7 @@ export default {
     createStructure: '+ Créer la structure',
     structureTitle: 'Structure de la séance',
     saveStructure: 'Enregistrer la structure',
-    export: '⌚ Exporter',
+    export: 'Exporter',
     exportFit: 'Fichier .fit',
     exportGarmin: 'Garmin Connect',
     exportGarminDone:

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { Watch } from 'lucide-react'
 import { ApiError } from '../../lib/api'
 import { useClickOutside } from '../../lib/useClickOutside'
 import { pushSessionToGarmin } from '../intervals/api'
@@ -59,10 +60,11 @@ export function ExportMenu({
           onClick={() => setOpen((o) => !o)}
           aria-haspopup="menu"
           aria-expanded={open}
-          className={`rounded-lg border border-moss-200 text-sm font-medium text-ink transition hover:bg-moss-100 dark:border-moss-750 dark:text-linen dark:hover:bg-moss-800 ${
+          className={`inline-flex items-center gap-1.5 rounded-lg border border-moss-200 text-sm font-medium text-ink transition hover:bg-moss-100 dark:border-moss-750 dark:text-linen dark:hover:bg-moss-800 ${
             size === 'md' ? 'px-4 py-2' : 'px-3 py-1.5'
           }`}
         >
+          <Watch size={14} aria-hidden />
           {t('session.export')}
         </button>
         {open && (

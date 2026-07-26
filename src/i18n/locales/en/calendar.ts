@@ -115,7 +115,7 @@ export default {
     createStructure: '+ Create structure',
     structureTitle: 'Workout structure',
     saveStructure: 'Save structure',
-    export: '⌚ Export',
+    export: 'Export',
     exportFit: '.fit file',
     exportGarmin: 'Garmin Connect',
     exportGarminDone:
