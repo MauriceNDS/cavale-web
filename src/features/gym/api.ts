@@ -390,11 +390,37 @@ export function removeExtraBlock(workoutLogId: string, extraBlockId: string): Pr
   return api.delete(`/api/workouts/${workoutLogId}/extra-blocks/${extraBlockId}`)
 }
 
+export interface RecordBeaten {
+  exerciseName: string
+  reps: number
+  weightKg: number
+  previousKg: number | null
+}
+
+/** What the session was worth, handed back the moment it is saved. */
+export interface WorkoutRecapResponse {
+  workoutLogId: string
+  templateName: string | null
+  durationMin: number | null
+  workingSets: number
+  warmupSets: number
+  exercises: number
+  /** Kilos actually moved: working sets only, weighted work only. */
+  tonnageKg: number
+  secondsUnderTension: number
+  records: RecordBeaten[]
+  /** Relative-effort equivalent — the same currency a run earns. */
+  load: number
+  /** The load made legible: "about a 45-minute easy run". */
+  comparableRunMin: number | null
+  sessionId: string | null
+}
+
 export function finishWorkout(
   workoutLogId: string,
   body: { durationMin?: number; perceivedEffort?: PerceivedEffort; painFlag?: boolean; comment?: string },
-): Promise<WorkoutLogResponse> {
-  return api.post<WorkoutLogResponse>(`/api/workouts/${workoutLogId}/finish`, body)
+): Promise<WorkoutRecapResponse> {
+  return api.post<WorkoutRecapResponse>(`/api/workouts/${workoutLogId}/finish`, body)
 }
 
 export function abandonWorkout(workoutLogId: string): Promise<void> {

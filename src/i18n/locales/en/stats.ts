@@ -57,6 +57,7 @@ export default {
     noData: 'No data yet.',
     weekOf: 'Week of {{date}}',
     relativeEffort: 'Relative effort: {{value}}',
+    gymShare: 'including {{value}} from strength',
     targetZone: 'Target zone: {{low}}–{{high}}',
     targetZoneNone: 'Target zone: —',
     estimatedNote: '(runs without HR estimated)',

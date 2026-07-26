@@ -122,6 +122,7 @@ export function EffortBandChart({ weeks, onOpenRange }: { weeks: WeekEffort[]; o
             lines={[
               t('effort.weekOf', { date: format(parseISO(week.weekStart), 'd MMMM', { locale: dateLocale() }) }),
               t('effort.relativeEffort', { value: week.effort }),
+              week.gymEffort > 0 ? t('effort.gymShare', { value: week.gymEffort }) : null,
               week.bandLow != null
                 ? t('effort.targetZone', { low: week.bandLow, high: week.bandHigh })
                 : t('effort.targetZoneNone'),
@@ -173,6 +174,21 @@ export function EffortBandChart({ weeks, onOpenRange }: { weeks: WeekEffort[]; o
                 />
               )
             })}
+            {/* strength work, stacked at the foot of the bar in its own colour
+                so a heavy leg day stops being invisible in the load */}
+            {weeks.map((week, i) =>
+              week.gymEffort > 0 ? (
+                <rect
+                  key={`gym-${week.weekStart}`}
+                  x={left(i) + band * 0.22}
+                  width={band * 0.56}
+                  y={y(week.gymEffort)}
+                  height={Math.max(1, y(0) - y(week.gymEffort))}
+                  rx={2}
+                  className="fill-copper-600 dark:fill-copper-300"
+                />
+              ) : null,
+            )}
             <XLabels
               frame={frame}
               count={weeks.length}

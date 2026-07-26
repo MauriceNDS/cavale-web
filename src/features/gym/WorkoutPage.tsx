@@ -21,6 +21,7 @@ import {
   type SetLogResponse,
   type WorkoutBlockResponse,
   type WorkoutDetailResponse,
+  type WorkoutRecapResponse,
 } from './api'
 import { gymQueue, type QueueState } from './mutationQueue'
 import { RestBar, RirChips, useOwnsRestBar, useWakeLock } from './RestBar'
@@ -44,6 +45,19 @@ const tapBtn =
 const EFFORTS: PerceivedEffort[] = [
   'TROP_FACILE', 'FACILE', 'COMME_PREVU', 'DIFFICILE', 'TROP_DIFFICILE',
 ]
+
+/**
+ * Relative-effort points per minute by how the session felt — the same
+ * table the server uses, mirrored here only to preview the load while the
+ * chips are being tapped. The server's answer is the one that counts.
+ */
+const EFFORT_RATE: Record<PerceivedEffort, number> = {
+  TROP_FACILE: 0.4,
+  FACILE: 0.55,
+  COMME_PREVU: 0.7,
+  DIFFICILE: 0.85,
+  TROP_DIFFICILE: 1.0,
+}
 
 function formatElapsed(startedAt: string): string {
   const sec = Math.max(0, Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000))
@@ -99,6 +113,7 @@ export function WorkoutPage() {
   const [drafts, setDrafts] = useState<Record<string, Draft>>({})
   const [ratingSetId, setRatingSetId] = useState<string | null>(null)
   const [finishing, setFinishing] = useState(false)
+  const [recap, setRecap] = useState<WorkoutRecapResponse | null>(null)
   const [addingExercise, setAddingExercise] = useState(false)
   const [placed, setPlaced] = useState(false)
 
@@ -410,17 +425,27 @@ export function WorkoutPage() {
         />
       )}
 
-      {finishing && !finished && (
+      {finishing && !finished && !recap && (
         <FinishPanel
           detail={detail}
-          onDone={(sessionId) => {
+          onDone={(result) => {
             restClock.skip()
+            setFinishing(false)
+            setRecap(result)
             void queryClient.invalidateQueries()
-            void navigate(sessionId
-              ? { to: '/session/$sessionId', params: { sessionId } }
-              : { to: '/renfo' })
           }}
           onCancel={() => setFinishing(false)}
+        />
+      )}
+
+      {recap && (
+        <RecapPanel
+          recap={recap}
+          onClose={() => {
+            void navigate(recap.sessionId
+              ? { to: '/session/$sessionId', params: { sessionId: recap.sessionId } }
+              : { to: '/renfo' })
+          }}
         />
       )}
     </div>
@@ -1410,6 +1435,85 @@ function AddExerciseModal({
   )
 }
 
+/* ── The payoff: what the session was actually worth ───────────────── */
+
+function RecapPanel({
+  recap,
+  onClose,
+}: {
+  recap: WorkoutRecapResponse
+  onClose: () => void
+}) {
+  const { t } = useTranslation('gym')
+  const stat = (value: string, label: string) => (
+    <div className="rounded-xl bg-moss-100 px-3 py-2.5 text-center dark:bg-moss-800">
+      <p className="font-display text-xl font-semibold tabular-nums">{value}</p>
+      <p className={`text-[11px] ${muted}`}>{label}</p>
+    </div>
+  )
+
+  return (
+    <Modal title={t('workout.recapTitle')} subtitle={recap.templateName ?? undefined} onClose={onClose}>
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-2">
+          {stat(t('workout.recapMinutes', { min: recap.durationMin ?? 0 }), t('workout.recapDuration'))}
+          {stat(String(recap.workingSets), t('workout.recapSets'))}
+          {recap.tonnageKg > 0 &&
+            stat(
+              recap.tonnageKg >= 1000
+                ? `${(Math.round(recap.tonnageKg / 100) / 10).toFixed(1)} t`
+                : `${Math.round(recap.tonnageKg)} kg`,
+              t('workout.recapTonnage'),
+            )}
+          {recap.secondsUnderTension > 0 &&
+            stat(`${Math.round(recap.secondsUnderTension / 60)} min`, t('workout.recapTension'))}
+        </div>
+
+        {recap.records.length > 0 && (
+          <section className="rounded-xl border border-copper-600/40 bg-copper-600/5 p-3 dark:border-copper-300/40 dark:bg-copper-300/10">
+            <p className="text-xs font-bold tracking-wide text-copper-600 uppercase dark:text-copper-300">
+              {t('workout.recapRecords', { count: recap.records.length })}
+            </p>
+            <ul className="mt-1.5 space-y-1">
+              {recap.records.map((r) => (
+                <li key={`${r.exerciseName}-${r.reps}`} className="text-sm">
+                  <span className="font-medium">{r.exerciseName}</span>{' '}
+                  <span className={muted}>× {r.reps}</span>{' '}
+                  <span className="font-semibold text-copper-600 dark:text-copper-300">
+                    {kg(r.weightKg)} kg
+                  </span>
+                  {r.previousKg != null && (
+                    <span className={`text-xs ${muted}`}> (+{kg(r.weightKg - r.previousKg)})</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {/* a load number means nothing on its own — anchor it to a run */}
+        <section className="rounded-xl bg-pine-100 p-3 dark:bg-pine-900">
+          <p className="text-sm font-semibold text-pine-700 dark:text-pine-300">
+            {t('workout.recapLoad', { load: recap.load })}
+          </p>
+          {recap.comparableRunMin != null && (
+            <p className={`mt-0.5 text-xs ${muted}`}>
+              {t('workout.recapComparable', { min: recap.comparableRunMin })}
+            </p>
+          )}
+        </section>
+
+        <button
+          onClick={onClose}
+          className="w-full rounded-xl bg-pine-600 py-3 text-sm font-semibold text-moss-25 dark:bg-pine-350 dark:text-moss-950"
+        >
+          {recap.sessionId ? t('workout.viewSession') : t('common:ok')}
+        </button>
+      </div>
+    </Modal>
+  )
+}
+
 /* ── Finish: duration, effort, pain, comment ───────────────────────── */
 
 function FinishPanel({
@@ -1418,7 +1522,7 @@ function FinishPanel({
   onCancel,
 }: {
   detail: WorkoutDetailResponse
-  onDone: (sessionId: string | null) => void
+  onDone: (recap: WorkoutRecapResponse) => void
   onCancel: () => void
 }) {
   const { t } = useTranslation('gym')
@@ -1435,7 +1539,7 @@ function FinishPanel({
       await gymQueue.drain()
       return finishWorkout(detail.log.id, { ...body, perceivedEffort: effort, painFlag: pain })
     },
-    onSuccess: () => onDone(detail.log.sessionId),
+    onSuccess: onDone,
   })
 
   const field =
@@ -1461,6 +1565,7 @@ function FinishPanel({
         </label>
         <div>
           <span className="text-sm font-medium">{t('workout.howWasIt')}</span>
+          <p className={`mt-0.5 text-xs ${muted}`}>{t('workout.howWasItHint')}</p>
           <div className="mt-1.5 flex flex-wrap gap-1.5">
             {EFFORTS.map((e) => (
               <button
@@ -1478,6 +1583,9 @@ function FinishPanel({
               </button>
             ))}
           </div>
+          <p className={`mt-1.5 text-xs ${muted}`}>
+            {t('workout.loadPreview', { load: Math.round(elapsedMin * EFFORT_RATE[effort]) })}
+          </p>
         </div>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={pain} onChange={(e) => setPain(e.target.checked)}

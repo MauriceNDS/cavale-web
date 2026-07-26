@@ -58,6 +58,7 @@ export default {
     noData: 'Pas encore de données.',
     weekOf: 'Semaine du {{date}}',
     relativeEffort: 'Effort relatif : {{value}}',
+    gymShare: 'dont {{value}} de renfo',
     targetZone: 'Zone cible : {{low}}–{{high}}',
     targetZoneNone: 'Zone cible : —',
     estimatedNote: '(sorties sans FC estimées)',

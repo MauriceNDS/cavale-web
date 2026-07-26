@@ -256,6 +256,8 @@ export interface WeekEffort {
   bandLow: number | null
   bandHigh: number | null
   partlyEstimated: boolean
+  /** How much of the week's load was strength work rather than running. */
+  gymEffort: number
 }
 
 export type AcwrZone = 'UNDER' | 'OPTIMAL' | 'CAUTION' | 'DANGER'
