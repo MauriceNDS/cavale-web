@@ -25,6 +25,7 @@ import type {
   WeekEffort,
   WeekMonotony,
   WeekVolume,
+  WeekZones,
 } from '../athlete/api'
 import { formatChrono, formatPace } from './format'
 
@@ -610,5 +611,117 @@ export function DurabilityChart({
         )
       }}
     </ChartSurface>
+  )
+}
+
+/* ── Weekly time in HR zones ───────────────────────────────────────── */
+
+export const ZONE_FILL = [
+  'fill-moss-400 dark:fill-moss-500',
+  'fill-pine-600 dark:fill-pine-350',
+  'fill-gold-600 dark:fill-gold-300',
+  'fill-copper-600 dark:fill-copper-300',
+  'fill-clay-500 dark:fill-clay-300',
+]
+
+function formatZoneHours(sec: number): string {
+  const m = Math.round(sec / 60)
+  if (m < 60) return `${m} min`
+  return `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}`
+}
+
+/** Weekly stacked Z1–Z5 bars — the polarization check, week by week. */
+export function ZoneWeeklyChart({ weeks, onOpenRange }: { weeks: WeekZones[]; onOpenRange?: OpenRange }) {
+  const { t } = useTranslation('stats')
+  const withData = weeks.filter((w) => w.seconds.some((s) => s > 0))
+  if (withData.length === 0) return <p className={`text-sm ${muted}`}>{t('zones.noData')}</p>
+  const maxTotal = Math.max(...weeks.map((w) => w.seconds.reduce((a, b) => a + b, 0)), 1)
+
+  return (
+    <ChartSurface
+      ariaLabel={t('zones.aria')}
+      count={weeks.length}
+      onSelect={onOpenRange && ((i) => onOpenRange(weeks[i].weekStart, weekEnd(weeks[i].weekStart)))}
+      tooltip={(i) => {
+        const week = weeks[i]
+        const total = week.seconds.reduce((a, b) => a + b, 0)
+        if (total === 0) return null
+        return (
+          <TooltipLines
+            lines={[
+              t('effort.weekOf', { date: format(parseISO(week.weekStart), 'd MMMM', { locale: dateLocale() }) }),
+              ...week.seconds
+                .map((sec, z) => (sec > 0 ? `Z${z + 1} · ${formatZoneHours(sec)} · ${Math.round((sec / total) * 100)}%` : null))
+                .filter((line): line is string => line != null)
+                .reverse(),
+              week.partlyEstimated ? t('zones.estimatedNote') : null,
+              onOpenRange ? t('drill') : null,
+            ]}
+          />
+        )
+      }}
+    >
+      {(frame) => {
+        const y = linearY(frame, 0, maxTotal * 1.05)
+        const { band, left, center } = bandX(frame, weeks.length)
+        const step = labelStep(band)
+        return (
+          <>
+            <GridY
+              frame={frame}
+              ticks={[maxTotal * 0.5, maxTotal]}
+              y={y}
+              format={(v) => formatZoneHours(v)}
+            />
+            {weeks.map((week, i) => {
+              let cursor = 0
+              return week.seconds.map((sec, z) => {
+                if (sec <= 0) return null
+                const y1 = y(cursor + sec)
+                const height = y(cursor) - y1
+                cursor += sec
+                return (
+                  <rect
+                    key={`${week.weekStart}-${z}`}
+                    x={left(i) + band * 0.2}
+                    width={band * 0.6}
+                    y={y1}
+                    height={Math.max(1, height)}
+                    className={ZONE_FILL[z]}
+                  />
+                )
+              })
+            })}
+            <XLabels
+              frame={frame}
+              count={weeks.length}
+              x={center}
+              step={step}
+              label={(i) => format(parseISO(weeks[i].weekStart), 'd MMM', { locale: dateLocale() })}
+            />
+          </>
+        )
+      }}
+    </ChartSurface>
+  )
+}
+
+/** "82 % easy / 18 % hard" over the visible period — Z1+Z2 vs Z3–Z5. */
+export function PolarizationNote({ weeks }: { weeks: WeekZones[] }) {
+  const { t } = useTranslation('stats')
+  const totals = [0, 0, 0, 0, 0]
+  for (const week of weeks) week.seconds.forEach((sec, z) => (totals[z] += sec))
+  const total = totals.reduce((a, b) => a + b, 0)
+  if (total === 0) return null
+  const easy = Math.round(((totals[0] + totals[1]) / total) * 100)
+  const estimated = weeks.some((w) => w.partlyEstimated)
+  return (
+    <p className={`mt-2 text-sm ${muted}`}>
+      {t('zones.polarization')}{' '}
+      <span className="font-semibold text-ink dark:text-linen">{easy} %</span> {t('zones.easyShare')}{' '}
+      · <span className="font-semibold text-ink dark:text-linen">{100 - easy} %</span>{' '}
+      {t('zones.hardShare')} · {t('zones.target8020')}
+      {estimated && ` · ${t('zones.estimatedNote')}`}
+    </p>
   )
 }

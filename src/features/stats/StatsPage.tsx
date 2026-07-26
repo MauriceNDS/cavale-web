@@ -17,12 +17,15 @@ import {
   EfficiencyChart,
   FormChart,
   MonotonyChart,
+  PolarizationNote,
   Vo2maxChart,
   VolumeChart,
   VolumeTotals,
+  ZoneWeeklyChart,
 } from './charts'
 import { EvolutionCard } from './EvolutionCard'
 import { RecordsTab } from './RecordsTab'
+import { RunSafeCard } from './RunSafeCard'
 import { VerdictStrip } from './VerdictStrip'
 
 const RANGES = [1, 3, 6, 12, 'all'] as const
@@ -148,7 +151,9 @@ function ChargeTab({ stats, months }: TabProps) {
   const form = stats.form.filter((d) => inRange(d.date))
   const effort = stats.weeklyEffort.filter((w) => inRange(w.weekStart))
   const monotony = stats.monotony.filter((w) => inRange(w.weekStart))
+  const zones = stats.weeklyZones.filter((w) => inRange(w.weekStart))
   const currentEffort = stats.weeklyEffort.at(-1)
+  const currentMonotony = [...stats.monotony].reverse().find((w) => w.monotony != null)
 
   return (
     <div className="space-y-4">
@@ -171,8 +176,29 @@ function ChargeTab({ stats, months }: TabProps) {
         <EffortStatus weeks={stats.weeklyEffort} />
       </ChartCard>
 
+      {stats.weeklyZones.length > 0 && (
+        <ChartCard id="zones" title={t('zones.title')} hint={t('zones.hint')}>
+          <ZoneWeeklyChart weeks={zones} onOpenRange={openRange} />
+          <PolarizationNote weeks={zones} />
+        </ChartCard>
+      )}
+
+      {stats.longRunGuard && <RunSafeCard guard={stats.longRunGuard} />}
+
       {stats.monotony.some((w) => w.monotony != null) && (
-        <ChartCard id="monotony" title={t('monotony.title')} hint={t('monotony.hint')}>
+        <ChartCard
+          id="monotony"
+          title={t('monotony.title')}
+          hint={t('monotony.hint')}
+          summary={
+            currentMonotony?.monotony != null
+              ? t('monotony.summary', {
+                  value: currentMonotony.monotony.toFixed(2),
+                  strain: Math.round(currentMonotony.strain ?? 0),
+                })
+              : undefined
+          }
+        >
           <MonotonyChart weeks={monotony} onOpenRange={openRange} />
         </ChartCard>
       )}

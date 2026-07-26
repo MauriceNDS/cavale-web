@@ -355,6 +355,23 @@ export interface DurabilityPoint {
   durationMin: number
 }
 
+/** One ISO week of time in HR zones — seconds for Z1…Z5. */
+export interface WeekZones {
+  weekStart: string
+  seconds: number[]
+  partlyEstimated: boolean
+}
+
+/** RUNSAFE long-run guard: where the next long run's injury hazard steps up. */
+export interface LongRunGuard {
+  recentLongestKm: number
+  longestOn: string
+  elevatedFromKm: number
+  highFromKm: number
+  lastRunKm: number | null
+  lastRunBand: 'NORMAL' | 'ELEVATED' | 'HIGH' | null
+}
+
 export interface RunningStatsResponse {
   form: DayForm[]
   weeklyEffort: WeekEffort[]
@@ -369,6 +386,8 @@ export interface RunningStatsResponse {
   vo2maxTrend: Vo2maxPoint[]
   criticalPace: CriticalPace | null
   durability: DurabilityPoint[]
+  weeklyZones: WeekZones[]
+  longRunGuard: LongRunGuard | null
 }
 
 /** @param allTime stretch every series back to the first activity (months=0). */
