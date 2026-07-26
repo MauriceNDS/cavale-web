@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
-import { Check, ChevronLeft, ChevronRight, Link2, List, Unlink2, X } from 'lucide-react'
+import { Check, ChevronLeft, ChevronRight, Link2, List, Timer, Unlink2, X } from 'lucide-react'
 import { ApiError } from '../../lib/api'
 import { muted } from '../../lib/ui'
 import { Modal } from '../../components/Modal'
@@ -339,7 +339,7 @@ export function WorkoutPage() {
   }
 
   return (
-    <div className="mx-auto mt-3 max-w-2xl pb-28" onPointerDownCapture={() => rest.unlockSound()}>
+    <div className="mx-auto mt-3 max-w-2xl pb-44 md:pb-28" onPointerDownCapture={() => rest.unlockSound()}>
       <WorkoutHeader
         detail={detail}
         finished={finished}
@@ -469,7 +469,12 @@ function WorkoutHeader({
             {detail.log.templateName ?? t('workout.untitled')}
           </p>
           <p className={`flex items-center gap-2 text-xs tabular-nums ${muted}`}>
-            {!finished && <span>⏱ {formatElapsed(detail.log.startedAt)}</span>}
+            {!finished && (
+              <span className="inline-flex items-center gap-1">
+                <Timer size={12} aria-hidden />
+                {formatElapsed(detail.log.startedAt)}
+              </span>
+            )}
             <SyncChip />
           </p>
         </div>
@@ -1050,7 +1055,7 @@ function RestBar({
 
   const over = rest.ringing
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-moss-200 bg-moss-50/97 px-4 pt-2.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur dark:border-moss-750 dark:bg-moss-900/97">
+    <div className="fixed inset-x-0 bottom-16 z-50 border-y border-moss-200 bg-moss-50/97 px-4 py-2.5 backdrop-blur md:bottom-0 md:border-b-0 md:pb-[max(0.625rem,env(safe-area-inset-bottom))] dark:border-moss-750 dark:bg-moss-900/97">
       <div className="mx-auto max-w-2xl">
         <div
           className={`flex items-center gap-2 rounded-xl px-3 py-2.5 transition ${
