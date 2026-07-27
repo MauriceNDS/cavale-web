@@ -143,11 +143,15 @@ interface NavItem {
 }
 
 const NAV: NavItem[] = [
+  // Bar order is deliberate: Home far left, Planning dead center (5 slots
+  // with the account tab), consulting (Stats) between them, doing (Renfo)
+  // right of center. Activities lives in the account sheet and behind the
+  // stats drill-downs.
   { label: 'nav.home', to: '/', icon: IconHome, mobileTab: true },
+  { label: 'nav.stats', to: '/stats', icon: IconChart, mobileTab: true },
   { label: 'nav.calendar', to: '/planning', icon: IconCalendar, mobileTab: true },
   { label: 'nav.gym', to: '/renfo', icon: IconDumbbell, mobileTab: true, needsGym: true },
-  { label: 'nav.activities', to: '/activites', icon: IconPulse, mobileTab: true },
-  { label: 'nav.stats', to: '/stats', icon: IconChart },
+  { label: 'nav.activities', to: '/activites', icon: IconPulse },
   { label: 'nav.objective', to: '/objectif', icon: IconTarget },
   { label: 'nav.coach', to: '/coach', icon: IconWhistle },
 ]
