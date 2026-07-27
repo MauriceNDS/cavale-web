@@ -39,7 +39,11 @@ export function ChartSurface({
   children,
 }: ChartSurfaceProps) {
   const { ref, width } = useMeasuredWidth<HTMLDivElement>(FALLBACK_W)
-  const [hover, setHover] = useState<number | null>(null)
+  const [rawHover, setHover] = useState<number | null>(null)
+  // A touch hover survives the finger lifting, so it can outlive a data
+  // reload that shrinks the chart (e.g. switching the stats range) — clamp
+  // it or tooltips would index past the new series.
+  const hover = rawHover != null && rawHover < count ? rawHover : null
   /* Touch contract: first tap inspects (tooltip), only a second tap on the
    * already-highlighted slot drills down — releasing a scrub must never
    * navigate. Mouse keeps hover-to-inspect / click-to-drill. */
