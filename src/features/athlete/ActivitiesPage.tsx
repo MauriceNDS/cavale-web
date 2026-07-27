@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link, useSearch } from '@tanstack/react-router'
 import { format, parseISO } from 'date-fns'
 import { useTranslation } from 'react-i18next'
-import { Bike, Dumbbell, Footprints } from 'lucide-react'
+import { Bike, Dumbbell, Footprints, SlidersHorizontal } from 'lucide-react'
 import { dateLocale } from '../../i18n'
 import { muted } from '../../lib/ui'
 import { useAuth } from '../auth/session'
@@ -36,6 +36,9 @@ export function ActivitiesPage() {
   const [q, setQ] = useState('')
   const [from, setFrom] = useState(search.from ?? '')
   const [to, setTo] = useState(search.to ?? '')
+  // The date filters hide behind the toggle; a stats drill-down (?from/?to)
+  // arrives with them open so the narrowed range is visible.
+  const [filtersOpen, setFiltersOpen] = useState(!!(search.from || search.to))
 
   const filters: FeedFilters = { q, from: from || undefined, to: to || undefined }
   const query = useQuery({
@@ -88,43 +91,60 @@ export function ActivitiesPage() {
         </div>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-2">
+      <div className="mt-3 flex items-center gap-2">
         <input
           value={q}
           onChange={(event) => resetPage(setQ)(event.target.value)}
           placeholder={t('activities.searchPlaceholder')}
           aria-label={t('activities.searchAria')}
-          className={`${fieldClass} w-full sm:w-56`}
+          className={`${fieldClass} min-w-0 flex-1 sm:max-w-64`}
         />
-        <label className={`flex items-center gap-1.5 text-xs ${muted}`}>
-          {t('activities.from')}
-          <input type="date" value={from} aria-label={t('activities.fromAria')}
-            onChange={(event) => resetPage(setFrom)(event.target.value)} className={fieldClass} />
-        </label>
-        <label className={`flex items-center gap-1.5 text-xs ${muted}`}>
-          {t('activities.to')}
-          <input type="date" value={to} aria-label={t('activities.toAria')}
-            onChange={(event) => resetPage(setTo)(event.target.value)} className={fieldClass} />
-        </label>
-        {(q || from || to) && (
-          <button
-            onClick={() => {
-              setQ('')
-              setFrom('')
-              setTo('')
-              setPage(0)
-            }}
-            className="text-xs font-medium text-pine-700 underline dark:text-pine-300"
-          >
-            {t('activities.clear')}
-          </button>
-        )}
+        <button
+          onClick={() => setFiltersOpen(!filtersOpen)}
+          aria-expanded={filtersOpen}
+          aria-label={t('activities.dateFilters')}
+          className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg border transition ${
+            from || to
+              ? 'border-pine-600/50 bg-pine-100 text-pine-700 dark:border-pine-350/50 dark:bg-pine-900 dark:text-pine-300'
+              : `border-moss-200 text-moss-500 hover:bg-moss-100 dark:border-moss-750 dark:text-moss-400 dark:hover:bg-moss-800`
+          }`}
+        >
+          <SlidersHorizontal size={16} />
+        </button>
         {data && (
-          <span className={`ml-auto text-xs ${muted}`}>
+          <span className={`ml-auto shrink-0 text-xs ${muted}`}>
             {t('activities.count', { count: data.total })}
           </span>
         )}
       </div>
+
+      {filtersOpen && (
+        <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-moss-200 bg-moss-50 p-2.5 dark:border-moss-750 dark:bg-moss-900">
+          <label className={`flex items-center gap-1.5 text-xs ${muted}`}>
+            {t('activities.from')}
+            <input type="date" value={from} aria-label={t('activities.fromAria')}
+              onChange={(event) => resetPage(setFrom)(event.target.value)} className={fieldClass} />
+          </label>
+          <label className={`flex items-center gap-1.5 text-xs ${muted}`}>
+            {t('activities.to')}
+            <input type="date" value={to} aria-label={t('activities.toAria')}
+              onChange={(event) => resetPage(setTo)(event.target.value)} className={fieldClass} />
+          </label>
+          {(q || from || to) && (
+            <button
+              onClick={() => {
+                setQ('')
+                setFrom('')
+                setTo('')
+                setPage(0)
+              }}
+              className="text-xs font-medium text-pine-700 underline dark:text-pine-300"
+            >
+              {t('activities.clear')}
+            </button>
+          )}
+        </div>
+      )}
 
       {query.isError && (
         <p className="mt-8 text-center text-clay-500 dark:text-clay-300">

@@ -89,6 +89,7 @@ export default {
     filterGym: 'Renfo',
     searchPlaceholder: 'Rechercher par nom…',
     searchAria: 'Rechercher une activité',
+    dateFilters: 'Filtrer par dates',
     from: 'du',
     to: 'au',
     fromAria: 'Date de début',

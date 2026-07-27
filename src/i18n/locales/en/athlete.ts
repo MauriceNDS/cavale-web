@@ -89,6 +89,7 @@ export default {
     filterGym: 'Strength',
     searchPlaceholder: 'Search by name…',
     searchAria: 'Search activities',
+    dateFilters: 'Filter by dates',
     from: 'from',
     to: 'to',
     fromAria: 'Start date',
