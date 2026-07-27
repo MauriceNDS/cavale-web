@@ -4,19 +4,16 @@ import {
   GridY,
   TooltipLines,
   XLabels,
-  bandX,
   labelStep,
   linearY,
-  niceTicks,
   pointX,
-  roundedTopBar,
 } from '../../components/chartkit'
-import { numberLocale } from '../../i18n'
 import { muted } from '../../lib/ui'
 
 /*
- * Hub trend charts on the shared chart kit. Single series per chart (the
- * title names it — no legend), hairline grids, hover tooltips.
+ * Trend charts on the shared chart kit (today: the stats EvolutionCard).
+ * Single series per chart (the title names it — no legend), hairline grids,
+ * hover tooltips.
  */
 
 const H = 190
@@ -34,66 +31,6 @@ export interface PeriodPoint {
   avgHr: number | null
   avgCadenceSpm: number | null
   relativeEffort: number
-}
-
-/* ── Volume bars per period (km / D+) ──────────────────────────────── */
-
-interface PeriodBarsProps {
-  periods: PeriodPoint[]
-  value: (p: PeriodPoint) => number
-  unit: string
-  /** Bucket click-through (drill-down) — receives the clicked period. */
-  onSelect?: (p: PeriodPoint) => void
-}
-
-export function PeriodBars({ periods, value, unit, onSelect }: PeriodBarsProps) {
-  const { t } = useTranslation('athlete')
-  const max = Math.max(...periods.map(value), 1)
-  const ticks = niceTicks(max)
-  const top = ticks[ticks.length - 1] || 1
-
-  return (
-    <ChartSurface
-      height={H}
-      ariaLabel={t('charts.volumeAria', { unit })}
-      count={periods.length}
-      onSelect={onSelect && ((i) => onSelect(periods[i]))}
-      tooltip={(i) => (
-        <TooltipLines
-          lines={[
-            periods[i].label,
-            `${unit} : ${value(periods[i]).toLocaleString(numberLocale())}`,
-            `${t('charts.runs')} : ${periods[i].runs}`,
-            onSelect ? t('charts.drill') : null,
-          ]}
-        />
-      )}
-    >
-      {(frame, hover) => {
-        const y = linearY(frame, 0, top)
-        const { band, left, center } = bandX(frame, periods.length)
-        const barWidth = Math.min(24, band * 0.6)
-        const step = labelStep(band)
-        return (
-          <>
-            <GridY frame={frame} ticks={ticks} y={y} />
-            {periods.map((period, i) => {
-              const v = value(period)
-              return v > 0 ? (
-                <path
-                  key={period.key}
-                  d={roundedTopBar(left(i) + (band - barWidth) / 2, y(v), barWidth, y(0) - y(v))}
-                  className="fill-pine-600 dark:fill-pine-350"
-                  opacity={hover === i ? 1 : 0.9}
-                />
-              ) : null
-            })}
-            <XLabels frame={frame} count={periods.length} x={center} step={step} label={(i) => periods[i].label} />
-          </>
-        )
-      }}
-    </ChartSurface>
-  )
 }
 
 /* ── Trend line per period (pace / HR / cadence) ───────────────────── */

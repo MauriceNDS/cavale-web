@@ -20,6 +20,7 @@ import {
 } from './api'
 import { ObjectiveForm } from './ObjectiveForm'
 import { SeasonForm } from './SeasonForm'
+import { SeasonsSection } from './SeasonsSection'
 import { CourseSection } from './CourseSection'
 import { CumulativeChart, WeeklyChart, type Metric } from './charts'
 import {
@@ -192,6 +193,8 @@ function ObjectiveContent({ progress }: { progress: PlanProgressResponse }) {
         createError={errorOf(createMutation.error)}
         updateError={errorOf(updateMutation.error)}
       />
+
+      <SeasonsSection />
     </div>
   )
 }

@@ -1,14 +1,18 @@
 import { useQuery } from '@tanstack/react-query'
+import { addDays, format, parseISO } from 'date-fns'
 import { useTranslation } from 'react-i18next'
+import { ProgressRing, RING_COLORS } from '../../components/ProgressRing'
 import { numberLocale } from '../../i18n'
 import { card, muted } from '../../lib/ui'
-import { fetchPlanDetail, type WeekResponse } from '../calendar/api'
+import { fetchCalendar, fetchPlanDetail, type WeekResponse } from '../calendar/api'
 import type { AthleteHub } from './api'
 import { formatHours } from './labels'
 
 /**
- * The "am I on track this week?" card: km / D+ / time done so far, next to
- * last week's numbers and — when a season is active — the plan's target.
+ * The "am I on track this week?" card. With an active plan week it shows
+ * completion rings — km, D+ and sessions against the week's targets, the
+ * calendar's ring colors. Without a plan it falls back to the plain
+ * done-so-far numbers.
  */
 export function WeekSnapshotCard({ hub }: { hub: AthleteHub }) {
   const { t } = useTranslation('athlete')
@@ -21,6 +25,12 @@ export function WeekSnapshotCard({ hub }: { hub: AthleteHub }) {
     queryFn: () => fetchPlanDetail(currentSeason!.planId),
     enabled: !!currentSeason,
   })
+  const weekEnd = thisWeek ? format(addDays(parseISO(thisWeek.weekStart), 6), 'yyyy-MM-dd') : ''
+  const sessions = useQuery({
+    queryKey: ['calendar', thisWeek?.weekStart, weekEnd],
+    queryFn: () => fetchCalendar(thisWeek!.weekStart, weekEnd),
+    enabled: !!currentSeason && !!thisWeek,
+  })
 
   if (!thisWeek) return null
 
@@ -29,6 +39,8 @@ export function WeekSnapshotCard({ hub }: { hub: AthleteHub }) {
   )
   const targetKm = planWeek?.estimatedVolumeKm ?? planWeek?.targetVolumeKm ?? null
   const targetD = planWeek?.targetElevationM ?? null
+  const sessionsPlanned = sessions.data?.length ?? 0
+  const sessionsDone = sessions.data?.filter((s) => s.status === 'DONE').length ?? 0
 
   return (
     <section className={card}>
@@ -38,71 +50,106 @@ export function WeekSnapshotCard({ hub }: { hub: AthleteHub }) {
           <span className={`text-xs ${muted}`}>{t(`calendar:weekType.${planWeek.weekType}`)}</span>
         )}
       </div>
-      <div className="mt-3 grid grid-cols-3 gap-3">
-        <Metric
-          value={`${Math.round(Number(thisWeek.distanceKm))} km`}
-          target={targetKm != null ? t('home.week.target', { value: `${Math.round(targetKm)} km` }) : null}
-          progress={targetKm ? Number(thisWeek.distanceKm) / targetKm : null}
-          last={lastWeek ? `${Math.round(Number(lastWeek.distanceKm))} km` : null}
-          lastLabel={t('home.week.lastWeek')}
-        />
-        <Metric
-          value={`${thisWeek.elevationM.toLocaleString(numberLocale())} m D+`}
-          target={
-            targetD != null
-              ? t('home.week.target', { value: `${targetD.toLocaleString(numberLocale())} m` })
-              : null
-          }
-          progress={targetD ? thisWeek.elevationM / targetD : null}
-          last={lastWeek ? `${lastWeek.elevationM.toLocaleString(numberLocale())} m` : null}
-          lastLabel={t('home.week.lastWeek')}
-        />
-        <Metric
-          value={formatHours(thisWeek.durationMin)}
-          target={null}
-          progress={null}
-          last={lastWeek ? formatHours(lastWeek.durationMin) : null}
-          lastLabel={t('home.week.lastWeek')}
-        />
-      </div>
+      {planWeek ? (
+        <div className="mt-3 flex flex-wrap items-start justify-around gap-x-4 gap-y-3">
+          <Ring
+            actual={Math.round(Number(thisWeek.distanceKm))}
+            target={targetKm != null ? Math.round(targetKm) : null}
+            unit="km"
+            label={t('calendar:header.metrics.volume')}
+            color={RING_COLORS.volume}
+          />
+          <Ring
+            actual={thisWeek.elevationM}
+            target={targetD}
+            unit="m"
+            label={t('calendar:header.metrics.elevation')}
+            color={RING_COLORS.elevation}
+          />
+          <Ring
+            actual={sessionsDone}
+            target={sessionsPlanned > 0 ? sessionsPlanned : null}
+            unit=""
+            label={t('home.week.sessions')}
+            color={RING_COLORS.load}
+          />
+        </div>
+      ) : (
+        <div className="mt-3 grid grid-cols-3 gap-3">
+          <Metric
+            value={`${Math.round(Number(thisWeek.distanceKm))} km`}
+            last={lastWeek ? `${Math.round(Number(lastWeek.distanceKm))} km` : null}
+            lastLabel={t('home.week.lastWeek')}
+          />
+          <Metric
+            value={`${thisWeek.elevationM.toLocaleString(numberLocale())} m D+`}
+            last={lastWeek ? `${lastWeek.elevationM.toLocaleString(numberLocale())} m` : null}
+            lastLabel={t('home.week.lastWeek')}
+          />
+          <Metric
+            value={formatHours(thisWeek.durationMin)}
+            last={lastWeek ? formatHours(lastWeek.durationMin) : null}
+            lastLabel={t('home.week.lastWeek')}
+          />
+        </div>
+      )}
+      {planWeek && lastWeek && (
+        <p className={`mt-3 text-center text-xs ${muted}`}>
+          {t('home.week.lastWeek')} {Math.round(Number(lastWeek.distanceKm))} km ·{' '}
+          {lastWeek.elevationM.toLocaleString(numberLocale())} m D+ ·{' '}
+          {formatHours(lastWeek.durationMin)}
+        </p>
+      )}
       {!currentSeason && <p className={`mt-2 text-xs ${muted}`}>{t('home.week.noPlan')}</p>}
     </section>
   )
 }
 
+/** One completion ring; without a target the ring stays unfilled and only the
+ *  done-so-far value shows. */
+function Ring({
+  actual,
+  target,
+  unit,
+  label,
+  color,
+}: {
+  actual: number
+  target: number | null
+  unit: string
+  label: string
+  color: string
+}) {
+  const suffix = unit ? ` ${unit}` : ''
+  return (
+    <ProgressRing
+      ratio={target ? actual / target : 0}
+      size={76}
+      strokeWidth={5}
+      label={label}
+      center={{
+        value: actual.toLocaleString(numberLocale()),
+        detail: target != null ? `/ ${target.toLocaleString(numberLocale())}${suffix}` : suffix.trim(),
+      }}
+      title={target != null ? `${actual}/${target}${suffix}` : `${actual}${suffix}`}
+      className={color}
+    />
+  )
+}
+
 function Metric({
   value,
-  target,
-  progress,
   last,
   lastLabel,
 }: {
   value: string
-  target: string | null
-  progress: number | null
   last: string | null
   lastLabel: string
 }) {
   return (
     <div>
       <p className="text-xl font-semibold">{value}</p>
-      {progress != null && (
-        <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-moss-100 dark:bg-moss-800">
-          <div
-            className={`h-full rounded-full ${progress > 1.15 ? 'bg-clay-500 dark:bg-clay-300' : 'bg-pine-600 dark:bg-pine-350'}`}
-            style={{ width: `${Math.min(100, progress * 100)}%` }}
-          />
-        </div>
-      )}
-      <p className={`mt-1 text-xs ${muted}`}>
-        {target != null && (
-          <>
-            {target}
-            <br />
-          </>
-        )}
-        {last != null && `${lastLabel} ${last}`}
-      </p>
+      <p className={`mt-1 text-xs ${muted}`}>{last != null && `${lastLabel} ${last}`}</p>
     </div>
   )
 }

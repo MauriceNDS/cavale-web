@@ -1,18 +1,16 @@
-import { useMemo, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useNavigate } from '@tanstack/react-router'
-import { addDays, differenceInCalendarDays, differenceInYears, endOfMonth, format, parseISO } from 'date-fns'
+import { Link } from '@tanstack/react-router'
+import { differenceInCalendarDays, differenceInYears, format, parseISO } from 'date-fns'
 import { Trans, useTranslation } from 'react-i18next'
-import { ConfirmDialog } from '../../components/ConfirmDialog'
+import { ProgressRing, RING_COLORS } from '../../components/ProgressRing'
 import { dateLocale, numberLocale } from '../../i18n'
 import { ApiError } from '../../lib/api'
 import { card, muted } from '../../lib/ui'
 import { fetchMe } from '../auth/api'
-import { deletePlan } from '../calendar/api'
 import { TodayCard } from '../calendar/TodayCard'
 import { CoachCard } from '../coach/CoachCard'
-import { OBJECTIVE_TYPE_BADGE, formatTimeMin, objectiveTypeLabel } from '../objective/labels'
-import { SeasonForm } from '../objective/SeasonForm'
+import { OBJECTIVE_TYPE_BADGE, objectiveTypeLabel } from '../objective/labels'
 import {
   analyzeStravaRecords,
   fetchHub,
@@ -22,20 +20,11 @@ import {
   type Season,
   type TrainingStatusLabel,
 } from './api'
-import { PeriodBars, type PeriodPoint } from './charts'
-import { formatHours, formatMonth } from './labels'
 import { WeekSnapshotCard } from './WeekSnapshotCard'
 
 // Safety cap on the self-chaining analyze drain: a backend that never reports
 // remaining === 0 must not spin up requests forever.
 const MAX_ANALYZE_BATCHES = 25
-
-const pill = (active: boolean) =>
-  `rounded-md px-3 py-1 text-xs font-medium transition ${
-    active
-      ? 'bg-moss-25 text-ink shadow-sm dark:bg-moss-850 dark:text-linen'
-      : 'text-moss-500 hover:text-ink dark:text-moss-400 dark:hover:text-linen'
-  }`
 
 export function HomePage() {
   const { t } = useTranslation('athlete')
@@ -57,8 +46,7 @@ function HubContent({ hub }: { hub: AthleteHub }) {
       <ProfileHeader hub={hub} />
       <WeekSnapshotCard hub={hub} />
       <CoachCard />
-      <ObjectivesRail seasons={hub.seasons} />
-      <TrendsSection hub={hub} />
+      <NextObjectiveCard seasons={hub.seasons} />
     </div>
   )
 }
@@ -260,288 +248,86 @@ function SyncCard({ sync }: { sync: AthleteHub['sync'] }) {
   )
 }
 
-/* ── Objectives: past / current / next ─────────────────────────────── */
+/* ── Next objective: the one-glance season card ────────────────────── */
 
-function ObjectivesRail({ seasons }: { seasons: Season[] }) {
+/**
+ * Compact pointer to the Objectif page: the current season's race (or the
+ * next planned one), its date, the D-countdown inside a ring showing how far
+ * into the season we are. Management lives on /objectif.
+ */
+function NextObjectiveCard({ seasons }: { seasons: Season[] }) {
   const { t } = useTranslation('athlete')
-  const past = seasons.filter((s) => s.timeframe === 'PAST')
-  const current = seasons.find((s) => s.timeframe === 'CURRENT')
-  const future = seasons.filter((s) => s.timeframe === 'FUTURE')
-  // On mobile only the current season shows by default — past/future columns
-  // (often empty states) otherwise eat the first screen.
-  const [showAll, setShowAll] = useState(false)
-  const hiddenColumn = showAll ? '' : 'hidden md:block'
+  const season =
+    seasons.find((s) => s.timeframe === 'CURRENT') ??
+    seasons.filter((s) => s.timeframe === 'FUTURE').sort((a, b) => a.endDate.localeCompare(b.endDate))[0]
 
-  return (
-    <section className={card}>
-      <h2 className="font-display text-lg font-semibold">{t('home.objectives.title')}</h2>
-      <div className="mt-3 grid gap-3 md:grid-cols-3">
-        <div className={hiddenColumn}>
-          <ObjectiveColumn title={t('home.objectives.past')}>
-            {past.length === 0 && <EmptyNote>{t('home.objectives.noPast')}</EmptyNote>}
-            {past
-              .slice()
-              .reverse()
-              .map((season) => (
-                <SeasonCard key={season.planId} season={season} />
-              ))}
-          </ObjectiveColumn>
-        </div>
-        <div className="order-first md:order-none">
-          <ObjectiveColumn title={t('home.objectives.current')} highlight>
-            {current ? (
-              <SeasonCard season={current} showLink />
-            ) : (
-              <>
-                <EmptyNote>{t('home.objectives.noActive')}</EmptyNote>
-                <Link
-                  to="/objectif"
-                  className="inline-block text-sm font-medium text-pine-700 underline dark:text-pine-300"
-                >
-                  {t('home.objectives.createFirst')}
-                </Link>
-              </>
-            )}
-          </ObjectiveColumn>
-        </div>
-        <div className={hiddenColumn}>
-          <ObjectiveColumn title={t('home.objectives.upcoming')}>
-            {future.map((season) => (
-              <SeasonCard key={season.planId} season={season} deletable />
-            ))}
-            <NextObjectiveForm hasFuture={future.length > 0} />
-          </ObjectiveColumn>
-        </div>
-      </div>
-      <button
-        onClick={() => setShowAll(!showAll)}
-        className="mt-3 text-sm font-medium text-pine-700 hover:underline md:hidden dark:text-pine-300"
-      >
-        {showAll ? t('home.objectives.hideAll') : t('home.objectives.showAll')}
-      </button>
-    </section>
-  )
-}
-
-function ObjectiveColumn({ title, highlight, children }: { title: string; highlight?: boolean; children: React.ReactNode }) {
-  return (
-    <div
-      className={`h-full rounded-lg border p-3 ${
-        highlight
-          ? 'border-pine-600/40 bg-pine-100/40 dark:border-pine-350/40 dark:bg-pine-900/30'
-          : 'border-moss-200 bg-moss-50 dark:border-moss-750 dark:bg-moss-900'
-      }`}
-    >
-      <p className={`text-[11px] font-semibold tracking-wide uppercase ${muted}`}>{title}</p>
-      <div className="mt-2 space-y-2">{children}</div>
-    </div>
-  )
-}
-
-function EmptyNote({ children }: { children: React.ReactNode }) {
-  return <p className={`text-sm ${muted}`}>{children}</p>
-}
-
-function SeasonCard({ season, showLink, deletable }: { season: Season; showLink?: boolean; deletable?: boolean }) {
-  const { t } = useTranslation('athlete')
-  const queryClient = useQueryClient()
-  const [confirmingDelete, setConfirmingDelete] = useState(false)
-  const objective = season.objective
-  const date = objective?.date ?? season.endDate
-  const days = differenceInCalendarDays(parseISO(date), new Date())
-
-  const deleteMutation = useMutation({
-    mutationFn: deletePlan,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['hub'] })
-      queryClient.invalidateQueries({ queryKey: ['plans'] })
-    },
-  })
-
-  return (
-    <div className="rounded-lg border border-moss-200 bg-moss-25 p-3 dark:border-moss-750 dark:bg-moss-850">
-      <div className="flex items-center justify-between gap-2">
-        <p className="font-medium">{objective?.name ?? season.planName}</p>
-        {objective && (
-          <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${OBJECTIVE_TYPE_BADGE[objective.type]}`}>
-            {objectiveTypeLabel(objective.type)}
-          </span>
-        )}
-      </div>
-      <p className={`mt-0.5 text-sm ${muted}`}>
-        {format(parseISO(date), 'd MMM yyyy', { locale: dateLocale() })}
-        {objective?.distanceKm != null && ` · ${objective.distanceKm} km`}
-        {objective?.resultTimeMin != null &&
-          ` · ${t('home.objectives.doneChip', { time: formatTimeMin(objective.resultTimeMin) })}`}
-        {objective?.resultTimeMin == null &&
-          objective?.targetTimeMin != null &&
-          ` · ${t('home.objectives.targetChip', { time: formatTimeMin(objective.targetTimeMin) })}`}
-      </p>
-      {season.timeframe === 'CURRENT' && days >= 0 && (
-        <p className="mt-1 font-display text-xl font-semibold text-pine-700 dark:text-pine-300">
-          {t('home.objectives.countdown', { count: days })}
-        </p>
-      )}
-      {showLink && (
+  if (!season) {
+    return (
+      <section className={card}>
+        <h2 className="font-display text-lg font-semibold">{t('home.next.title')}</h2>
+        <p className={`mt-2 text-sm ${muted}`}>{t('home.next.none')}</p>
         <Link
           to="/objectif"
           className="mt-1 inline-block text-sm font-medium text-pine-700 underline dark:text-pine-300"
         >
-          {t('home.objectives.seeProgress')}
+          {t('home.next.create')}
         </Link>
-      )}
-      {deletable && (
-        <>
-          <button
-            onClick={() => setConfirmingDelete(true)}
-            disabled={deleteMutation.isPending}
-            className="mt-1 text-xs font-medium text-clay-500 transition hover:text-clay-600 disabled:opacity-50 dark:text-clay-300 dark:hover:text-clay-300/80"
-          >
-            {t('common:delete')}
-          </button>
-          {confirmingDelete && (
-            <ConfirmDialog
-              title={t('common:delete')}
-              message={t('home.objectives.deleteConfirm', {
-                name: objective?.name ?? season.planName,
-              })}
-              confirmLabel={t('common:delete')}
-              danger
-              busy={deleteMutation.isPending}
-              onConfirm={() => deleteMutation.mutate(season.planId)}
-              onCancel={() => setConfirmingDelete(false)}
-            />
-          )}
-        </>
-      )}
-      {deleteMutation.error instanceof ApiError && (
-        <p role="alert" className="mt-1 text-xs text-clay-500 dark:text-clay-300">
-          {deleteMutation.error.message}
-        </p>
-      )}
-    </div>
-  )
-}
-
-/** Plan the next season — full details, same form as the main objective. */
-function NextObjectiveForm({ hasFuture }: { hasFuture: boolean }) {
-  const { t } = useTranslation('athlete')
-  const [open, setOpen] = useState(false)
-
-  if (!open) {
-    return (
-      <button
-        onClick={() => setOpen(true)}
-        className={`w-full rounded-lg border border-dashed border-moss-300 px-3 py-2 text-sm font-medium ${muted} transition hover:border-pine-600 hover:text-pine-700 dark:border-moss-700 dark:hover:border-pine-350 dark:hover:text-pine-300`}
-      >
-        {hasFuture ? t('home.objectives.addAnother') : t('home.objectives.addFirst')}
-      </button>
+      </section>
     )
   }
 
-  return (
-    <div className="rounded-lg border border-moss-200 bg-moss-25 p-3 dark:border-moss-750 dark:bg-moss-850">
-      <SeasonForm onDone={() => setOpen(false)} onCancel={() => setOpen(false)} />
-    </div>
+  const objective = season.objective
+  const date = objective?.date ?? season.endDate
+  const days = differenceInCalendarDays(parseISO(date), new Date())
+  const seasonDays = Math.max(
+    differenceInCalendarDays(parseISO(season.endDate), parseISO(season.startDate)),
+    1,
   )
-}
-
-/* ── Trends: the one compact volume chart ──────────────────────────── */
-
-type VolumeMetric = 'km' | 'dplus'
-type Granularity = 'week' | 'month'
-
-/** Zoom stops of the trend charts, per granularity. */
-const RANGES: Record<Granularity, number[]> = {
-  week: [8, 16, 26],
-  month: [6, 12, 24],
-}
-
-function TrendsSection({ hub }: { hub: AthleteHub }) {
-  const { t } = useTranslation('athlete')
-  const navigate = useNavigate()
-  const [volumeMetric, setVolumeMetric] = useState<VolumeMetric>('km')
-  const [granularity, setGranularity] = useState<Granularity>('month')
-  const [range, setRange] = useState<Record<Granularity, number>>({ week: 16, month: 12 })
-  const { monthly, totals } = hub
-  // Tolerate a hub payload from an API deployed moments before this build.
-  const weekly = hub.weekly ?? []
-
-  const periods = useMemo<PeriodPoint[]>(
-    () =>
-      granularity === 'month'
-        ? monthly
-            .slice(-range.month)
-            .map((m) => ({ ...m, key: m.month, label: formatMonth(m.month) }))
-        : weekly.slice(-range.week).map((w) => ({
-            ...w,
-            key: w.weekStart,
-            label: format(parseISO(w.weekStart), 'd MMM', { locale: dateLocale() }),
-          })),
-    [monthly, weekly, granularity, range],
+  const elapsed = Math.min(
+    Math.max(differenceInCalendarDays(new Date(), parseISO(season.startDate)) / seasonDays, 0),
+    1,
   )
 
   return (
     <section className={card}>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-display text-lg font-semibold">{t('home.trends.volumeTitle')}</h2>
-        <div className="flex gap-1 rounded-lg bg-moss-100 p-0.5 dark:bg-moss-800">
-          <button onClick={() => setVolumeMetric('km')} className={pill(volumeMetric === 'km')}>
-            {t('home.trends.distanceKm')}
-          </button>
-          <button onClick={() => setVolumeMetric('dplus')} className={pill(volumeMetric === 'dplus')}>
-            {t('home.trends.elevationM')}
-          </button>
+      <div className="flex items-center justify-between gap-4">
+        <div className="min-w-0">
+          <h2 className="font-display text-lg font-semibold">{t('home.next.title')}</h2>
+          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+            <p className="font-medium">{objective?.name ?? season.planName}</p>
+            {objective && (
+              <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${OBJECTIVE_TYPE_BADGE[objective.type]}`}>
+                {objectiveTypeLabel(objective.type)}
+              </span>
+            )}
+          </div>
+          <p className={`mt-0.5 text-sm ${muted}`}>
+            {format(parseISO(date), 'EEEE d MMMM yyyy', { locale: dateLocale() })}
+            {objective?.distanceKm != null && ` · ${objective.distanceKm} km`}
+            {objective?.elevationGainM != null &&
+              ` · ${objective.elevationGainM.toLocaleString(numberLocale())} m D+`}
+          </p>
+          <Link
+            to="/objectif"
+            className="mt-2 inline-block text-sm font-medium text-pine-700 underline dark:text-pine-300"
+          >
+            {t('home.next.seeProgress')}
+          </Link>
         </div>
+        {days >= 0 && (
+          <ProgressRing
+            ratio={season.timeframe === 'CURRENT' ? elapsed : 0}
+            size={76}
+            strokeWidth={5}
+            label={t('home.next.ringLabel')}
+            center={{
+              value: t('home.next.countdown', { count: days }),
+              detail: format(parseISO(date), 'd MMM', { locale: dateLocale() }),
+            }}
+            className={RING_COLORS.volume}
+          />
+        )}
       </div>
-      <p className={`mt-1 text-xs ${muted}`}>
-        {t('home.trends.yearSummary', {
-          duration: formatHours(totals.year.durationMin),
-          elevation: totals.year.elevationM.toLocaleString(numberLocale()),
-        })}
-      </p>
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <div className="flex gap-1 rounded-lg bg-moss-100 p-0.5 dark:bg-moss-800">
-          <button onClick={() => setGranularity('week')} className={pill(granularity === 'week')}>
-            {t('home.trends.byWeek')}
-          </button>
-          <button onClick={() => setGranularity('month')} className={pill(granularity === 'month')}>
-            {t('home.trends.byMonth')}
-          </button>
-        </div>
-        <div className="flex gap-1 rounded-lg bg-moss-100 p-0.5 dark:bg-moss-800">
-          {RANGES[granularity].map((n) => (
-            <button
-              key={n}
-              onClick={() => setRange({ ...range, [granularity]: n })}
-              className={pill(range[granularity] === n)}
-            >
-              {granularity === 'week'
-                ? t('home.trends.rangeWeeks', { count: n })
-                : t('home.trends.rangeMonths', { count: n })}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="mt-3">
-        <PeriodBars
-          periods={periods}
-          value={(p) => (volumeMetric === 'km' ? Math.round(p.distanceKm) : p.elevationM)}
-          unit={volumeMetric === 'km' ? 'km' : 'm D+'}
-          onSelect={(p) => {
-            const [from, to] =
-              granularity === 'month'
-                ? [`${p.key}-01`, format(endOfMonth(parseISO(`${p.key}-01`)), 'yyyy-MM-dd')]
-                : [p.key, format(addDays(parseISO(p.key), 6), 'yyyy-MM-dd')]
-            void navigate({ to: '/activites', search: { from, to } })
-          }}
-        />
-      </div>
-      <p className={`mt-2 text-xs ${muted}`}>
-        <Link to="/stats" className="text-pine-700 underline dark:text-pine-300">
-          {t('home.trends.allStats')}
-        </Link>
-      </p>
     </section>
   )
 }

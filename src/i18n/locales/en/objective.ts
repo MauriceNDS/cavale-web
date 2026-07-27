@@ -38,6 +38,18 @@ export default {
     generateProgramHint:
       'Weeks and default sessions are created automatically — everything stays editable.',
   },
+  seasons: {
+    title: 'Seasons',
+    past: 'Past',
+    upcoming: 'Upcoming',
+    noPast: 'No finished season yet.',
+    doneChip: 'done {{time}}',
+    targetChip: 'target {{time}}',
+    countdown: 'D−{{count}}',
+    addFirst: '+ Set the next goal',
+    addAnother: '+ Another future goal',
+    deleteConfirm: 'Delete "{{name}}" and its season?',
+  },
   main: {
     badge: 'Main goal',
     deleteSeason: 'Delete season',

@@ -38,6 +38,18 @@ export default {
     generateProgramHint:
       'Les semaines et des séances types sont créées automatiquement — tout reste modifiable.',
   },
+  seasons: {
+    title: 'Saisons',
+    past: 'Passées',
+    upcoming: 'À venir',
+    noPast: 'Aucune saison terminée.',
+    doneChip: 'réalisé {{time}}',
+    targetChip: 'visé {{time}}',
+    countdown: 'J−{{count}}',
+    addFirst: '+ Définir le prochain objectif',
+    addAnother: '+ Autre objectif futur',
+    deleteConfirm: 'Supprimer « {{name}} » et sa saison ?',
+  },
   main: {
     badge: 'Objectif principal',
     deleteSeason: 'Supprimer la saison',
