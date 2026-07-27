@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useMeasuredWidth } from '../../lib/useMeasuredWidth'
 import { scrubSurface } from '../../lib/ui'
@@ -40,6 +40,11 @@ export function ChartSurface({
 }: ChartSurfaceProps) {
   const { ref, width } = useMeasuredWidth<HTMLDivElement>(FALLBACK_W)
   const [hover, setHover] = useState<number | null>(null)
+  /* Touch contract: first tap inspects (tooltip), only a second tap on the
+   * already-highlighted slot drills down — releasing a scrub must never
+   * navigate. Mouse keeps hover-to-inspect / click-to-drill. */
+  const touchGesture = useRef(false)
+  const armed = useRef(false)
   const frame = makeFrame(width, height, { ...DEFAULT_PAD, ...pad })
   const { band, left } = bandX(frame, count)
   const anchorX = (i: number) => (xFor ? xFor(i, frame) : left(i) + band / 2)
@@ -47,7 +52,13 @@ export function ChartSurface({
   const tooltipContent = hover != null && tooltip ? tooltip(hover) : null
 
   return (
-    <div ref={ref} className={`relative ${scrubSurface}`} onPointerLeave={() => setHover(null)}>
+    <div
+      ref={ref}
+      className={`relative ${scrubSurface}`}
+      onPointerLeave={(e) => {
+        if (e.pointerType !== 'touch') setHover(null)
+      }}
+    >
       {tooltipContent != null && <TooltipBox x={anchorX(hover!)} width={width}>{tooltipContent}</TooltipBox>}
       <svg viewBox={`0 0 ${width} ${height}`} className="h-auto w-full" role="img" aria-label={ariaLabel}>
         {children(frame, hover)}
@@ -72,8 +83,18 @@ export function ChartSurface({
               height={height}
               fill="transparent"
               onPointerEnter={() => setHover(i)}
-              onPointerDown={() => setHover(i)}
-              onClick={onSelect ? () => onSelect(i) : undefined}
+              onPointerDown={(e) => {
+                touchGesture.current = e.pointerType === 'touch'
+                armed.current = hover === i
+                setHover(i)
+              }}
+              onClick={
+                onSelect
+                  ? () => {
+                      if (!touchGesture.current || armed.current) onSelect(i)
+                    }
+                  : undefined
+              }
               className={onSelect ? 'cursor-pointer' : undefined}
             />
           ))}
