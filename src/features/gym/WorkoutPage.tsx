@@ -2,9 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
-import { Check, ChevronLeft, ChevronRight, Link2, List, Timer, Unlink2, X } from 'lucide-react'
+import { Check, ChevronLeft, ChevronRight, Delete, Link2, List, Timer, Unlink2, X } from 'lucide-react'
 import { ApiError } from '../../lib/api'
-import { muted } from '../../lib/ui'
+import { layer, muted } from '../../lib/ui'
 import { Modal } from '../../components/Modal'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { ExerciseDetailSheet } from './ExerciseDetailSheet'
@@ -32,7 +32,10 @@ import {
   buildSteps,
   firstUnfinished,
   restAfter,
+  resumeRound,
+  roundComplete,
   setKey,
+  stepComplete,
   totalRows,
   type Step,
 } from './workoutModel'
@@ -331,26 +334,35 @@ export function WorkoutPage() {
     setDrafts((current) => ({ ...current, [key]: { ...draftFor(block, setNumber), ...patchDraft } }))
   }
 
-  function goTo(nextStep: number, nextRound: number) {
-    setStepIndex(Math.max(0, Math.min(steps.length - 1, nextStep)))
-    setRound(Math.max(1, nextRound))
+  /** Stay on this exercise, change set. */
+  function goToRound(nextRound: number) {
+    setRound(Math.max(1, Math.min(step?.rounds ?? 1, nextRound)))
+  }
+
+  /**
+   * Change exercise, landing on the set that exercise actually owes. Every
+   * way into another exercise — the strip, the list, the arrows — goes
+   * through here, so leaving one mid-way and coming back always resumes.
+   */
+  function jumpTo(nextStep: number) {
+    const index = Math.max(0, Math.min(steps.length - 1, nextStep))
+    const target = steps[index]
+    if (!target) return
+    setStepIndex(index)
+    setRound(resumeRound(target, detail!.log.sets))
     setMode('focus')
   }
 
   /** Advance past the round that was just completed. */
   function advance() {
     if (!step) return
-    if (round < step.rounds) {
-      setRound(round + 1)
-    } else if (stepIndex < steps.length - 1) {
-      setStepIndex(stepIndex + 1)
-      setRound(1)
-    }
+    if (round < step.rounds) setRound(round + 1)
+    else if (stepIndex < steps.length - 1) jumpTo(stepIndex + 1)
   }
 
   return (
     <div
-      className="mx-auto mt-3 max-w-2xl pb-44 md:pb-28"
+      className="mx-auto mt-3 max-w-2xl pb-[calc(11rem+env(safe-area-inset-bottom))] md:pb-28"
       onPointerDownCapture={() => restClock.unlockSound()}
     >
       <WorkoutHeader
@@ -392,7 +404,8 @@ export function WorkoutPage() {
           onAdjustSets={adjustSets}
           onToggleSkip={toggleSkip}
           onAdvance={advance}
-          onGoTo={goTo}
+          onJumpTo={jumpTo}
+          onGoToRound={goToRound}
         />
       )}
 
@@ -402,7 +415,7 @@ export function WorkoutPage() {
           steps={steps}
           activeStep={stepIndex}
           readOnly={finished}
-          onPick={(index) => goTo(index, 1)}
+          onPick={jumpTo}
           onToggleSkip={toggleSkip}
           onRegrouped={() => void queryClient.invalidateQueries({ queryKey: ['workout', workoutId] })}
           workoutId={workoutId}
@@ -484,7 +497,7 @@ function WorkoutHeader({
   })
 
   return (
-    <div className="sticky top-0 z-30 -mx-4 border-b border-moss-200 bg-moss-50/95 px-4 py-2.5 backdrop-blur md:mx-0 md:rounded-xl md:border dark:border-moss-750 dark:bg-moss-900/95">
+    <div className={`sticky top-0 ${layer.sticky} -mx-4 border-b border-moss-200 bg-moss-50/95 px-4 py-2.5 backdrop-blur md:mx-0 md:rounded-xl md:border dark:border-moss-750 dark:bg-moss-900/95`}>
       <div className="flex items-center gap-2">
         <div className="min-w-0 flex-1">
           <p className="truncate font-display text-base font-semibold">
@@ -585,7 +598,8 @@ function FocusStep({
   onAdjustSets,
   onToggleSkip,
   onAdvance,
-  onGoTo,
+  onJumpTo,
+  onGoToRound,
 }: {
   detail: WorkoutDetailResponse
   steps: Step[]
@@ -600,7 +614,8 @@ function FocusStep({
   onAdjustSets: (block: WorkoutBlockResponse, sets: number) => void
   onToggleSkip: (block: WorkoutBlockResponse) => void
   onAdvance: () => void
-  onGoTo: (stepIndex: number, round: number) => void
+  onJumpTo: (stepIndex: number) => void
+  onGoToRound: (round: number) => void
 }) {
   const { t } = useTranslation('gym')
   const [detailOf, setDetailOf] = useState<ExerciseResponse | null>(null)
@@ -610,30 +625,38 @@ function FocusStep({
   const superset = step.blocks.length > 1
   const nextStep = steps[stepIndex + 1]
 
-  const roundDone = due.every((block) =>
-    detail.log.sets.some((s) => s.exerciseId === block.exercise.id && s.setNumber === round),
-  )
+  const roundDone = roundComplete(step, round, detail.log.sets)
 
   return (
     <>
-      {/* the map, compressed to a strip: where am I, and how much is left */}
-      <div className="mt-3 flex items-center gap-1.5">
-        {steps.map((s, i) => (
-          <button
-            key={s.id}
-            onClick={() => onGoTo(i, 1)}
-            aria-label={t('workout.goToStep', { name: s.blocks[0].exercise.name })}
-            className={`h-1.5 flex-1 rounded-full transition ${
-              i < stepIndex
-                ? 'bg-pine-600 dark:bg-pine-350'
-                : i === stepIndex
-                  ? 'bg-copper-600 dark:bg-copper-300'
-                  : 'bg-moss-200 dark:bg-moss-750'
-            }`}
-          />
-        ))}
+      {/* the map, compressed to a strip: where am I, and how much is left.
+          Each bar is a jump to that exercise — a hairline is impossible to
+          hit, so the tap target is the padding around it. */}
+      <div className="mt-1 flex items-stretch gap-1.5">
+        {steps.map((s, i) => {
+          const done = stepComplete(s, detail.log.sets)
+          return (
+            <button
+              key={s.id}
+              onClick={() => onJumpTo(i)}
+              aria-label={t('workout.goToStep', { name: s.blocks[0].exercise.name })}
+              aria-current={i === stepIndex}
+              className="group flex-1 py-2.5"
+            >
+              <span
+                className={`block h-1.5 rounded-full transition group-active:scale-y-150 ${
+                  i === stepIndex
+                    ? 'bg-copper-600 dark:bg-copper-300'
+                    : done
+                      ? 'bg-pine-600 dark:bg-pine-350'
+                      : 'bg-moss-200 dark:bg-moss-750'
+                }`}
+              />
+            </button>
+          )
+        })}
       </div>
-      <p className={`mt-1.5 text-center text-xs ${muted}`}>
+      <p className={`text-center text-xs ${muted}`}>
         {t('workout.stepOf', { current: stepIndex + 1, total: steps.length })}
       </p>
 
@@ -644,6 +667,13 @@ function FocusStep({
             {t('workout.supersetRound', { key: step.groupKey, round, total: step.rounds })}
           </p>
         )}
+
+        <RoundChips
+          step={step}
+          round={round}
+          loggedSets={detail.log.sets}
+          onPick={onGoToRound}
+        />
 
         {due.length === 0 && (
           <p className={`py-6 text-center text-sm ${muted}`}>{t('workout.roundEmpty')}</p>
@@ -671,11 +701,15 @@ function FocusStep({
         </div>
       </div>
 
+      {/* The arrows change EXERCISE, the chips above change set. Keeping the
+          two axes apart is what lets you alternate two exercises without
+          pairing them: ‹ and › always land on the set each one still owes. */}
       <div className="mt-3 flex items-center gap-2">
         <button
-          onClick={() => onGoTo(round > 1 ? stepIndex : stepIndex - 1, round > 1 ? round - 1 : 1)}
-          disabled={stepIndex === 0 && round === 1}
+          onClick={() => onJumpTo(stepIndex - 1)}
+          disabled={stepIndex === 0}
           aria-label={t('workout.previous')}
+          title={steps[stepIndex - 1]?.blocks[0].exercise.name}
           className={tapBtn}
         >
           <ChevronLeft size={18} aria-hidden />
@@ -689,15 +723,16 @@ function FocusStep({
           }`}
         >
           {round < step.rounds
-            ? t('workout.nextRound', { round: round + 1 })
+            ? t(superset ? 'workout.nextRound' : 'workout.nextSet', { round: round + 1, n: round + 1 })
             : nextStep
               ? t('workout.nextExercise', { name: nextStep.blocks[0].exercise.name })
               : t('workout.lastStep')}
         </button>
         <button
-          onClick={() => onGoTo(stepIndex + 1, 1)}
+          onClick={() => onJumpTo(stepIndex + 1)}
           disabled={stepIndex >= steps.length - 1}
           aria-label={t('workout.next')}
+          title={nextStep?.blocks[0].exercise.name}
           className={tapBtn}
         >
           <ChevronRight size={18} aria-hidden />
@@ -713,6 +748,53 @@ function FocusStep({
         />
       )}
     </>
+  )
+}
+
+/**
+ * The sets of the exercise on screen: which are banked, which one you are
+ * on, and a way back to any of them — to redo a set, or to fix a number
+ * fat-fingered three sets ago.
+ */
+function RoundChips({
+  step,
+  round,
+  loggedSets,
+  onPick,
+}: {
+  step: Step
+  round: number
+  loggedSets: SetLogResponse[]
+  onPick: (round: number) => void
+}) {
+  const { t } = useTranslation('gym')
+  if (step.rounds < 2) return null
+  const superset = step.blocks.length > 1
+
+  return (
+    <div className="mb-3 flex items-center gap-1.5">
+      {Array.from({ length: step.rounds }, (_, i) => i + 1).map((r) => {
+        const done = roundComplete(step, r, loggedSets)
+        const current = r === round
+        return (
+          <button
+            key={r}
+            onClick={() => onPick(r)}
+            aria-current={current}
+            aria-label={t(superset ? 'workout.goToRound' : 'workout.goToSet', { n: r })}
+            className={`h-9 flex-1 rounded-lg border text-sm font-bold tabular-nums transition active:scale-95 ${
+              current
+                ? 'border-copper-600 bg-copper-600 text-moss-25 dark:border-copper-300 dark:bg-copper-300 dark:text-moss-950'
+                : done
+                  ? 'border-pine-600/40 bg-pine-100 text-pine-700 dark:border-pine-350/40 dark:bg-pine-900 dark:text-pine-300'
+                  : `border-moss-200 ${muted} dark:border-moss-750`
+            }`}
+          >
+            {done && !current ? <Check size={15} className="mx-auto" aria-hidden /> : r}
+          </button>
+        )
+      })}
+    </div>
   )
 }
 
@@ -1025,7 +1107,9 @@ function Keypad({
 }) {
   const { t } = useTranslation('gym')
   const [text, setText] = useState(value != null ? kg(value) : '')
-  const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', decimals ? '.' : '', '0', '⌫']
+  // 'del' rather than '⌫': the app font has no backspace glyph and renders
+  // a tofu box for it.
+  const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', decimals ? '.' : '', '0', 'del']
 
   return (
     <Modal title={title} onClose={onClose}>
@@ -1040,13 +1124,14 @@ function Keypad({
             <button
               key={i}
               onClick={() => {
-                if (key === '⌫') setText((current) => current.slice(0, -1))
+                if (key === 'del') setText((current) => current.slice(0, -1))
                 else if (key === '.' && text.includes('.')) return
                 else setText((current) => (current === '0' ? key : current + key))
               }}
-              className="rounded-xl border border-moss-200 py-3.5 font-display text-xl font-semibold transition active:scale-95 hover:bg-moss-100 dark:border-moss-750 dark:hover:bg-moss-800"
+              aria-label={key === 'del' ? t('workout.keypadDelete') : undefined}
+              className="grid place-items-center rounded-xl border border-moss-200 py-3.5 font-display text-xl font-semibold transition active:scale-95 hover:bg-moss-100 dark:border-moss-750 dark:hover:bg-moss-800"
             >
-              {key}
+              {key === 'del' ? <Delete size={20} aria-hidden /> : key}
             </button>
           ),
         )}
@@ -1142,7 +1227,8 @@ function StepList({
           step.blocks.some((b) => b.exercise.id === s.exerciseId),
         ).length
         const totalSets = step.blocks.reduce((sum, b) => sum + b.sets, 0)
-        const complete = totalSets > 0 && doneSets >= totalSets
+        const complete = stepComplete(step, detail.log.sets)
+        const resumesAt = resumeRound(step, detail.log.sets)
         return (
           <div
             key={step.id}
@@ -1174,6 +1260,8 @@ function StepList({
                 {complete
                   ? t('workout.stepComplete')
                   : t('workout.stepProgress', { done: doneSets, total: totalSets })}
+                {/* started but unfinished: say exactly where tapping lands */}
+                {!complete && doneSets > 0 && ` · ${t('workout.resumesAt', { n: resumesAt })}`}
               </span>
             </button>
 

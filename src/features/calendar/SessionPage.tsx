@@ -441,7 +441,7 @@ function SessionActions({
         </div>
       )}
       {/* Sticky on mobile: mid-workout, « Valider » stays one thumb away. */}
-      <div className="sticky bottom-[calc(3.75rem+env(safe-area-inset-bottom))] z-30 -mx-4 mt-6 border-t border-moss-200 bg-moss-50/95 px-4 py-3 backdrop-blur md:static md:z-auto md:mx-0 md:bg-transparent md:px-0 md:pt-4 md:pb-0 md:backdrop-blur-none dark:border-moss-750 dark:bg-moss-900/95 dark:md:bg-transparent">
+      <div className="sticky bottom-[var(--tab-bar-h)] z-30 -mx-4 mt-6 border-t border-moss-200 bg-moss-50/95 px-4 py-3 backdrop-blur md:static md:z-auto md:mx-0 md:bg-transparent md:px-0 md:pt-4 md:pb-0 md:backdrop-blur-none dark:border-moss-750 dark:bg-moss-900/95 dark:md:bg-transparent">
       <div className="flex flex-wrap gap-2">
       {session.discipline === 'RUN' && <ExportMenu session={session} size="md" />}
       {session.discipline === 'GYM' && session.status === 'PLANNED' && session.templateVariantId && (

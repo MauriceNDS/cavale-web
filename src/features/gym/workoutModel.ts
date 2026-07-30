@@ -59,6 +59,44 @@ export function blocksInRound(step: Step, round: number, loggedSets: SetLogRespo
   return step.blocks.filter((b) => !b.skipped && round <= totalRows(b, loggedSets))
 }
 
+/** Every block due in this round is banked — the round is behind you. */
+export function roundComplete(step: Step, round: number, loggedSets: SetLogResponse[]): boolean {
+  const due = blocksInRound(step, round, loggedSets)
+  return (
+    due.length > 0 &&
+    due.every((block) =>
+      loggedSets.some((s) => s.exerciseId === block.exercise.id && s.setNumber === round),
+    )
+  )
+}
+
+/** The rounds of a step that still owe work, in order. */
+function owedRounds(step: Step, loggedSets: SetLogResponse[]): number[] {
+  const owed: number[] = []
+  for (let round = 1; round <= step.rounds; round++) {
+    if (blocksInRound(step, round, loggedSets).length === 0) continue
+    if (!roundComplete(step, round, loggedSets)) owed.push(round)
+  }
+  return owed
+}
+
+/** Nothing left to log on this step. */
+export function stepComplete(step: Step, loggedSets: SetLogResponse[]): boolean {
+  return owedRounds(step, loggedSets).length === 0
+}
+
+/**
+ * Which set to land on when jumping to a step: the first one still owed, or
+ * the last one if the step is done.
+ *
+ * This is what makes alternating between two exercises work without pairing
+ * them into a superset — leave planks after set 1, do a side plank, come
+ * back and you are on plank set 2, not set 1 again.
+ */
+export function resumeRound(step: Step, loggedSets: SetLogResponse[]): number {
+  return owedRounds(step, loggedSets)[0] ?? Math.max(1, step.rounds)
+}
+
 /**
  * Where to resume: the first round of the first step that isn't finished.
  * Reopening the app mid-session should land where you actually are.
@@ -68,15 +106,8 @@ export function firstUnfinished(steps: Step[], loggedSets: SetLogResponse[]): {
   round: number
 } {
   for (let i = 0; i < steps.length; i++) {
-    const step = steps[i]
-    for (let round = 1; round <= step.rounds; round++) {
-      const due = blocksInRound(step, round, loggedSets)
-      if (due.length === 0) continue
-      const allLogged = due.every((block) =>
-        loggedSets.some((s) => s.exerciseId === block.exercise.id && s.setNumber === round),
-      )
-      if (!allLogged) return { stepIndex: i, round }
-    }
+    const owed = owedRounds(steps[i], loggedSets)
+    if (owed.length > 0) return { stepIndex: i, round: owed[0] }
   }
   return { stepIndex: Math.max(0, steps.length - 1), round: 1 }
 }

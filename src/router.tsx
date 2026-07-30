@@ -13,6 +13,7 @@ import { lazy, Suspense, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { LanguageToggle } from './components/LanguageToggle'
 import { LogoMark } from './components/LogoMark'
+import { layer } from './lib/ui'
 import { RestBar } from './features/gym/RestBar'
 import { ThemeToggle } from './components/ThemeToggle'
 import type { UserResponse } from './features/auth/api'
@@ -265,10 +266,10 @@ function SidebarAccount({ user, onLogout }: { user: UserResponse; onLogout: () =
       </button>
       {open && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} aria-hidden="true" />
+          <div className={`fixed inset-0 ${layer.dialog}`} onClick={() => setOpen(false)} aria-hidden="true" />
           <div
             role="menu"
-            className="absolute inset-x-0 bottom-full z-50 mb-2 rounded-xl border border-moss-200 bg-moss-25 p-2 shadow-lg dark:border-moss-750 dark:bg-moss-850"
+            className={`absolute inset-x-0 bottom-full ${layer.dialog} mb-2 rounded-xl border border-moss-200 bg-moss-25 p-2 shadow-lg dark:border-moss-750 dark:bg-moss-850`}
           >
             <AccountMenuItems
               showAdmin={user.role === 'ADMIN'}
@@ -295,13 +296,16 @@ function TabBar({ user, onLogout }: { user: UserResponse; onLogout: () => void }
 
   return (
     <>
-      <nav className={`fixed inset-x-0 bottom-0 z-40 grid ${tabs.length === 3 ? 'grid-cols-4' : 'grid-cols-5'} border-t border-moss-200 bg-moss-25/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden dark:border-moss-750 dark:bg-moss-850/95`}>
+      {/* min-h pins the bar to the height everything else offsets by
+          (`--tab-bar-h`); `min-` and not `h-` so a long label can still
+          push it taller rather than get clipped. */}
+      <nav className={`fixed inset-x-0 bottom-0 ${layer.chrome} grid min-h-[var(--tab-bar-h)] ${tabs.length === 3 ? 'grid-cols-4' : 'grid-cols-5'} border-t border-moss-200 bg-moss-25/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden dark:border-moss-750 dark:bg-moss-850/95`}>
         {tabs.map((item) => (
           <Link
             key={item.label}
             to={item.to!}
             activeOptions={{ exact: item.to === '/' }}
-            className="flex flex-col items-center gap-0.5 pt-2 pb-2.5 text-[10px] font-medium text-moss-500 transition dark:text-moss-400 [&.active]:text-pine-700 dark:[&.active]:text-pine-300 [&.active_.tab-pill]:bg-pine-100 dark:[&.active_.tab-pill]:bg-pine-900"
+            className="flex flex-col items-center gap-0.5 pt-2 pb-2.5 text-[10px] leading-tight font-medium text-moss-500 transition dark:text-moss-400 [&.active]:text-pine-700 dark:[&.active]:text-pine-300 [&.active_.tab-pill]:bg-pine-100 dark:[&.active_.tab-pill]:bg-pine-900"
           >
             <span className="tab-pill grid h-7 w-12 place-items-center rounded-full transition">
               {item.icon && <item.icon className="h-5.5 w-5.5" />}
@@ -313,7 +317,7 @@ function TabBar({ user, onLogout }: { user: UserResponse; onLogout: () => void }
           onClick={() => setMenuOpen(true)}
           aria-haspopup="menu"
           aria-expanded={menuOpen}
-          className={`flex flex-col items-center gap-0.5 pt-2 pb-2.5 text-[10px] font-medium transition ${
+          className={`flex flex-col items-center gap-0.5 pt-2 pb-2.5 text-[10px] leading-tight font-medium transition ${
             accountActive ? 'text-pine-700 dark:text-pine-300' : 'text-moss-500 dark:text-moss-400'
           }`}
         >
@@ -332,13 +336,13 @@ function TabBar({ user, onLogout }: { user: UserResponse; onLogout: () => void }
       {menuOpen && (
         <>
           <div
-            className="fixed inset-0 z-40 bg-moss-950/50 md:hidden"
+            className={`fixed inset-0 ${layer.dialog} bg-moss-950/50 md:hidden`}
             onClick={() => setMenuOpen(false)}
             aria-hidden="true"
           />
           <div
             role="menu"
-            className="fixed inset-x-0 bottom-0 z-50 rounded-t-2xl border-t border-moss-200 bg-moss-25 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:hidden dark:border-moss-750 dark:bg-moss-850"
+            className={`fixed inset-x-0 bottom-0 ${layer.dialog} rounded-t-2xl border-t border-moss-200 bg-moss-25 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:hidden dark:border-moss-750 dark:bg-moss-850`}
           >
             <div className="border-b border-moss-200 px-3 pt-1 pb-2.5 dark:border-moss-750">
               <p className="truncate text-sm font-semibold">{user.displayName}</p>
@@ -401,7 +405,7 @@ function Shell({ children }: { children: ReactNode }) {
     // landing page can scroll beneath it.
     return (
       <div className="min-h-screen">
-        <header className="sticky top-0 z-40 border-b border-moss-200 bg-moss-25/85 backdrop-blur dark:border-moss-750 dark:bg-moss-850/85">
+        <header className={`sticky top-0 ${layer.chrome} border-b border-moss-200 bg-moss-25/85 backdrop-blur dark:border-moss-750 dark:bg-moss-850/85`}>
           <nav className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3">
             <Link
               to="/"

@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { muted } from '../../lib/ui'
+import { layer, muted } from '../../lib/ui'
 import { restClock, useRestClock } from './restClock'
 
 export function formatCountdown(sec: number): string {
@@ -15,6 +15,10 @@ export function formatCountdown(sec: number): string {
  * runner renders its own richer version (it also asks for reps in
  * reserve), and says so, at which point this one stands down rather than
  * doubling up.
+ *
+ * It sits exactly on top of the tab bar (`--tab-bar-h`, safe area included)
+ * and one rung below any dialog: a countdown must never hide the keypad or
+ * the exercise sheet the athlete just opened.
  */
 export function RestBar({
   children,
@@ -31,7 +35,7 @@ export function RestBar({
   if (secondsLeft == null && !ringing) return null
 
   return (
-    <div className="fixed inset-x-0 bottom-16 z-50 border-y border-moss-200 bg-moss-50/97 px-4 py-2.5 backdrop-blur md:bottom-0 md:border-b-0 md:pb-[max(0.625rem,env(safe-area-inset-bottom))] dark:border-moss-750 dark:bg-moss-900/97">
+    <div className={`fixed inset-x-0 bottom-[var(--tab-bar-h)] ${layer.restBar} border-y border-moss-200 bg-moss-50/97 px-4 py-2.5 backdrop-blur md:bottom-0 md:border-b-0 md:pb-[max(0.625rem,env(safe-area-inset-bottom))] dark:border-moss-750 dark:bg-moss-900/97`}>
       <div className="mx-auto max-w-2xl">
         <div
           className={`flex items-center gap-2 rounded-xl px-3 py-2.5 transition ${

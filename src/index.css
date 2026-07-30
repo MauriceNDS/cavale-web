@@ -64,6 +64,14 @@
 }
 
 @layer base {
+  :root {
+    /* Height of the mobile tab bar, home indicator included. Anything pinned
+       above it (the gym rest countdown, a page's sticky action bar) offsets
+       by this — a bare 4rem leaves the bar's icons buried under it on any
+       phone with a safe area. Kept in sync with TabBar in src/router.tsx. */
+    --tab-bar-h: calc(4rem + env(safe-area-inset-bottom));
+  }
+
   html {
     font-family: var(--font-sans);
     @apply bg-moss-50 dark:bg-moss-900;

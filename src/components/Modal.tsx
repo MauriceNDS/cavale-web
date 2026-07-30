@@ -1,10 +1,16 @@
 import { useEffect, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
+import { layer } from '../lib/ui'
 
 /**
  * Shared overlay dialog: a bottom sheet on phones (thumb-first, mid-workout),
  * a centered card from sm up. Backdrop tap and Escape close it; the page
  * behind stops scrolling while it's open.
+ *
+ * Rendered through a portal on <body>: a dialog opened from inside a sticky,
+ * z-indexed header would otherwise be trapped in that header's stacking
+ * context, where its z-50 counts for nothing against the app's own chrome.
  */
 export function Modal({
   title,
@@ -31,9 +37,9 @@ export function Modal({
     }
   }, [onClose])
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 grid grid-rows-[1fr_auto] bg-moss-950/50 sm:place-items-center sm:p-4"
+      className={`fixed inset-0 ${layer.dialog} grid grid-rows-[1fr_auto] bg-moss-950/50 sm:place-items-center sm:p-4`}
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -59,6 +65,7 @@ export function Modal({
           <div className="mt-3">{children}</div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
