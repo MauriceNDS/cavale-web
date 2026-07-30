@@ -6,7 +6,6 @@ import { Check, ChevronLeft, ChevronRight, Delete, Link2, List, Timer, Unlink2, 
 import { ApiError } from '../../lib/api'
 import { layer, muted } from '../../lib/ui'
 import { Modal } from '../../components/Modal'
-import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { ExerciseDetailSheet } from './ExerciseDetailSheet'
 import {
   abandonWorkout,
@@ -118,6 +117,7 @@ export function WorkoutPage() {
   const [finishing, setFinishing] = useState(false)
   const [recap, setRecap] = useState<WorkoutRecapResponse | null>(null)
   const [addingExercise, setAddingExercise] = useState(false)
+  const [exiting, setExiting] = useState(false)
   const [placed, setPlaced] = useState(false)
 
   const steps = useMemo(() => (detail ? buildSteps(detail) : []), [detail])
@@ -361,8 +361,9 @@ export function WorkoutPage() {
   }
 
   return (
+    // the padding clears the rest bar, now flush at the bottom (no tab bar)
     <div
-      className="mx-auto mt-3 max-w-2xl pb-[calc(11rem+env(safe-area-inset-bottom))] md:pb-28"
+      className="mx-auto mt-3 max-w-2xl pb-[calc(8rem+env(safe-area-inset-bottom))] md:pb-28"
       onPointerDownCapture={() => restClock.unlockSound()}
     >
       <WorkoutHeader
@@ -370,19 +371,25 @@ export function WorkoutPage() {
         finished={finished}
         mode={mode}
         onToggleMode={() => setMode(mode === 'focus' ? 'list' : 'focus')}
+        onExit={() => setExiting(true)}
         onFinish={() => setFinishing(true)}
       />
 
       {finished && (
-        <p className="mt-3 rounded-lg bg-pine-100 p-3 text-sm font-medium text-pine-700 dark:bg-pine-900 dark:text-pine-300">
-          {t('workout.finishedIn', { min: detail.log.durationMin })}{' '}
-          {detail.log.sessionId && (
-            <Link to="/session/$sessionId" params={{ sessionId: detail.log.sessionId }}
-              className="underline">
-              {t('workout.viewSession')}
-            </Link>
-          )}
-        </p>
+        <>
+          <p className="mt-3 rounded-lg bg-pine-100 p-3 text-sm font-medium text-pine-700 dark:bg-pine-900 dark:text-pine-300">
+            {t('workout.finishedIn', { min: detail.log.durationMin })}{' '}
+            {detail.log.sessionId && (
+              <Link to="/session/$sessionId" params={{ sessionId: detail.log.sessionId }}
+                className="underline">
+                {t('workout.viewSession')}
+              </Link>
+            )}
+          </p>
+          <div className="mt-2">
+            <WorkoutStats detail={detail} steps={steps} />
+          </div>
+        </>
       )}
 
       {steps.length === 0 && (
@@ -438,6 +445,10 @@ export function WorkoutPage() {
         />
       )}
 
+      {exiting && !finished && (
+        <ExitPanel workoutId={detail.log.id} onCancel={() => setExiting(false)} />
+      )}
+
       {finishing && !finished && !recap && (
         <FinishPanel
           detail={detail}
@@ -472,29 +483,24 @@ function WorkoutHeader({
   finished,
   mode,
   onToggleMode,
+  onExit,
   onFinish,
 }: {
   detail: WorkoutDetailResponse
   finished: boolean
   mode: 'focus' | 'list'
   onToggleMode: () => void
+  onExit: () => void
   onFinish: () => void
 }) {
   const { t } = useTranslation('gym')
   const [, tick] = useState(0)
-  const [confirmingAbandon, setConfirmingAbandon] = useState(false)
-  const navigate = useNavigate()
 
   useEffect(() => {
     if (finished) return
     const id = setInterval(() => tick((n) => n + 1), 1000)
     return () => clearInterval(id)
   }, [finished])
-
-  const abandonMutation = useMutation({
-    mutationFn: () => abandonWorkout(detail.log.id),
-    onSuccess: () => void navigate({ to: '/renfo' }),
-  })
 
   return (
     <div className={`sticky top-0 ${layer.sticky} -mx-4 border-b border-moss-200 bg-moss-50/95 px-4 py-2.5 backdrop-blur md:mx-0 md:rounded-xl md:border dark:border-moss-750 dark:bg-moss-900/95`}>
@@ -513,7 +519,13 @@ function WorkoutHeader({
             <SyncChip />
           </p>
         </div>
-        {!finished && (
+        {finished ? (
+          // the runner hides the app's nav, so a finished workout still needs
+          // its own way back out
+          <Link to="/renfo" aria-label={t('workout.backToGym')} title={t('workout.backToGym')} className={tapBtn}>
+            <X size={18} aria-hidden />
+          </Link>
+        ) : (
           <>
             <button
               onClick={onToggleMode}
@@ -524,24 +536,13 @@ function WorkoutHeader({
               {mode === 'focus' ? <List size={18} aria-hidden /> : <ChevronLeft size={18} aria-hidden />}
             </button>
             <button
-              onClick={() => setConfirmingAbandon(true)}
-              aria-label={t('workout.abandon')}
-              title={t('workout.abandon')}
+              onClick={onExit}
+              aria-label={t('workout.exitAria')}
+              title={t('workout.exitAria')}
               className={`${tapBtn} hover:text-clay-500 dark:hover:text-clay-300`}
             >
               <X size={18} aria-hidden />
             </button>
-            {confirmingAbandon && (
-              <ConfirmDialog
-                title={t('workout.abandon')}
-                message={t('workout.abandonConfirm')}
-                confirmLabel={t('workout.abandon')}
-                danger
-                busy={abandonMutation.isPending}
-                onConfirm={() => abandonMutation.mutate()}
-                onCancel={() => setConfirmingAbandon(false)}
-              />
-            )}
             <button
               onClick={onFinish}
               className="rounded-xl bg-pine-600 px-3.5 py-2.5 text-sm font-semibold text-moss-25 transition hover:bg-pine-700 dark:bg-pine-350 dark:text-moss-950 dark:hover:bg-pine-300"
@@ -551,6 +552,108 @@ function WorkoutHeader({
           </>
         )}
       </div>
+    </div>
+  )
+}
+
+/**
+ * Leaving the runner. Two very different exits used to hide behind one ✕:
+ * stepping out for a minute, and throwing the session away. They are now
+ * spelled out, and the destructive one asks twice.
+ */
+function ExitPanel({ workoutId, onCancel }: { workoutId: string; onCancel: () => void }) {
+  const { t } = useTranslation('gym')
+  const navigate = useNavigate()
+  const [confirming, setConfirming] = useState(false)
+
+  const abandonMutation = useMutation({
+    mutationFn: () => abandonWorkout(workoutId),
+    onSuccess: () => void navigate({ to: '/renfo' }),
+  })
+
+  return (
+    <Modal title={t('workout.exitTitle')} onClose={onCancel}>
+      {confirming ? (
+        <>
+          <p className={`text-sm ${muted}`}>{t('workout.abandonConfirm')}</p>
+          <div className="mt-4 flex justify-end gap-2">
+            <button
+              autoFocus
+              onClick={() => setConfirming(false)}
+              disabled={abandonMutation.isPending}
+              className="rounded-lg border border-moss-200 px-4 py-2 text-sm font-medium transition hover:bg-moss-100 disabled:opacity-40 dark:border-moss-750 dark:hover:bg-moss-800"
+            >
+              {t('common:cancel')}
+            </button>
+            <button
+              onClick={() => abandonMutation.mutate()}
+              disabled={abandonMutation.isPending}
+              className="rounded-lg bg-clay-600 px-4 py-2 text-sm font-semibold text-moss-25 transition hover:bg-clay-500 disabled:opacity-40 dark:bg-clay-300 dark:text-moss-950"
+            >
+              {t('workout.abandon')}
+            </button>
+          </div>
+        </>
+      ) : (
+        <div className="space-y-2">
+          <p className={`text-sm ${muted}`}>{t('workout.exitHint')}</p>
+          <button
+            onClick={() => void navigate({ to: '/renfo' })}
+            className="w-full rounded-xl bg-pine-600 py-3 text-sm font-semibold text-moss-25 dark:bg-pine-350 dark:text-moss-950"
+          >
+            {t('workout.exitLater')}
+          </button>
+          <button
+            onClick={() => setConfirming(true)}
+            className="w-full py-2 text-sm font-medium text-clay-500 dark:text-clay-300"
+          >
+            {t('workout.abandon')}
+          </button>
+        </div>
+      )}
+    </Modal>
+  )
+}
+
+/**
+ * The session so far, in the same currencies the recap will use — warm-ups
+ * excluded, so the numbers on screen are the ones that will be banked.
+ */
+function WorkoutStats({ detail, steps }: { detail: WorkoutDetailResponse; steps: Step[] }) {
+  const { t } = useTranslation('gym')
+  const working = detail.log.sets.filter((s) => !s.warmup)
+  const plannedSets = detail.blocks
+    .filter((b) => !b.skipped)
+    .reduce((sum, b) => sum + b.sets, 0)
+  const doneSteps = steps.filter((s) => stepComplete(s, detail.log.sets)).length
+  const tonnage = working.reduce((sum, s) => sum + (s.weightKg ?? 0) * (s.reps ?? 0), 0)
+  const tension = working.reduce((sum, s) => sum + (s.seconds ?? 0), 0)
+
+  const tile = (value: string, label: string) => (
+    <div key={label} className="bg-moss-25 px-3 py-2 text-center dark:bg-moss-850">
+      <p className="font-display text-lg font-semibold tabular-nums">{value}</p>
+      <p className={`text-[11px] ${muted}`}>{label}</p>
+    </div>
+  )
+
+  // hairline-separated strip: one object on the page, four readings
+  return (
+    <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-moss-200 bg-moss-200 sm:grid-cols-4 dark:border-moss-750 dark:bg-moss-750">
+      {tile(`${doneSteps}/${steps.length}`, t('workout.recapExercises'))}
+      {tile(`${working.length}/${plannedSets}`, t('workout.recapSets'))}
+      {tonnage > 0 &&
+        tile(
+          tonnage >= 1000
+            ? `${(Math.round(tonnage / 100) / 10).toFixed(1)} t`
+            : `${Math.round(tonnage)} kg`,
+          t('workout.recapTonnage'),
+        )}
+      {/* under a minute, minutes would round a real 45 s plank to “1 min” */}
+      {tension > 0 &&
+        tile(
+          tension < 60 ? `${tension} s` : `${Math.round(tension / 60)} min`,
+          t('workout.recapTension'),
+        )}
     </div>
   )
 }
@@ -1222,6 +1325,10 @@ function StepList({
 
   return (
     <div className="mt-3 space-y-2">
+      {/* the list doubles as the session's summary — where am I, what has it
+          been worth so far */}
+      <WorkoutStats detail={detail} steps={steps} />
+
       {steps.map((step, index) => {
         const doneSets = detail.log.sets.filter((s) =>
           step.blocks.some((b) => b.exercise.id === s.exerciseId),

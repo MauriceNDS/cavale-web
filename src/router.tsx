@@ -474,12 +474,18 @@ function Shell({ children }: { children: ReactNode }) {
     navigate({ to: '/login' })
   }
 
+  // The live gym runner owns the screen. Mid-set, a tab bar is not a way to
+  // get somewhere, it is a way to lose your place — and a tap away from
+  // dropping the session. It comes back when you leave the workout, which
+  // the runner's own header is there for.
+  const immersive = pathname.startsWith('/entrainement/')
+
   // Signed-in chrome: sidebar (desktop) + bottom tabs (mobile) — no header;
   // identity, theme and logout live in the account menu.
   return (
     <div className="min-h-screen md:flex">
       {/* sticky: the account footer stays reachable on long pages */}
-      <aside className="hidden w-52 shrink-0 flex-col border-r border-moss-200 bg-moss-25 p-4 md:sticky md:top-0 md:flex md:h-screen md:overflow-y-auto dark:border-moss-750 dark:bg-moss-850">
+      <aside className={`${immersive ? 'hidden' : 'hidden md:sticky md:top-0 md:flex'} w-52 shrink-0 flex-col border-r border-moss-200 bg-moss-25 p-4 md:h-screen md:overflow-y-auto dark:border-moss-750 dark:bg-moss-850`}>
         <Link
           to="/"
           className="mb-6 flex items-center gap-2.5 px-3 font-display text-2xl font-semibold text-pine-700 dark:text-pine-300"
@@ -495,10 +501,16 @@ function Shell({ children }: { children: ReactNode }) {
 
       <div className="flex min-h-screen flex-1 flex-col">
         {user.demo && <DemoBanner onExit={handleLogout} />}
-        <main className="flex-1 px-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] md:px-8 md:pb-10">{children}</main>
+        <main
+          className={`flex-1 px-4 md:px-8 md:pb-10 ${
+            immersive ? 'pb-0' : 'pb-[calc(6.5rem+env(safe-area-inset-bottom))]'
+          }`}
+        >
+          {children}
+        </main>
         {/* rest is when people wander — the countdown follows them */}
         {user.gymEnabled && <RestBar />}
-        <TabBar user={user} onLogout={handleLogout} />
+        {!immersive && <TabBar user={user} onLogout={handleLogout} />}
       </div>
     </div>
   )
