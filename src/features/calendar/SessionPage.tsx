@@ -35,6 +35,7 @@ import {
   EFFORTS,
   effortLabel,
   cleanTitle,
+  isPending,
   formatDuration,
   formatSeconds,
   totalWorkoutSeconds,
@@ -287,7 +288,7 @@ function SessionActions({
   const proposalQuery = useQuery({
     queryKey: ['session-proposal', session.id],
     queryFn: () => fetchSessionProposal(session.id),
-    enabled: session.discipline === 'RUN' && session.status === 'PLANNED',
+    enabled: session.discipline === 'RUN' && isPending(session.status),
     staleTime: 60_000,
     retry: false,
   })
@@ -444,10 +445,10 @@ function SessionActions({
       <div className="sticky bottom-[var(--tab-bar-h)] z-30 -mx-4 mt-6 border-t border-moss-200 bg-moss-50/95 px-4 py-3 backdrop-blur md:static md:z-auto md:mx-0 md:bg-transparent md:px-0 md:pt-4 md:pb-0 md:backdrop-blur-none dark:border-moss-750 dark:bg-moss-900/95 dark:md:bg-transparent">
       <div className="flex flex-wrap gap-2">
       {session.discipline === 'RUN' && <ExportMenu session={session} size="md" />}
-      {session.discipline === 'GYM' && session.status === 'PLANNED' && session.templateVariantId && (
+      {session.discipline === 'GYM' && isPending(session.status) && session.templateVariantId && (
         <StartWorkoutButton sessionId={session.id} />
       )}
-      {session.status !== 'DONE' && session.status !== 'SKIPPED' && (
+      {isPending(session.status) && (
         <>
           <button
             onClick={() =>

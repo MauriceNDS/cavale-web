@@ -1,5 +1,5 @@
 import i18n from '../../i18n'
-import type { Discipline, SessionResponse, WeekType } from './api'
+import type { Discipline, SessionResponse, SessionStatus, WeekType } from './api'
 
 export function weekTypeLabel(type: WeekType): string {
   return i18n.t(`calendar:weekType.${type}`)
@@ -29,6 +29,16 @@ export const WEEK_TYPE_EDGE: Record<WeekType, string> = {
 
 export function disciplineLabel(d: Discipline): string {
   return i18n.t(`calendar:discipline.${d}`)
+}
+
+/**
+ * The work is still owed. MOVED only records that the session was rescheduled
+ * — it is every bit as pending as PLANNED, so anything offering to DO the
+ * session (start the workout, export it, propose a matching run) must accept
+ * both. Only DONE and SKIPPED close a session.
+ */
+export function isPending(status: SessionStatus): boolean {
+  return status === 'PLANNED' || status === 'MOVED'
 }
 
 /* ── Training-kind classification (drives calendar colors) ─────────── */

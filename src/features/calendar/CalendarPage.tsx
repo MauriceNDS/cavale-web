@@ -52,6 +52,7 @@ import {
   cleanTitle,
   formatDuration,
   formatSeconds,
+  isPending,
   totalWorkoutSeconds,
   trainingKind,
 } from './labels'
@@ -655,7 +656,7 @@ const STATUS_MARK: Partial<Record<SessionResponse['status'], { label: string; cl
 function DraggableSessionCard({ session, onClick }: { session: SessionResponse; onClick: () => void }) {
   // a DONE or SKIPPED session is history — moving it has no meaning (the API
   // rejects it too); keep the card clickable but not draggable
-  const frozen = session.status === 'DONE' || session.status === 'SKIPPED'
+  const frozen = !isPending(session.status)
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: session.id,
     disabled: frozen,
@@ -690,7 +691,7 @@ function DraggableSessionCard({ session, onClick }: { session: SessionResponse; 
         {...attributes}
         onClick={onClick}
         className={`flex w-full touch-none items-center gap-3 rounded-lg border border-l-4 border-moss-200 bg-moss-50 px-3 py-2 text-left transition hover:border-moss-300 dark:border-moss-750 dark:bg-moss-800 dark:hover:border-moss-700 ${KIND_EDGE[trainingKind(session)]} ${
-          session.status === 'DONE' || session.status === 'SKIPPED' ? 'opacity-60' : ''
+          frozen ? 'opacity-60' : ''
         }`}
       >
         <div className="min-w-0 flex-1">
@@ -765,7 +766,7 @@ function MonthView({
                     <span className={`h-2 w-2 shrink-0 rounded-full ${KIND_DOT[trainingKind(s)]}`} />
                     <span
                       className={`truncate text-[11px] leading-tight ${
-                        s.status === 'DONE' || s.status === 'SKIPPED'
+                        !isPending(s.status)
                           ? 'text-moss-400 dark:text-moss-500'
                           : 'text-moss-500 dark:text-moss-400'
                       }`}

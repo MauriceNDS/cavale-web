@@ -17,6 +17,7 @@ import {
   kindLabel,
   cleanTitle,
   formatDuration,
+  isPending,
   trainingKind,
 } from './labels'
 
@@ -113,7 +114,7 @@ function SessionRow({ session }: { session: SessionResponse }) {
   const proposalQuery = useQuery({
     queryKey: ['session-proposal', session.id],
     queryFn: () => fetchSessionProposal(session.id),
-    enabled: session.discipline === 'RUN' && session.status === 'PLANNED',
+    enabled: session.discipline === 'RUN' && isPending(session.status),
     staleTime: 60_000,
     retry: false,
   })
@@ -141,10 +142,10 @@ function SessionRow({ session }: { session: SessionResponse }) {
             {t(`session.status.${session.status}`)}
           </span>
         )}
-        {session.discipline === 'RUN' && session.status === 'PLANNED' && (
+        {session.discipline === 'RUN' && isPending(session.status) && (
           <ExportMenu session={session} direction="down" />
         )}
-        {session.discipline === 'GYM' && session.status === 'PLANNED' && session.templateVariantId && (
+        {session.discipline === 'GYM' && isPending(session.status) && session.templateVariantId && (
           <button
             onClick={() => startMutation.mutate()}
             disabled={startMutation.isPending}
