@@ -1,5 +1,7 @@
 import { useSyncExternalStore } from 'react'
 
+import { chime } from './chime'
+
 const STORAGE_KEY = 'cavale.rest'
 /** How long the "go" state stays up before fading back to nothing. */
 const RINGING_MS = 8000
@@ -39,62 +41,12 @@ function readDeadline(): number | null {
   }
 }
 
-/**
- * A short chime, synthesised rather than shipped as an audio file.
- *
- * iOS only lets a page make sound after a real user gesture, and refuses
- * entirely when the ring switch is on silent — so this is a bonus signal,
- * never the only one. The visual alarm is what actually has to land.
- */
-class Chime {
-  private context: AudioContext | null = null
-
-  /** Call from a tap: the first gesture is what buys the right to play. */
-  unlock() {
-    if (this.context) return
-    const Ctor =
-      window.AudioContext ??
-      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
-    if (!Ctor) return
-    try {
-      this.context = new Ctor()
-      void this.context.resume()
-    } catch {
-      this.context = null
-    }
-  }
-
-  play() {
-    const context = this.context
-    if (!context) return
-    void context.resume()
-    // two short rising notes — audible over gym noise, not alarming
-    ;[
-      { at: 0, hz: 660 },
-      { at: 0.18, hz: 880 },
-    ].forEach(({ at, hz }) => {
-      const osc = context.createOscillator()
-      const gain = context.createGain()
-      osc.type = 'sine'
-      osc.frequency.value = hz
-      const start = context.currentTime + at
-      gain.gain.setValueAtTime(0.0001, start)
-      gain.gain.exponentialRampToValueAtTime(0.35, start + 0.02)
-      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.16)
-      osc.connect(gain).connect(context.destination)
-      osc.start(start)
-      osc.stop(start + 0.18)
-    })
-  }
-}
-
 class RestClock {
   private deadline: number | null = readDeadline()
   private ringingUntil: number | null = null
   private runnerMounted = false
   private listeners = new Set<() => void>()
   private ticker: ReturnType<typeof setInterval> | null = null
-  private chime = new Chime()
   private snapshot: RestSnapshot = { secondsLeft: null, ringing: false, ownedByRunner: false }
 
   constructor() {
@@ -145,7 +97,7 @@ class RestClock {
         /* private mode */
       }
       this.ringingUntil = now + RINGING_MS
-      this.chime.play()
+      chime.play()
     }
     if (this.ringingUntil != null && now >= this.ringingUntil) this.ringingUntil = null
 
@@ -199,7 +151,7 @@ class RestClock {
   }
 
   unlockSound() {
-    this.chime.unlock()
+    chime.unlock()
   }
 
   /** The runner takes over the bar while it is on screen. */

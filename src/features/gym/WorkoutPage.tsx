@@ -23,6 +23,8 @@ import {
   type WorkoutRecapResponse,
 } from './api'
 import { gymQueue, type QueueState } from './mutationQueue'
+import { HoldTimer } from './HoldTimer'
+import { holdClock } from './holdClock'
 import { RestBar, RirChips, useOwnsRestBar, useWakeLock } from './RestBar'
 import { restClock } from './restClock'
 import {
@@ -156,6 +158,8 @@ export function WorkoutPage() {
 
   function logSet(block: WorkoutBlockResponse, setNumber: number, draft: Draft) {
     const seconds = block.exercise.measure === 'SECONDS'
+    // The timer disappears with the logged set, so it must not keep running.
+    if (seconds) holdClock.cancel()
     const body = {
       exerciseId: block.exercise.id,
       position: 0,
@@ -993,15 +997,24 @@ function BlockSet({
       {/* the numbers, thumb-sized */}
       <div className="mt-2.5 space-y-2">
         {seconds ? (
-          <Stepper
-            label={t('workout.secondsUnit')}
-            value={draft.seconds ?? block.targetSeconds ?? 30}
-            step={5}
-            min={1}
-            disabled={readOnly}
-            onChange={(seconds) => onDraft({ seconds })}
-            onTap={() => setKeypad('seconds')}
-          />
+          <>
+            {/* Held efforts get a real clock: typing 45 afterwards is a guess. */}
+            <HoldTimer
+              setKey={setKey(block.exercise.id, setNumber)}
+              target={block.targetSeconds ?? 30}
+              disabled={readOnly || saved}
+              onHeld={(held) => onDraft({ seconds: held })}
+            />
+            <Stepper
+              label={t('workout.secondsUnit')}
+              value={draft.seconds ?? block.targetSeconds ?? 30}
+              step={5}
+              min={1}
+              disabled={readOnly}
+              onChange={(seconds) => onDraft({ seconds })}
+              onTap={() => setKeypad('seconds')}
+            />
+          </>
         ) : (
           <>
             <Stepper
