@@ -97,6 +97,16 @@ export default {
     exerciseTotal_one: '{{count}} exercise in total',
     exerciseTotal_other: '{{count}} exercises in total',
   },
+  preview: {
+    title: "What's in it",
+    loading: 'Loading the session…',
+    empty: 'This session has no exercises yet.',
+    exerciseCount_one: '{{count}} exercise',
+    exerciseCount_other: '{{count}} exercises',
+    setCount_one: '{{count}} set',
+    setCount_other: '{{count}} sets',
+    alternatives: 'or {{names}}',
+  },
   editor: {
     back: '← Programs',
     notFound: 'Program not found.',

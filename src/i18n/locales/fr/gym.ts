@@ -97,6 +97,16 @@ export default {
     exerciseTotal_one: '{{count}} exercice au total',
     exerciseTotal_other: '{{count}} exercices au total',
   },
+  preview: {
+    title: 'Au programme',
+    loading: 'Chargement de la séance…',
+    empty: 'Cette séance n’a pas encore d’exercices.',
+    exerciseCount_one: '{{count}} exercice',
+    exerciseCount_other: '{{count}} exercices',
+    setCount_one: '{{count}} série',
+    setCount_other: '{{count}} séries',
+    alternatives: 'ou {{names}}',
+  },
   editor: {
     back: '← Programmes',
     notFound: 'Programme introuvable.',

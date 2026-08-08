@@ -10,6 +10,7 @@ import { GlossaryText } from '../../lib/glossary'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { StreamCharts } from '../../components/StreamCharts'
 import { startWorkout } from '../gym/api'
+import { GymSessionPreview } from '../gym/GymSessionPreview'
 import { ExportMenu } from './ExportMenu'
 import { ActivityShoeRow } from '../shoes/ActivityShoeRow'
 import { fetchShoes } from '../shoes/api'
@@ -217,23 +218,33 @@ function SessionView({
               onCancel={() => setEditingStructure(false)}
             />
           ) : (
-            session.discipline === 'RUN' && (
-              <div className="mt-5">
-                {session.workout.length > 0 ? (
-                  <WorkoutTree nodes={session.workout} pace={pace} />
-                ) : (
-                  <p className="text-sm text-moss-400 dark:text-moss-500">
-                    {t('session.noStructure')}
-                  </p>
-                )}
-                <button
-                  onClick={() => setEditingStructure(true)}
-                  className="mt-1.5 text-xs font-medium text-moss-400 hover:text-ink hover:underline dark:text-moss-500 dark:hover:text-linen"
-                >
-                  {session.workout.length > 0 ? t('session.editStructure') : t('session.createStructure')}
-                </button>
-              </div>
-            )
+            <>
+              {/* What the session is made of — the gym counterpart of the
+                  running workout tree, so both disciplines answer "what am I
+                  about to do?" before the start button. */}
+              {session.discipline === 'GYM' && session.templateVariantId && (
+                <GymSessionPreview variantId={session.templateVariantId} />
+              )}
+              {session.discipline === 'RUN' && (
+                <div className="mt-5">
+                  {session.workout.length > 0 ? (
+                    <WorkoutTree nodes={session.workout} pace={pace} />
+                  ) : (
+                    <p className="text-sm text-moss-400 dark:text-moss-500">
+                      {t('session.noStructure')}
+                    </p>
+                  )}
+                  <button
+                    onClick={() => setEditingStructure(true)}
+                    className="mt-1.5 text-xs font-medium text-moss-400 hover:text-ink hover:underline dark:text-moss-500 dark:hover:text-linen"
+                  >
+                    {session.workout.length > 0
+                      ? t('session.editStructure')
+                      : t('session.createStructure')}
+                  </button>
+                </div>
+              )}
+            </>
           )}
 
           {/* ── Actions ── */}
