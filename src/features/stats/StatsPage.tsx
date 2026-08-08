@@ -9,6 +9,7 @@ import { fetchRunningStats, type RunningStatsResponse } from '../athlete/api'
 import { useAuth } from '../auth/session'
 import { GymStatsSection } from '../gym/GymStatsSection'
 import {
+  AllureDonut,
   CheckpointsTable,
   CriticalPaceStat,
   DurabilityChart,
@@ -152,6 +153,7 @@ function ChargeTab({ stats, months }: TabProps) {
   const effort = stats.weeklyEffort.filter((w) => inRange(w.weekStart))
   const monotony = stats.monotony.filter((w) => inRange(w.weekStart))
   const zones = stats.weeklyZones.filter((w) => inRange(w.weekStart))
+  const allures = stats.weeklyAllures.filter((w) => inRange(w.weekStart))
   const currentEffort = stats.weeklyEffort.at(-1)
   const currentMonotony = [...stats.monotony].reverse().find((w) => w.monotony != null)
 
@@ -180,6 +182,12 @@ function ChargeTab({ stats, months }: TabProps) {
         <ChartCard id="zones" title={t('zones.title')} hint={t('zones.hint')}>
           <ZoneWeeklyChart weeks={zones} onOpenRange={openRange} />
           <PolarizationNote weeks={zones} />
+        </ChartCard>
+      )}
+
+      {stats.weeklyAllures.length > 0 && (
+        <ChartCard id="allures" title={t('allures.title')} hint={t('allures.hint')}>
+          <AllureDonut weeks={allures} />
         </ChartCard>
       )}
 

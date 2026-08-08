@@ -13,6 +13,8 @@ import {
   linearY,
   pointX,
 } from '../../components/chartkit'
+import { allureLabel } from '../calendar/labels'
+import type { Allure } from '../calendar/api'
 import { dateLocale, numberLocale } from '../../i18n'
 import { muted } from '../../lib/ui'
 import type {
@@ -24,6 +26,7 @@ import type {
   Vo2maxPoint,
   WeekEffort,
   WeekMonotony,
+  WeekAllures,
   WeekVolume,
   WeekZones,
 } from '../athlete/api'
@@ -739,5 +742,157 @@ export function PolarizationNote({ weeks }: { weeks: WeekZones[] }) {
       {t('zones.hardShare')} · {t('zones.target8020')}
       {estimated && ` · ${t('zones.estimatedNote')}`}
     </p>
+  )
+}
+
+/* ── Time per allure ───────────────────────────────────────────────── */
+
+/** Slowest to fastest — the order the API's `seconds` list carries. */
+const ALLURE_ORDER: Allure[] = ['LENTE', 'EF', 'COURSE', 'SEUIL60', 'SEUIL30', 'VMA', 'SPRINT']
+
+/** One hue per allure, matching the block colours used on the calendar. */
+const ALLURE_FILL: Record<Allure, string> = {
+  LENTE: 'fill-moss-400 dark:fill-moss-500',
+  EF: 'fill-pine-600 dark:fill-pine-350',
+  COURSE: 'fill-teal-600 dark:fill-teal-300',
+  SEUIL60: 'fill-gold-600 dark:fill-gold-300',
+  SEUIL30: 'fill-clay-500 dark:fill-clay-300',
+  VMA: 'fill-rowan-600 dark:fill-rowan-300',
+  SPRINT: 'fill-copper-600 dark:fill-copper-300',
+}
+
+const ALLURE_SWATCH: Record<Allure, string> = {
+  LENTE: 'bg-moss-400 dark:bg-moss-500',
+  EF: 'bg-pine-600 dark:bg-pine-350',
+  COURSE: 'bg-teal-600 dark:bg-teal-300',
+  SEUIL60: 'bg-gold-600 dark:bg-gold-300',
+  SEUIL30: 'bg-clay-500 dark:bg-clay-300',
+  VMA: 'bg-rowan-600 dark:bg-rowan-300',
+  SPRINT: 'bg-copper-600 dark:bg-copper-300',
+}
+
+const DONUT_SIZE = 200
+const DONUT_THICKNESS = 34
+
+/** Arc path for one slice of the ring, drawn as a filled annulus wedge. */
+function arcPath(from: number, to: number): string {
+  const r = DONUT_SIZE / 2
+  const inner = r - DONUT_THICKNESS
+  const c = r
+  // A full circle has no start/end to draw — split it in two half arcs.
+  if (to - from >= 1) {
+    return (
+      `M ${c} ${c - r} A ${r} ${r} 0 1 1 ${c} ${c + r} A ${r} ${r} 0 1 1 ${c} ${c - r} Z ` +
+      `M ${c} ${c - inner} A ${inner} ${inner} 0 1 0 ${c} ${c + inner} ` +
+      `A ${inner} ${inner} 0 1 0 ${c} ${c - inner} Z`
+    )
+  }
+  const a0 = from * 2 * Math.PI - Math.PI / 2
+  const a1 = to * 2 * Math.PI - Math.PI / 2
+  const large = to - from > 0.5 ? 1 : 0
+  const x0 = c + r * Math.cos(a0)
+  const y0 = c + r * Math.sin(a0)
+  const x1 = c + r * Math.cos(a1)
+  const y1 = c + r * Math.sin(a1)
+  const xi1 = c + inner * Math.cos(a1)
+  const yi1 = c + inner * Math.sin(a1)
+  const xi0 = c + inner * Math.cos(a0)
+  const yi0 = c + inner * Math.sin(a0)
+  return (
+    `M ${x0} ${y0} A ${r} ${r} 0 ${large} 1 ${x1} ${y1} ` +
+    `L ${xi1} ${yi1} A ${inner} ${inner} 0 ${large} 0 ${xi0} ${yi0} Z`
+  )
+}
+
+function formatAllureHours(sec: number): string {
+  const m = Math.round(sec / 60)
+  if (m < 60) return `${m} min`
+  return `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}`
+}
+
+/**
+ * Where the running time actually went, as a share of each allure.
+ *
+ * <p>Read off the recordings rather than off session labels, so a sortie
+ * longue is not a slice of its own — it lands as the EF (plus whatever allure
+ * course crept in) that it really was.
+ */
+export function AllureDonut({ weeks }: { weeks: WeekAllures[] }) {
+  const { t } = useTranslation('stats')
+  const totals = ALLURE_ORDER.map((_, i) =>
+    weeks.reduce((sum, week) => sum + (week.seconds[i] ?? 0), 0),
+  )
+  const total = totals.reduce((a, b) => a + b, 0)
+  if (total === 0) return <p className={`text-sm ${muted}`}>{t('allures.noData')}</p>
+
+  let cursor = 0
+  const slices = ALLURE_ORDER.map((allure, i) => {
+    const share = totals[i] / total
+    const slice = { allure, seconds: totals[i], share, from: cursor, to: cursor + share }
+    cursor += share
+    return slice
+  }).filter((slice) => slice.seconds > 0)
+
+  // The headline: how much of the time was genuinely easy.
+  const easyShare = Math.round(((totals[0] + totals[1]) / total) * 100)
+
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3">
+      <svg
+        viewBox={`0 0 ${DONUT_SIZE} ${DONUT_SIZE}`}
+        width={DONUT_SIZE}
+        height={DONUT_SIZE}
+        role="img"
+        aria-label={t('allures.aria')}
+        className="max-w-full shrink-0"
+      >
+        {slices.map((slice) => (
+          <path
+            key={slice.allure}
+            d={arcPath(slice.from, slice.to)}
+            fillRule="evenodd"
+            className={ALLURE_FILL[slice.allure]}
+          >
+            <title>
+              {`${allureLabel(slice.allure)} · ${formatAllureHours(slice.seconds)} · ${Math.round(slice.share * 100)}%`}
+            </title>
+          </path>
+        ))}
+        <text
+          x={DONUT_SIZE / 2}
+          y={DONUT_SIZE / 2 - 4}
+          textAnchor="middle"
+          className="fill-ink text-[22px] font-semibold tabular-nums dark:fill-linen"
+        >
+          {easyShare} %
+        </text>
+        <text
+          x={DONUT_SIZE / 2}
+          y={DONUT_SIZE / 2 + 14}
+          textAnchor="middle"
+          className="fill-moss-500 text-[11px] dark:fill-moss-400"
+        >
+          {t('allures.easyCentre')}
+        </text>
+      </svg>
+
+      <div className="min-w-0 space-y-1.5">
+        {[...slices].reverse().map((slice) => (
+          <div key={slice.allure} className="flex items-center gap-2 text-xs">
+            <span
+              aria-hidden
+              className={`inline-block h-2.5 w-2.5 shrink-0 rounded-sm ${ALLURE_SWATCH[slice.allure]}`}
+            />
+            <span className="min-w-0 flex-1 truncate">{allureLabel(slice.allure)}</span>
+            <span className="font-semibold tabular-nums text-ink dark:text-linen">
+              {Math.round(slice.share * 100)} %
+            </span>
+            <span className={`w-14 text-right tabular-nums ${muted}`}>
+              {formatAllureHours(slice.seconds)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }

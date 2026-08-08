@@ -364,6 +364,17 @@ export interface WeekZones {
   partlyEstimated: boolean
 }
 
+/**
+ * One ISO week of time per allure, seconds ordered slowest to fastest —
+ * récup, EF, allure course, seuil 60, seuil 30, VMA, sprint. Measured off the
+ * recording, so a sortie longue shows up as the EF (and bit of allure course)
+ * it really was rather than as a category of its own.
+ */
+export interface WeekAllures {
+  weekStart: string
+  seconds: number[]
+}
+
 /** RUNSAFE long-run guard: where the next long run's injury hazard steps up. */
 export interface LongRunGuard {
   recentLongestKm: number
@@ -389,6 +400,7 @@ export interface RunningStatsResponse {
   criticalPace: CriticalPace | null
   durability: DurabilityPoint[]
   weeklyZones: WeekZones[]
+  weeklyAllures: WeekAllures[]
   longRunGuard: LongRunGuard | null
 }
 

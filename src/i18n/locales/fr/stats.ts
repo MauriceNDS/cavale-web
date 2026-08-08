@@ -79,6 +79,13 @@ export default {
     hardShare: 'intense (Z3+)',
     target8020: 'cible ~80/20',
   },
+  allures: {
+    title: 'Répartition par allure',
+    hint: "Part du temps de course passée à chaque allure, lue sur les enregistrements et non sur l'étiquette de la séance — une sortie longue apparaît donc comme l'EF (et le peu d'allure course) qu'elle a réellement été. Le temps à l'arrêt est exclu et chaque portion est corrigée du dénivelé grimpé.",
+    aria: 'Répartition du temps de course par allure',
+    noData: 'Pas encore de sorties avec un enregistrement exploitable.',
+    easyCentre: 'en aisance',
+  },
   runsafe: {
     title: 'Sortie longue — garde-fou',
     hint: "D'après ta plus longue sortie des 30 derniers jours : jusqu'à 1,3× cette distance le risque de blessure reste normal ; au-delà il grimpe de +52 %, et de +128 % passé 2× (BJSM 2025).",

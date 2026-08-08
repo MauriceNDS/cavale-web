@@ -78,6 +78,13 @@ export default {
     hardShare: 'hard (Z3+)',
     target8020: 'target ~80/20',
   },
+  allures: {
+    title: 'Time per allure',
+    hint: "Share of running time spent at each allure, read off the recordings rather than off what the session was labelled — so a long run shows up as the EF (and the little allure course) it really was. Stopped time is excluded and every stretch is corrected for the climb it carried.",
+    aria: 'Share of running time per allure',
+    noData: 'No runs with a usable recording yet.',
+    easyCentre: 'easy',
+  },
   runsafe: {
     title: 'Long run — guardrail',
     hint: 'Anchored to your longest run of the last 30 days: up to 1.3× that distance injury risk stays normal; beyond it climbs +52 %, and +128 % past 2× (BJSM 2025).',
