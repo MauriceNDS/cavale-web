@@ -48,26 +48,71 @@ export function setUnauthorizedHandler(handler: (() => void) | null): void {
   onUnauthorized = handler
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = getToken()
+/**
+ * Trade the refresh cookie for a new access token.
+ *
+ * The cookie is HttpOnly, so this code never sees the credential it is
+ * spending — the browser attaches it because the request is same-origin and
+ * `credentials: 'include'` asks it to.
+ *
+ * Shared promise: a page that fires eight queries at once and gets eight 401s
+ * must renew ONCE. Eight parallel refreshes would rotate the token eight
+ * times, and seven of them would look exactly like a replayed secret — which
+ * the server answers by cutting every session on the account.
+ */
+let renewal: Promise<boolean> | null = null
 
-  const response = await fetch(path, {
+function renewSession(): Promise<boolean> {
+  renewal ??= fetch('/api/auth/refresh', { method: 'POST', credentials: 'include' })
+    .then(async (response) => {
+      if (!response.ok) return false
+      const body = (await response.json()) as { token?: string }
+      if (!body.token) return false
+      setToken(body.token)
+      return true
+    })
+    .catch(() => false)
+    .finally(() => {
+      // Let the next 401 start a fresh attempt rather than reusing this answer.
+      setTimeout(() => {
+        renewal = null
+      }, 0)
+    })
+  return renewal
+}
+
+async function send(path: string, init?: RequestInit): Promise<Response> {
+  const token = getToken()
+  return fetch(path, {
     ...init,
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...init?.headers,
     },
   })
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const isAuthCall = path.startsWith('/api/auth/')
+  let response = await send(path, init)
+
+  // An expired access token is the normal case now, not a reason to sign out:
+  // renew behind the athlete's back and replay the call once.
+  if (response.status === 401 && !isAuthCall && (await renewSession())) {
+    response = await send(path, init)
+  }
 
   if (!response.ok) {
     const problem: ProblemDetail = await response
       .json()
       .catch(() => ({ title: response.statusText, status: response.status }))
     problem.status ??= response.status
-    // A token we sent was rejected: it's stale — drop it and sign out. Skip the
-    // auth endpoints (login/register/demo run signed-out; their 401s are normal).
-    if (response.status === 401 && token && !path.startsWith('/api/auth/')) {
+    // Still 401 after a renewal attempt: the refresh token is gone too, so the
+    // session really is over. Auth endpoints are exempt — a bad login must
+    // surface as a normal error, not trigger a logout.
+    if (response.status === 401 && !isAuthCall) {
       clearToken()
       onUnauthorized?.()
     }

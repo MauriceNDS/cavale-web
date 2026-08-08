@@ -58,6 +58,15 @@ export function loginUser(request: LoginRequest): Promise<AuthResponse> {
   return api.post<AuthResponse>('/api/auth/login', request)
 }
 
+/**
+ * Revoke this device's refresh token and clear its cookie. Best-effort: a
+ * failure here must never keep the athlete stuck on a screen they asked to
+ * leave, so the caller signs out locally regardless.
+ */
+export function logoutUser(): Promise<void> {
+  return api.post<void>('/api/auth/logout', {}).catch(() => undefined)
+}
+
 export function fetchMe(): Promise<UserResponse> {
   return api.get<UserResponse>('/api/users/me')
 }

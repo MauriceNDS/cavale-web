@@ -9,7 +9,7 @@ import {
 } from 'react'
 import { applyLanguage } from '../../i18n'
 import { ApiError, clearToken, getToken, setToken, setUnauthorizedHandler } from '../../lib/api'
-import { devLogin, fetchMe, loginUser, startDemo, type UserResponse } from './api'
+import { devLogin, fetchMe, loginUser, logoutUser, startDemo, type UserResponse } from './api'
 
 interface AuthState {
   /** undefined = session still being restored; null = signed out */
@@ -27,15 +27,20 @@ interface AuthState {
 const AuthContext = createContext<AuthState | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  // A stored access token — expired or not — is what says "this browser has a
+  // session to restore". Without one there is nothing to wait for, and a
+  // first-time visitor must not sit through a loading screen on the landing
+  // page just in case a refresh cookie exists.
   const [user, setUser] = useState<UserResponse | null | undefined>(
     getToken() ? undefined : null,
   )
 
-  // Restore the session on app load: a stored token is only trusted after /me confirms it.
-  // Drop the token ONLY when the server rejects it (401) — a network hiccup or an
-  // API restart must not log the user out; retry once, then give up for this load.
+  // Restore the session on app load: a stored token is only trusted after /me
+  // confirms it, and `request` renews silently behind that call when the token
+  // has aged out. Drop the session ONLY when the server rejects it (401) — a
+  // network hiccup or an API restart must not log the athlete out; retry once,
+  // then give up for this load.
   useEffect(() => {
-    if (!getToken()) return
     let cancelled = false
 
     function restore(attempt: number) {
@@ -56,7 +61,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         })
     }
 
-    restore(0)
+    if (getToken()) restore(0)
+
     return () => {
       cancelled = true
     }
@@ -91,6 +97,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const logout = useCallback(() => {
+    // Tell the server first so the refresh token stops working — clearing the
+    // local copy alone would leave a live credential in the cookie jar.
+    void logoutUser()
     clearToken()
     setUser(null)
   }, [])
