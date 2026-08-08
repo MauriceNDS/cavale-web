@@ -36,6 +36,12 @@ export function SeasonView({
   )
 }
 
+/** Whole kilometres once there are enough of them — a ring centre has no room
+ *  for a decimal that stops mattering above 10 km. */
+function compactKm(km: number): string {
+  return km >= 10 ? String(Math.round(km)) : String(Math.round(km * 10) / 10)
+}
+
 function SeasonWeekRow({ week, onPick }: { week: WeekProgress; onPick: () => void }) {
   const { t } = useTranslation('calendar')
 
@@ -46,6 +52,7 @@ function SeasonWeekRow({ week, onPick }: { week: WeekProgress; onPick: () => voi
         key: 'volume' as const,
         label: t('header.metrics.volume'),
         ratio: week.actualVolumeKm / volumeTarget,
+        center: { value: compactKm(week.actualVolumeKm), detail: `/ ${volumeTarget} km` },
         title: `${Math.round(week.actualVolumeKm * 10) / 10}/${volumeTarget} km`,
       },
     week.plannedDurationMin != null &&
@@ -53,6 +60,10 @@ function SeasonWeekRow({ week, onPick }: { week: WeekProgress; onPick: () => voi
         key: 'time' as const,
         label: t('header.metrics.time'),
         ratio: week.actualDurationMin / week.plannedDurationMin,
+        center: {
+          value: formatDuration(week.actualDurationMin) ?? '0',
+          detail: `/ ${formatDuration(week.plannedDurationMin)}`,
+        },
         title: `${formatDuration(week.actualDurationMin) ?? '0'}/${formatDuration(week.plannedDurationMin)}`,
       },
     week.targetElevationM != null &&
@@ -60,9 +71,19 @@ function SeasonWeekRow({ week, onPick }: { week: WeekProgress; onPick: () => voi
         key: 'elevation' as const,
         label: t('header.metrics.elevation'),
         ratio: week.actualElevationM / week.targetElevationM,
+        center: {
+          value: String(week.actualElevationM),
+          detail: `/ ${week.targetElevationM} m`,
+        },
         title: `${week.actualElevationM}/${week.targetElevationM} m`,
       },
-  ].filter(Boolean) as { key: keyof typeof RING_COLORS; label: string; ratio: number; title: string }[]
+  ].filter(Boolean) as {
+    key: keyof typeof RING_COLORS
+    label: string
+    ratio: number
+    center: { value: string; detail: string }
+    title: string
+  }[]
 
   return (
     <button
@@ -99,15 +120,18 @@ function SeasonWeekRow({ week, onPick }: { week: WeekProgress; onPick: () => voi
           </p>
         )}
       </div>
+      {/* Actual values need room to stay legible, so on a phone the rings drop
+          to their own full-width row rather than squeezing the week's title. */}
       {rings.length > 0 && (
-        <div className="flex shrink-0 gap-2.5">
+        <div className="flex w-full shrink-0 justify-around gap-2.5 md:w-auto md:justify-end">
           {rings.map((ring) => (
             <ProgressRing
               key={ring.key}
               ratio={ring.ratio}
-              size={36}
-              strokeWidth={3.5}
+              size={56}
+              strokeWidth={4}
               label={ring.label}
+              center={ring.center}
               title={ring.title}
               className={RING_COLORS[ring.key]}
             />

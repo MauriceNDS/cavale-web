@@ -204,6 +204,7 @@ export default {
     splitsHr: 'FC',
     splitsGap: 'GAP',
     splitsDplus: 'D+',
+    splitsStopped: '{{time}} à l’arrêt — exclus de l’allure',
     splitsPartial: '{{km}} km',
   },
   today: {

@@ -204,6 +204,7 @@ export default {
     splitsHr: 'HR',
     splitsGap: 'GAP',
     splitsDplus: 'D+',
+    splitsStopped: '{{time}} stopped — excluded from the pace',
     splitsPartial: '{{km}} km',
   },
   today: {

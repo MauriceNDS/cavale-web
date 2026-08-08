@@ -32,6 +32,11 @@ export interface ActivitySummary {
 
 export interface ActivityStreams {
   time: number[]
+  /** Cumulative seconds spent MOVING — `time` minus everything the athlete
+   *  stood still for. Integrated before downsampling, so it sees pauses that
+   *  fall between two kept samples. Absent on streams stored before it was
+   *  recorded; consumers then fall back to a stationary heuristic. */
+  mtime?: number[]
   distance: number[]
   hr: number[]
   alt: number[]

@@ -34,17 +34,56 @@ const fmtPaceCompact = (minPerKm: number) => {
   return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`
 }
 
+const fmtSegDuration = (sec: number) => {
+  const m = Math.floor(sec / 60)
+  const s = sec % 60
+  return s === 0 ? `${m} min` : `${m}:${String(s).padStart(2, '0')}`
+}
+
+/* ── Moving time ───────────────────────────────────────────────────── */
+
+/**
+ * Seconds actually spent moving in each sampling interval — slot `i` covers
+ * `time[i-1] → time[i]`, so slot 0 is always 0.
+ *
+ * Pace must never be elapsed-time-based: a red light or a mid-run pause dumps
+ * its whole stop into one kilometre and makes it read minutes per km slower
+ * than it was run. `mtime` is the truth when present. Older streams fall back
+ * on the shape of the recording: samples are stride-picked from a 1 Hz file,
+ * so every interval should span the same wall time — whatever one runs over
+ * the median is the recorder standing still, not the athlete jogging.
+ */
+function movingSeconds(streams: ActivityStreams): number[] {
+  const { time, mtime } = streams
+  const n = time.length
+  const out = new Array<number>(n).fill(0)
+  if (mtime != null && mtime.length === n) {
+    for (let i = 1; i < n; i++) out[i] = Math.max(0, mtime[i] - mtime[i - 1])
+    return out
+  }
+  const deltas = new Array<number>(n).fill(0)
+  for (let i = 1; i < n; i++) deltas[i] = Math.max(0, time[i] - time[i - 1])
+  const sorted = deltas.slice(1).sort((a, b) => a - b)
+  const median = sorted.length > 0 ? sorted[Math.floor(sorted.length / 2)] : 0
+  const cap = median > 0 ? median * 3 : Infinity
+  for (let i = 1; i < n; i++) out[i] = Math.min(deltas[i], cap)
+  return out
+}
+
 /* ── Km splits ─────────────────────────────────────────────────────── */
 
 interface Split {
   /** "1", "2", … or the partial-distance label for the last bin. */
   label: string
   distKm: number
+  /** Moving pace — stopped time is excluded (see {@link movingSeconds}). */
   paceSecPerKm: number
   /** Grade-adjusted pace — the flat-equivalent effort of a hilly km. */
   gapSecPerKm: number | null
   avgHr: number | null
   dplus: number
+  /** Seconds this km stood still — surfaced so a stop is visible, not silent. */
+  stoppedSec: number
 }
 
 /**
@@ -65,6 +104,7 @@ function computeSplits(streams: ActivityStreams): Split[] {
 
   interface Bin {
     sec: number
+    stoppedSec: number
     distKm: number
     flatKm: number
     dplus: number
@@ -74,11 +114,12 @@ function computeSplits(streams: ActivityStreams): Split[] {
   const bins: Bin[] = []
   const bin = (i: number): Bin => {
     while (bins.length <= i) {
-      bins.push({ sec: 0, distKm: 0, flatKm: 0, dplus: 0, hrWeighted: 0, hrSec: 0 })
+      bins.push({ sec: 0, stoppedSec: 0, distKm: 0, flatKm: 0, dplus: 0, hrWeighted: 0, hrSec: 0 })
     }
     return bins[i]
   }
 
+  const moving = movingSeconds(streams)
   const hasAlt = (alt?.length ?? 0) >= n
   for (let i = 1; i < n; i++) {
     let d0 = distance[i - 1] / 1000
@@ -91,18 +132,20 @@ function computeSplits(streams: ActivityStreams): Split[] {
     const factor = rise != null ? gapCostFactor(rise / ((d1 - d0) * 1000)) : 1
     const sampleHr = hr?.[i] != null && hr[i] > 0 ? hr[i] : null
     const totalDist = d1 - d0
-    const totalSec = t1 - t0
+    const movingSec = Math.min(moving[i], t1 - t0)
+    const stoppedSec = t1 - t0 - movingSec
 
     // Walk the segment, chopping it at each km boundary it crosses.
     while (d0 < d1) {
       const binIndex = Math.floor(d0)
       const boundary = Math.min(d1, binIndex + 1)
       const fraction = (boundary - d0) / totalDist
-      const sec = totalSec * fraction
+      const sec = movingSec * fraction
       const b = bin(binIndex)
       b.distKm += boundary - d0
       b.flatKm += (boundary - d0) * factor
       b.sec += sec
+      b.stoppedSec += stoppedSec * fraction
       b.dplus += climb * fraction
       if (sampleHr != null) {
         b.hrWeighted += sampleHr * sec
@@ -124,6 +167,7 @@ function computeSplits(streams: ActivityStreams): Split[] {
       gapSecPerKm: hasAlt && b.flatKm > 0 ? Math.round(b.sec / b.flatKm) : null,
       avgHr: b.hrSec > 0 ? Math.round(b.hrWeighted / b.hrSec) : null,
       dplus: Math.round(b.dplus),
+      stoppedSec: Math.round(b.stoppedSec),
     })
   })
   return splits
@@ -162,16 +206,20 @@ interface Segment {
   plannedSec: number
   actualSec: number
   distKm: number
+  /** Moving pace — stopped time is excluded (see {@link movingSeconds}). */
   paceSecPerKm: number | null
   avgHr: number | null
+  /** Steps per minute, averaged over the segment's moving time. */
+  avgCad: number | null
   dplus: number
+  stoppedSec: number
 }
 
 /** Same fractional apportioning as computeSplits, but chopped on the
  *  cumulative planned-step time boundaries instead of km marks. Stream time
  *  beyond the last boundary (cool-down overshoot) is dropped. */
 function computeSegments(streams: ActivityStreams, steps: FlatStep[]): Segment[] {
-  const { time, distance, hr, alt } = streams
+  const { time, distance, hr, alt, cad } = streams
   const n = Math.min(time.length, distance.length)
   if (n < 2) return []
 
@@ -184,19 +232,26 @@ function computeSegments(streams: ActivityStreams, steps: FlatStep[]): Segment[]
 
   interface Acc {
     actualSec: number
+    movingSec: number
     distKm: number
     dplus: number
     hrWeighted: number
     hrSec: number
+    cadWeighted: number
+    cadSec: number
   }
   const accs: Acc[] = steps.map(() => ({
     actualSec: 0,
+    movingSec: 0,
     distKm: 0,
     dplus: 0,
     hrWeighted: 0,
     hrSec: 0,
+    cadWeighted: 0,
+    cadSec: 0,
   }))
 
+  const moving = movingSeconds(streams)
   let k = 0 // current segment — boundaries and samples both advance in time
   for (let i = 1; i < n; i++) {
     let t0 = time[i - 1]
@@ -205,7 +260,10 @@ function computeSegments(streams: ActivityStreams, steps: FlatStep[]): Segment[]
     const distKm = Math.max(0, distance[i] - distance[i - 1]) / 1000
     const climb = alt?.[i] != null && alt?.[i - 1] != null ? Math.max(0, alt[i] - alt[i - 1]) : 0
     const sampleHr = hr?.[i] != null && hr[i] > 0 ? hr[i] : null
+    // Cadence idles near zero while standing still; only count it while running.
+    const sampleCad = cad?.[i] != null && cad[i] > 40 ? cad[i] : null
     const totalSec = t1 - t0
+    const intervalMoving = Math.min(moving[i], totalSec)
 
     while (t0 < t1) {
       while (k < bounds.length && bounds[k] <= t0) k++
@@ -213,13 +271,19 @@ function computeSegments(streams: ActivityStreams, steps: FlatStep[]): Segment[]
       const boundary = Math.min(t1, bounds[k])
       const sec = boundary - t0
       const fraction = sec / totalSec
+      const movingSec = intervalMoving * fraction
       const a = accs[k]
       a.actualSec += sec
+      a.movingSec += movingSec
       a.distKm += distKm * fraction
       a.dplus += climb * fraction
       if (sampleHr != null) {
-        a.hrWeighted += sampleHr * sec
-        a.hrSec += sec
+        a.hrWeighted += sampleHr * movingSec
+        a.hrSec += movingSec
+      }
+      if (sampleCad != null) {
+        a.cadWeighted += sampleCad * movingSec
+        a.cadSec += movingSec
       }
       t0 = boundary
     }
@@ -233,9 +297,11 @@ function computeSegments(streams: ActivityStreams, steps: FlatStep[]): Segment[]
       plannedSec: step.seconds,
       actualSec: Math.round(a.actualSec),
       distKm: a.distKm,
-      paceSecPerKm: a.distKm > 0.01 && a.actualSec > 0 ? Math.round(a.actualSec / a.distKm) : null,
+      paceSecPerKm: a.distKm > 0.01 && a.movingSec > 0 ? Math.round(a.movingSec / a.distKm) : null,
       avgHr: a.hrSec > 0 ? Math.round(a.hrWeighted / a.hrSec) : null,
+      avgCad: a.cadSec > 0 ? Math.round(a.cadWeighted / a.cadSec) : null,
       dplus: Math.round(a.dplus),
+      stoppedSec: Math.round(a.actualSec - a.movingSec),
     }
   })
 }
@@ -274,6 +340,15 @@ function SplitsTable({ splits }: { splits: Split[] }) {
               aria-hidden
             />
             <span className="font-medium">{fmtPaceCompact(split.paceSecPerKm / 60)}</span>
+            {/* The pace above excludes the stop; say so rather than hide it. */}
+            {split.stoppedSec >= 5 && (
+              <span
+                className="shrink-0 text-[10px] text-moss-500 dark:text-moss-400"
+                title={t('report.splitsStopped', { time: fmtSegDuration(split.stoppedSec) })}
+              >
+                ⏸ {fmtSegDuration(split.stoppedSec)}
+              </span>
+            )}
           </span>
           {hasGap && (
             <span className="text-right text-moss-500 dark:text-moss-400">
@@ -300,6 +375,9 @@ function SplitsTable({ splits }: { splits: Split[] }) {
 
 type ChartMode = 'linear' | 'perKm' | 'perSegment'
 type KmTab = 'pace' | 'hr' | 'dplus'
+/** Segments get one metric the km bars don't: cadence, which only says
+ *  something once there are several blocks to compare it across. */
+type SegTab = KmTab | 'cad'
 
 export function StreamCharts({
   streams,
@@ -388,18 +466,19 @@ export function StreamCharts({
           ...(splits.some((s) => s.dplus > 0) ? (['dplus'] as const) : []),
         ]
       : []
-  const segTabs: KmTab[] =
+  const segTabs: SegTab[] =
     segments.length >= 2
       ? [
           'pace' as const,
           ...(segments.some((s) => s.avgHr != null) ? (['hr'] as const) : []),
+          ...(segments.some((s) => s.avgCad != null) ? (['cad'] as const) : []),
           ...(segments.some((s) => s.dplus > 0) ? (['dplus'] as const) : []),
         ]
       : []
 
   const [mode, setMode] = useState<ChartMode>('linear')
   const [kmSel, setKmSel] = useState<KmTab>('pace')
-  const [segSel, setSegSel] = useState<KmTab>('pace')
+  const [segSel, setSegSel] = useState<SegTab>('pace')
   // One cursor for every stacked panel: the hovered distance in km.
   const [sharedX, setSharedX] = useState<number | null>(null)
 
@@ -425,9 +504,10 @@ export function StreamCharts({
   const kmTab = kmTabs.includes(kmSel) ? kmSel : kmTabs[0]
   const segTab = segTabs.includes(segSel) ? segSel : segTabs[0]
 
-  const tabLabel: Record<KmTab, string> = {
+  const tabLabel: Record<SegTab, string> = {
     pace: t('report.tabPace'),
     hr: t('report.tabHr'),
+    cad: t('report.tabCadence'),
     dplus: t('report.tabDplus'),
   }
 
@@ -896,13 +976,7 @@ function KmBarChart({ splits, metric }: { splits: Split[]; metric: KmTab }) {
    One bar per planned workout step; the bar's WIDTH is its share of the
    planned time, so the chart reads like the workout's timeline. */
 
-const fmtSegDuration = (sec: number) => {
-  const m = Math.floor(sec / 60)
-  const s = sec % 60
-  return s === 0 ? `${m} min` : `${m}:${String(s).padStart(2, '0')}`
-}
-
-function SegmentBarChart({ segments, metric }: { segments: Segment[]; metric: KmTab }) {
+function SegmentBarChart({ segments, metric }: { segments: Segment[]; metric: SegTab }) {
   const { t } = useTranslation('calendar')
   const { ref, width: W } = useMeasuredWidth<HTMLDivElement>(FALLBACK_W)
   const [sel, setSel] = useState<number | null>(null)
@@ -922,6 +996,12 @@ function SegmentBarChart({ segments, metric }: { segments: Segment[]; metric: Km
       title: t('report.chartHr'),
       value: (s: Segment) => s.avgHr,
       barLabel: (s: Segment) => (s.avgHr != null ? String(s.avgHr) : ''),
+    },
+    cad: {
+      colorClass: 'text-copper-600 dark:text-copper-300',
+      title: t('report.chartCadence'),
+      value: (s: Segment) => s.avgCad,
+      barLabel: (s: Segment) => (s.avgCad != null ? String(s.avgCad) : ''),
     },
     dplus: {
       colorClass: 'text-copper-600 dark:text-copper-300',
@@ -968,8 +1048,11 @@ function SegmentBarChart({ segments, metric }: { segments: Segment[]; metric: Km
           ? [`${fmtPaceCompact(selected.paceSecPerKm / 60)} /km`]
           : []),
         ...(selected.avgHr != null ? [`${selected.avgHr} bpm`] : []),
+        ...(selected.avgCad != null ? [`${selected.avgCad} spm`] : []),
         ...(selected.dplus > 0 ? [`+${selected.dplus} m`] : []),
         fmtSegDuration(selected.plannedSec),
+        // Only worth the pixels once a stop is long enough to have skewed the pace.
+        ...(selected.stoppedSec >= 5 ? [`⏸ ${fmtSegDuration(selected.stoppedSec)}`] : []),
       ].join(' · ')
     : ' '
 
