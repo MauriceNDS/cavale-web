@@ -1,0 +1,30 @@
+export default {
+  page: {
+    title: 'Shoes',
+    intro: 'Your rotation in numbers — wear, recent use and pair-by-pair comparison.',
+    manage: 'Manage my pairs',
+    empty: 'No pairs yet — add your shoes in the settings to track their mileage.',
+    noTagged:
+      'Stats build up run by run: pick a pair when validating your sessions.',
+    rotation: 'Last 90 days rotation',
+    rotationEmpty: 'No runs linked to a pair in the last 90 days.',
+    wear: 'Wear',
+    replaceSoon: 'replace soon',
+    replaceNow: 'replace now',
+    runs: 'Runs',
+    lastUsed: 'Last used',
+    never: 'never',
+    monthly: 'Last 6 months',
+    inServiceSince: 'In service since {{date}}',
+    compare: 'Compare pairs',
+    showRetired: 'Retired pairs ({{count}})',
+    table: {
+      pair: 'Pair',
+      km: 'Km',
+      runs: 'Runs',
+      pace: 'Avg pace',
+      dPerKm: 'D+/km',
+      lastUsed: 'Last used',
+    },
+  },
+}

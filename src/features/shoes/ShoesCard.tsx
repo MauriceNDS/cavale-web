@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { format, parseISO } from 'date-fns'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
-import { dateLocale, numberLocale } from '../../i18n'
+import { numberLocale } from '../../i18n'
 import { ApiError } from '../../lib/api'
 import { Modal } from '../../components/Modal'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
@@ -10,7 +10,6 @@ import {
   createShoe,
   deleteShoe,
   fetchShoes,
-  fetchShoeStats,
   updateShoe,
   type ShoePayload,
   type ShoePurpose,
@@ -48,8 +47,8 @@ export function ShoesCard() {
   const { t } = useTranslation('settings')
   const queryClient = useQueryClient()
   const shoesQuery = useQuery({ queryKey: ['shoes'], queryFn: fetchShoes })
+  const navigate = useNavigate()
   const [editing, setEditing] = useState<string | 'new' | null>(null)
-  const [statsOf, setStatsOf] = useState<ShoeResponse | null>(null)
   const [deleting, setDeleting] = useState<ShoeResponse | null>(null)
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['shoes'] })
@@ -79,6 +78,12 @@ export function ShoesCard() {
       <div className="flex items-center justify-between gap-4">
         <div>
           <h2 className="font-display text-lg font-semibold">{t('parameters.shoes.title')}</h2>
+          <Link
+            to="/chaussures"
+            className="text-sm font-medium text-pine-700 hover:underline dark:text-pine-300"
+          >
+            {t('parameters.shoes.statsPageLink')} →
+          </Link>
           <p className="mt-0.5 text-sm text-moss-500 dark:text-moss-400">{t('parameters.shoes.intro')}</p>
         </div>
         <button
@@ -109,7 +114,7 @@ export function ShoesCard() {
           >
             <ShoeRow
               shoe={shoe}
-              onStats={() => setStatsOf(shoe)}
+              onStats={() => navigate({ to: '/chaussures' })}
               onEdit={() => setEditing(shoe.id)}
               onDelete={() => setDeleting(shoe)}
               onToggleRetired={() =>
@@ -148,7 +153,6 @@ export function ShoesCard() {
           />
         </Modal>
       )}
-      {statsOf && <ShoeStatsSheet shoe={statsOf} onClose={() => setStatsOf(null)} />}
       {deleting && (
         <ConfirmDialog
           title={t('common:delete')}
@@ -161,112 +165,6 @@ export function ShoesCard() {
         />
       )}
     </section>
-  )
-}
-
-/* ── One pair's life in numbers ────────────────────────────────────── */
-
-function ShoeStatsSheet({ shoe, onClose }: { shoe: ShoeResponse; onClose: () => void }) {
-  const { t } = useTranslation('settings')
-  const stats = useQuery({
-    queryKey: ['shoe-stats', shoe.id],
-    queryFn: () => fetchShoeStats(shoe.id),
-  })
-  const data = stats.data
-  const maxMonth = data ? Math.max(...data.monthlyKm.map((m) => m.km), 1) : 1
-
-  const tile = (label: string, value: string) => (
-    <div className="rounded-lg border border-moss-200 bg-moss-50 p-2.5 dark:border-moss-750 dark:bg-moss-900">
-      <p className="text-[11px] font-semibold tracking-wide text-moss-500 uppercase dark:text-moss-400">
-        {label}
-      </p>
-      <p className="mt-0.5 font-display text-lg font-semibold tabular-nums">{value}</p>
-    </div>
-  )
-
-  return (
-    <Modal
-      title={shoe.name}
-      subtitle={[shoe.brand, shoe.purpose ? t(`parameters.shoes.purposes.${shoe.purpose}`) : null]
-        .filter(Boolean)
-        .join(' · ') || undefined}
-      onClose={onClose}
-    >
-      {stats.isLoading && (
-        <p className="text-sm text-moss-500 dark:text-moss-400">{t('common:loading')}</p>
-      )}
-      {data && (
-        <div className="space-y-3">
-          {shoe.color && (
-            <div className="flex items-center gap-2">
-              <ShoeSwatch color={shoe.color} colorSecondary={shoe.colorSecondary} size="lg" />
-              <BrandBadge brand={shoe.brand} size="sm" />
-            </div>
-          )}
-          <div className="grid grid-cols-2 gap-2">
-            {tile(t('parameters.shoes.stats.runs'), String(data.runs))}
-            {tile(t('parameters.shoes.stats.totalKm'), `${data.totalKm.toLocaleString(numberLocale())} km`)}
-            {tile(t('parameters.shoes.stats.elevation'), `${data.totalElevationM.toLocaleString(numberLocale())} m`)}
-            {tile(
-              t('parameters.shoes.stats.avgPace'),
-              data.avgPaceSecPerKm != null
-                ? `${Math.floor(data.avgPaceSecPerKm / 60)}:${String(data.avgPaceSecPerKm % 60).padStart(2, '0')} /km`
-                : '—',
-            )}
-          </div>
-
-          {shoe.retirementKm != null && (
-            <div>
-              <p className="flex justify-between text-xs text-moss-500 dark:text-moss-400">
-                <span>{t('parameters.shoes.stats.wear')}</span>
-                <span className="tabular-nums">
-                  {Math.round(shoe.mileageKm)} / {shoe.retirementKm} km
-                </span>
-              </p>
-              <div className="mt-1 h-2 overflow-hidden rounded-full bg-moss-200 dark:bg-moss-800">
-                <div
-                  className={`h-full rounded-full ${
-                    shoe.needsRetirement ? 'bg-clay-500 dark:bg-clay-300' : 'bg-pine-600 dark:bg-pine-350'
-                  }`}
-                  style={{ width: `${Math.min((shoe.mileageKm / shoe.retirementKm) * 100, 100)}%` }}
-                />
-              </div>
-            </div>
-          )}
-
-          <div>
-            <p className="text-[11px] font-semibold tracking-wide text-moss-500 uppercase dark:text-moss-400">
-              {t('parameters.shoes.stats.monthly')}
-            </p>
-            <div className="mt-2 flex h-24 items-end gap-1.5">
-              {data.monthlyKm.map((m) => (
-                <div key={m.month} className="flex min-w-0 flex-1 flex-col items-center gap-1">
-                  <span className="text-[10px] text-moss-500 tabular-nums dark:text-moss-400">
-                    {m.km > 0 ? Math.round(m.km) : ''}
-                  </span>
-                  <div
-                    className="w-full rounded-t bg-pine-600/80 dark:bg-pine-350/80"
-                    style={{ height: `${Math.max((m.km / maxMonth) * 64, m.km > 0 ? 3 : 1)}px` }}
-                  />
-                  <span className="truncate text-[10px] text-moss-500 dark:text-moss-400">
-                    {format(parseISO(`${m.month}-01`), 'MMM', { locale: dateLocale() })}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {data.firstUsedOn && data.lastUsedOn && (
-            <p className="text-xs text-moss-500 dark:text-moss-400">
-              {t('parameters.shoes.stats.lifespan', {
-                first: format(parseISO(data.firstUsedOn), 'd MMM yyyy', { locale: dateLocale() }),
-                last: format(parseISO(data.lastUsedOn), 'd MMM yyyy', { locale: dateLocale() }),
-              })}
-            </p>
-          )}
-        </div>
-      )}
-    </Modal>
   )
 }
 

@@ -1,4 +1,5 @@
 export default {
+  shoesLink: 'Chaussures',
   title: 'Statistiques',
   period: 'Période',
   months_one: '{{count}} mois',

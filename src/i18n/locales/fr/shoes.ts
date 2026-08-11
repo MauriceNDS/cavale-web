@@ -1,0 +1,30 @@
+export default {
+  page: {
+    title: 'Chaussures',
+    intro: 'Ta rotation en chiffres — usure, usage récent et comparaison des paires.',
+    manage: 'Gérer mes paires',
+    empty: 'Aucune paire — ajoute tes chaussures dans les paramètres pour suivre leur kilométrage.',
+    noTagged:
+      'Les statistiques se construisent au fil des sorties : associe une paire en validant tes séances.',
+    rotation: 'Rotation des 90 derniers jours',
+    rotationEmpty: 'Aucune sortie associée à une paire sur les 90 derniers jours.',
+    wear: 'Usure',
+    replaceSoon: 'à remplacer bientôt',
+    replaceNow: 'à remplacer',
+    runs: 'Sorties',
+    lastUsed: 'Dernière sortie',
+    never: 'jamais',
+    monthly: '6 derniers mois',
+    inServiceSince: 'En service depuis le {{date}}',
+    compare: 'Comparer les paires',
+    showRetired: 'Paires retraitées ({{count}})',
+    table: {
+      pair: 'Paire',
+      km: 'Km',
+      runs: 'Sorties',
+      pace: 'Allure moy.',
+      dPerKm: 'D+/km',
+      lastUsed: 'Dernière sortie',
+    },
+  },
+}

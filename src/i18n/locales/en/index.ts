@@ -10,6 +10,7 @@ import landing from './landing'
 import objective from './objective'
 import settings from './settings'
 import shell from './shell'
+import shoes from './shoes'
 import stats from './stats'
 
-export default { admin, athlete, auth, calendar, coach, common, glossary, gym, landing, objective, settings, shell, stats }
+export default { admin, athlete, auth, calendar, coach, common, glossary, gym, landing, objective, settings, shell, shoes, stats }

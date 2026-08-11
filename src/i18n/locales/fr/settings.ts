@@ -48,6 +48,7 @@ export default {
       editTitle: 'Modifier « {{name}} »',
       deleteConfirm: 'Supprimer « {{name}} » ? Ses sorties gardent leur historique, sans paire liée.',
       statsButton: 'stats',
+      statsPageLink: 'Statistiques',
       statsAria: 'Statistiques de {{name}}',
       stats: {
         runs: 'Sorties',

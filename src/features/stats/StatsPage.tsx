@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useNavigate, useSearch } from '@tanstack/react-router'
+import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { parseISO, subMonths } from 'date-fns'
 import { useTranslation } from 'react-i18next'
 import { muted } from '../../lib/ui'
@@ -81,7 +81,15 @@ export function StatsPage() {
 
   return (
     <div className="mx-auto mt-6 max-w-3xl space-y-4 pb-10">
-      <h1 className="font-display text-2xl font-semibold">{t('title')}</h1>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h1 className="font-display text-2xl font-semibold">{t('title')}</h1>
+        <Link
+          to="/chaussures"
+          className="text-sm font-medium text-pine-700 hover:underline dark:text-pine-300"
+        >
+          {t('shoesLink')} →
+        </Link>
+      </div>
 
       <VerdictStrip stats={stats} />
 

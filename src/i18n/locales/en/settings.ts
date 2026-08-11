@@ -48,6 +48,7 @@ export default {
       editTitle: 'Edit “{{name}}”',
       deleteConfirm: 'Delete “{{name}}”? Its runs keep their history, unlinked.',
       statsButton: 'stats',
+      statsPageLink: 'Statistics',
       statsAria: '{{name}} statistics',
       stats: {
         runs: 'Runs',

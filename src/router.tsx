@@ -32,6 +32,7 @@ import { WorkoutPage } from './features/gym/WorkoutPage'
 import { ActivitiesPage } from './features/athlete/ActivitiesPage'
 import { ActivityDetailPage } from './features/athlete/ActivityDetailPage'
 import { StatsPage } from './features/stats/StatsPage'
+import { ShoesPage } from './features/shoes/ShoesPage'
 import { CoachPage } from './features/coach/CoachPage'
 import { ObjectivePage } from './features/objective/ObjectivePage'
 import { OnboardingPage } from './features/auth/OnboardingPage'
@@ -642,6 +643,12 @@ const activitiesRoute = createRoute({
   component: ActivitiesPage,
 })
 
+const shoesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/chaussures',
+  component: ShoesPage,
+})
+
 const activityDetailRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/activite/$activityId',
@@ -720,6 +727,7 @@ const routeTree = rootRoute.addChildren([
   gymStatsRoute,
   statsRoute,
   activitiesRoute,
+  shoesRoute,
   activityDetailRoute,
   registerRoute,
   loginRoute,

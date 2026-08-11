@@ -64,3 +64,14 @@ export function assignShoeToActivity(
 ): Promise<{ shoeId: string | null }> {
   return api.put<{ shoeId: string | null }>(`/api/shoes/of-activity/${activityId}`, { shoeId })
 }
+
+export interface ShoeOverviewResponse {
+  shoe: ShoeResponse
+  stats: ShoeStatsResponse
+  /** Km over the last 90 days — rotation share is this over the sum across pairs. */
+  recentKm: number
+}
+
+export function fetchShoeOverview(): Promise<ShoeOverviewResponse[]> {
+  return api.get<ShoeOverviewResponse[]>('/api/shoes/overview')
+}
