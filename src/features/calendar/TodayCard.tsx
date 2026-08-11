@@ -47,7 +47,7 @@ export function TodayCard() {
   if (query.isLoading || query.isError) return null
 
   // Rest days aren't shown: an empty day IS the rest (same rule as the calendar).
-  const sessions = (query.data ?? []).filter((s) => s.discipline !== 'REST')
+  const sessions = query.data ?? []
   const todays = sessions.filter((s) => s.date === today)
   const nextDate = sessions.find((s) => s.date > today)?.date
   const shown = todays.length > 0 ? todays : nextDate ? sessions.filter((s) => s.date === nextDate) : []

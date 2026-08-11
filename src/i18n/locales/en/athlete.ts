@@ -65,6 +65,8 @@ export default {
       lastWeek: 'last week:',
       target: 'target {{value}}',
       sessions: 'Sessions',
+      runTime: 'running',
+      gymTime: 'strength',
       noPlan: 'No active plan — weekly targets will appear with your next season.',
     },
     // The evolution keys are shared with the stats page (EvolutionCard).

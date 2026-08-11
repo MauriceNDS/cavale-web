@@ -63,6 +63,8 @@ export interface WeeklyStat {
   runs: number
   distanceKm: number
   durationMin: number
+  /** Real strength minutes that week — displayed beside the run hours, never merged. */
+  gymDurationMin: number
   elevationM: number
   avgPaceSecPerKm: number | null
   avgHr: number | null
@@ -226,7 +228,7 @@ export interface ActivityDetail {
   comment: string | null
   hasStreams: boolean
   shoeId: string | null
-  discipline: 'RUN' | 'GYM' | 'REST' | 'CROSS' | 'HIKE'
+  discipline: 'RUN' | 'GYM' | 'CROSS' | 'HIKE'
   /** Encoded-polyline GPS trace — null on activities synced before capture. */
   mapPolyline: string | null
   /** First-half vs second-half HR/pace drift %, on long runs with streams. */

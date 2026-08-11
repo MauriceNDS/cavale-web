@@ -1,7 +1,7 @@
 import { api, getToken } from '../../lib/api'
 import type { ObjectivePayload } from '../objective/api'
 
-export type Discipline = 'RUN' | 'GYM' | 'REST' | 'CROSS' | 'HIKE'
+export type Discipline = 'RUN' | 'GYM' | 'CROSS' | 'HIKE'
 export type SessionStatus = 'PLANNED' | 'DONE' | 'SKIPPED' | 'MOVED'
 export type WeekType =
   | 'RECOVERY'
@@ -72,6 +72,8 @@ export interface SessionResponse {
   rpeMin: number | null
   rpeMax: number | null
   status: SessionStatus
+  /** Real minutes once DONE — the activity's for a run, the workout log's for gym. */
+  actualDurationMin: number | null
   activity: ActivitySummary | null
   workout: WorkoutNode[]
   structureNotes: string | null

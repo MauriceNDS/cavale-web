@@ -19,12 +19,10 @@ export default {
     GYM: 'Renfo',
     CROSS: 'Croisé',
     HIKE: 'Rando',
-    REST: 'Repos',
   },
   discipline: {
     RUN: 'Course',
     GYM: 'Renfo',
-    REST: 'Repos',
     CROSS: 'Croisé',
     HIKE: 'Rando',
   },

@@ -139,9 +139,11 @@ function SessionView({
   const pace = paceQuery.data ?? null
 
   const totalSec =
-    session.workout.length > 0
-      ? totalWorkoutSeconds(session.workout)
-      : (session.durationMin ?? 0) * 60
+    session.status === 'DONE' && session.actualDurationMin != null
+      ? session.actualDurationMin * 60
+      : session.workout.length > 0
+        ? totalWorkoutSeconds(session.workout)
+        : (session.durationMin ?? 0) * 60
   const isValidated = session.status === 'DONE' && session.activity != null
   const consignes = session.structureNotes ?? session.detail
 
@@ -320,8 +322,6 @@ function SessionActions({
   })
 
   const pending = statusMutation.isPending || validateMutation.isPending || stravaMutation.isPending
-
-  if (session.discipline === 'REST') return null
 
   if (step.kind === 'choose') {
     return (

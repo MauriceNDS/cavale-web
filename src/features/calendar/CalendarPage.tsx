@@ -94,11 +94,7 @@ export function CalendarPage() {
     queryKey: ['calendar', iso(range.start), iso(range.end)],
     queryFn: () => fetchCalendar(iso(range.start), iso(range.end)),
   })
-  // Rest days aren't shown: an empty day IS the rest
-  const visibleSessions = useMemo(
-    () => (sessions.data ?? []).filter((s) => s.discipline !== 'REST'),
-    [sessions.data],
-  )
+  const visibleSessions = sessions.data ?? []
 
   const plans = useQuery({ queryKey: ['plans'], queryFn: fetchPlans })
   const activePlan = plans.data?.find((p) => p.status === 'ACTIVE') ?? plans.data?.[0]
@@ -314,14 +310,19 @@ function WeekMetrics({ week, sessions }: { week: WeekResponse; sessions: Session
     (sum, s) => sum + (s.activity?.elevationM ?? s.elevationM ?? 0),
     0,
   )
-  const doneMinutes = done.reduce(
-    (sum, s) => sum + (s.activity?.durationMin ?? s.durationMin ?? 0),
+  // The time ring answers "did I do my running time?" — strength and
+  // cross-training stay out of it (the load ring still counts them).
+  const doneRuns = done.filter((s) => s.discipline === 'RUN')
+  const doneMinutes = doneRuns.reduce(
+    (sum, s) => sum + (s.actualDurationMin ?? s.durationMin ?? 0),
     0,
   )
-  const plannedMinutes = sessions.reduce((sum, s) => sum + (s.durationMin ?? 0), 0)
+  const plannedMinutes = sessions
+    .filter((s) => s.discipline === 'RUN')
+    .reduce((sum, s) => sum + (s.durationMin ?? 0), 0)
   const doneLoad = done.reduce((sum, s) => {
     const rpe = s.rpeMin != null && s.rpeMax != null ? (s.rpeMin + s.rpeMax) / 2 : (s.rpeMin ?? 0)
-    return sum + rpe * (s.activity?.durationMin ?? s.durationMin ?? 0)
+    return sum + rpe * (s.actualDurationMin ?? s.durationMin ?? 0)
   }, 0)
 
   // The estimate (personal pace model over the prescribed times) is the honest
@@ -662,11 +663,14 @@ function DraggableSessionCard({ session, onClick }: { session: SessionResponse; 
     disabled: frozen,
   })
 
-  // total time shown ONCE: computed from the structure, else the planned duration
+  // total time shown ONCE: the real duration once done, else computed from
+  // the structure, else the planned duration
   const totalSec =
-    session.workout.length > 0
-      ? totalWorkoutSeconds(session.workout)
-      : (session.durationMin ?? 0) * 60
+    session.status === 'DONE' && session.actualDurationMin != null
+      ? session.actualDurationMin * 60
+      : session.workout.length > 0
+        ? totalWorkoutSeconds(session.workout)
+        : (session.durationMin ?? 0) * 60
   const meta = [
     totalSec > 0 && formatSeconds(totalSec),
     session.elevationM != null && `${session.elevationM} m D+`,

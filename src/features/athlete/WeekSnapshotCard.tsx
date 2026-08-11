@@ -75,7 +75,7 @@ export function WeekSnapshotCard({ hub }: { hub: AthleteHub }) {
           />
         </div>
       ) : (
-        <div className="mt-3 grid grid-cols-3 gap-3">
+        <div className="mt-3 grid grid-cols-2 gap-3">
           <Metric
             value={`${Math.round(Number(thisWeek.distanceKm))} km`}
             last={lastWeek ? `${Math.round(Number(lastWeek.distanceKm))} km` : null}
@@ -86,15 +86,16 @@ export function WeekSnapshotCard({ hub }: { hub: AthleteHub }) {
             last={lastWeek ? `${lastWeek.elevationM.toLocaleString(numberLocale())} m` : null}
             lastLabel={t('home.week.lastWeek')}
           />
-          <Metric
-            value={formatHours(thisWeek.durationMin)}
-            last={lastWeek ? formatHours(lastWeek.durationMin) : null}
-            lastLabel={t('home.week.lastWeek')}
-          />
         </div>
       )}
+      <TimeSplit
+        runMin={thisWeek.durationMin}
+        gymMin={thisWeek.gymDurationMin}
+        runLabel={t('home.week.runTime')}
+        gymLabel={t('home.week.gymTime')}
+      />
       {planWeek && lastWeek && (
-        <p className={`mt-3 text-center text-xs ${muted}`}>
+        <p className={`mt-1 text-center text-xs ${muted}`}>
           {t('home.week.lastWeek')} {Math.round(Number(lastWeek.distanceKm))} km ·{' '}
           {lastWeek.elevationM.toLocaleString(numberLocale())} m D+ ·{' '}
           {formatHours(lastWeek.durationMin)}
@@ -102,6 +103,31 @@ export function WeekSnapshotCard({ hub }: { hub: AthleteHub }) {
       )}
       {!currentSeason && <p className={`mt-2 text-xs ${muted}`}>{t('home.week.noPlan')}</p>}
     </section>
+  )
+}
+
+/** Run time and strength time as two separate figures — never one merged total. */
+function TimeSplit({
+  runMin,
+  gymMin,
+  runLabel,
+  gymLabel,
+}: {
+  runMin: number
+  gymMin: number
+  runLabel: string
+  gymLabel: string
+}) {
+  return (
+    <p className={`mt-3 text-center text-xs ${muted}`}>
+      <span className="font-medium">{formatHours(runMin)}</span> {runLabel}
+      {gymMin > 0 && (
+        <>
+          {' · '}
+          <span className="font-medium">{formatHours(gymMin)}</span> {gymLabel}
+        </>
+      )}
+    </p>
   )
 }
 

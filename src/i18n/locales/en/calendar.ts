@@ -19,12 +19,10 @@ export default {
     GYM: 'Strength',
     CROSS: 'Cross-training',
     HIKE: 'Hike',
-    REST: 'Rest',
   },
   discipline: {
     RUN: 'Running',
     GYM: 'Strength',
-    REST: 'Rest',
     CROSS: 'Cross-training',
     HIKE: 'Hike',
   },

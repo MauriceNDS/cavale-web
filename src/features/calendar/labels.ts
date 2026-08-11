@@ -54,11 +54,9 @@ export type TrainingKind =
   | 'GYM'
   | 'CROSS'
   | 'HIKE'
-  | 'REST'
 
 export function trainingKind(session: SessionResponse): TrainingKind {
   if (session.discipline === 'GYM') return 'GYM'
-  if (session.discipline === 'REST') return 'REST'
   if (session.discipline === 'CROSS') return 'CROSS'
   if (session.discipline === 'HIKE') return 'HIKE'
 
@@ -90,7 +88,6 @@ export const KIND_EDGE: Record<TrainingKind, string> = {
   GYM: 'border-l-copper-600 dark:border-l-copper-300',
   CROSS: 'border-l-moss-400 dark:border-l-moss-500',
   HIKE: 'border-l-moss-700 dark:border-l-moss-300',
-  REST: 'border-l-moss-300 dark:border-l-moss-700',
 }
 
 /** Dot color per training kind (month view). */
@@ -105,7 +102,6 @@ export const KIND_DOT: Record<TrainingKind, string> = {
   GYM: 'bg-copper-600 dark:bg-copper-300',
   CROSS: 'bg-moss-400 dark:bg-moss-500',
   HIKE: 'bg-moss-700 dark:bg-moss-300',
-  REST: 'bg-moss-300 dark:bg-moss-700',
 }
 
 /** Legend order for the month view. */
