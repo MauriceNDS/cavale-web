@@ -107,6 +107,7 @@ export default {
     chipRpe: 'RPE',
     chipZone: 'Zone',
     chipPace: 'Allure',
+    chipHr: 'FC',
     instructions: 'Consignes',
     noStructure: 'Pas encore de structure.',
     editStructure: 'Modifier la structure',

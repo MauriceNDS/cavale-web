@@ -107,6 +107,7 @@ export default {
     chipRpe: 'RPE',
     chipZone: 'Zone',
     chipPace: 'Pace',
+    chipHr: 'HR',
     instructions: 'Instructions',
     noStructure: 'No structure yet.',
     editStructure: 'Edit structure',

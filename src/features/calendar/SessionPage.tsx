@@ -31,6 +31,7 @@ import {
   type WorkoutNode,
 } from './api'
 import {
+  allureHrBand,
   allurePaceBand,
   disciplineLabel,
   EFFORTS,
@@ -182,8 +183,15 @@ function SessionView({
         {session.zone && <HeaderChip label={t('session.chipZone')} value={session.zone} />}
         {session.discipline === 'RUN' &&
           (() => {
-            const band = allurePaceBand(pace, zoneAllure(session.zone))
-            return band ? <HeaderChip label={t('session.chipPace')} value={band.label} /> : null
+            const allure = zoneAllure(session.zone)
+            const band = allurePaceBand(pace, allure)
+            const hr = allureHrBand(pace, allure)
+            return (
+              <>
+                {band && <HeaderChip label={t('session.chipPace')} value={band.label} />}
+                {hr && <HeaderChip label={t('session.chipHr')} value={hr} />}
+              </>
+            )
           })()}
         {session.templateName && (
           <span className="rounded-lg border border-copper-600/40 bg-copper-600/10 px-2.5 py-1 text-xs font-semibold text-copper-600 dark:border-copper-300/40 dark:bg-copper-300/10 dark:text-copper-300">

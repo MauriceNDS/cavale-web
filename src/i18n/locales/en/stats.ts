@@ -1,4 +1,17 @@
 export default {
+  paceTable: {
+    title: 'My paces',
+    type: 'Type',
+    pace: 'Pace',
+    hr: 'HR',
+    fitted: 'Model fitted on {{count}} recent runs — it follows your fitness continuously.',
+    coldStart: 'Not enough runs yet: conservative default paces.',
+    thresholdAnchored: 'thresholds anchored on your critical speed',
+    maxHr: 'Max HR {{hr}} bpm',
+    maxHrProfile: '(profile)',
+    maxHrObserved: '(observed in your runs — editable in the profile)',
+    climbCost: 'Paces are flat-ground: uphill, add ~{{cost}} s/km per 10 m of D+/km.',
+  },
   shoesLink: 'Shoes',
   title: 'Statistics',
   period: 'Period',
@@ -8,6 +21,7 @@ export default {
   drill: 'click: see the runs',
   loadError: 'Could not load the statistics.',
   tabs: {
+    allures: 'Paces',
     charge: 'Load',
     volume: 'Volume',
     physio: 'Physiology',

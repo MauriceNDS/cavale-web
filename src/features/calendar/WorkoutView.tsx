@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import type { PaceContextResponse, WorkoutNode } from './api'
-import { allureLabel, allurePaceBand, terrainLabel, allureStyle, formatSeconds } from './labels'
+import { allureHrBand, allureLabel, allurePaceBand, terrainLabel, allureStyle, formatSeconds } from './labels'
 
 /**
  * Read-only workout tree: allure-titled blocks, times in letters, loop
@@ -55,6 +55,7 @@ function NodeView({ node, pace }: { node: WorkoutNode; pace?: PaceContextRespons
     .filter(Boolean)
     .join(' ')
   const band = node.allure && node.allure !== 'LENTE' ? allurePaceBand(pace, node.allure) : null
+  const hrBand = node.allure && node.allure !== 'LENTE' ? allureHrBand(pace, node.allure) : null
   return (
     <div
       className={`flex items-center justify-between gap-3 rounded-lg border border-l-4 border-moss-200 bg-moss-50 px-3 py-2 dark:border-moss-750 dark:bg-moss-800 ${style.edge}`}
@@ -75,6 +76,9 @@ function NodeView({ node, pace }: { node: WorkoutNode; pace?: PaceContextRespons
           <p className="text-xs font-medium text-moss-500 tabular-nums dark:text-moss-400">
             {band.label}
           </p>
+          {hrBand && (
+            <p className="text-[11px] text-moss-400 tabular-nums dark:text-moss-500">{hrBand}</p>
+          )}
         </div>
       )}
     </div>

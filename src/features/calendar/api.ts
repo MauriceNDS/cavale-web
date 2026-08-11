@@ -144,12 +144,18 @@ export function scaffoldPlan(planId: string, fillSessions: boolean): Promise<Wee
   return api.post<WeekResponse[]>(`/api/plans/${planId}/scaffold?fillSessions=${fillSessions}`, undefined)
 }
 
-/** The athlete's derived paces — bands are shown only in a road season. */
+/** The athlete's derived paces, refit continuously from his own runs. */
 export interface PaceContextResponse {
   flatSecPerKm: Record<Allure, number>
   climbSecPerMeter: number
   sampleSize: number
   personal: boolean
+  /** True when the quality paces are anchored on the fitted critical speed. */
+  thresholdAnchored: boolean
+  cpSecPerKm: number | null
+  /** HR anchor for the zone bands — profile override, else observed max. */
+  maxHr: number | null
+  maxHrFromProfile: boolean
   roadContext: boolean
   goalPaceSecPerKm: number | null
 }

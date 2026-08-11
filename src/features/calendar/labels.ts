@@ -205,13 +205,14 @@ function paceBandLabel(secPerKm: number, pct: number): string {
  * The pace band an allure should be run in, derived from the athlete's own
  * model at DISPLAY time (so the same plan speeds up as fitness improves).
  * Race-pace blocks anchor to the objective's goal pace when one is set.
- * Null outside a road season — trail thinks in km-effort, not min/km.
+ * Shown on every season — trail sessions read it as the flat-ground pace,
+ * with the climb cost noted separately.
  */
 export function allurePaceBand(
   pace: PaceContextResponse | null | undefined,
   allure: Allure | null,
 ): { label: string; goal: boolean } | null {
-  if (!pace?.roadContext || !allure) return null
+  if (!pace || !allure) return null
   if (allure === 'COURSE' && pace.goalPaceSecPerKm) {
     return { label: paceBandLabel(pace.goalPaceSecPerKm, 0.03), goal: true }
   }
@@ -219,6 +220,27 @@ export function allurePaceBand(
   if (!sec) return null
   // wide comfort band for easy running, tighter for quality work
   return { label: paceBandLabel(sec, allure === 'EF' || allure === 'LENTE' ? 0.06 : 0.04), goal: false }
+}
+
+/** %HRmax band per allure — classic zone physiology, personal via maxHr. */
+const HR_PCT: Partial<Record<Allure, [number, number]>> = {
+  LENTE: [60, 70],
+  EF: [65, 78],
+  COURSE: [78, 88],
+  SEUIL60: [85, 92],
+  SEUIL30: [88, 95],
+  VMA: [92, 100],
+}
+
+/** The heart-rate band an allure should be run in — null without a max HR anchor. */
+export function allureHrBand(
+  pace: PaceContextResponse | null | undefined,
+  allure: Allure | null,
+): string | null {
+  if (!pace?.maxHr || !allure) return null
+  const pct = HR_PCT[allure]
+  if (!pct) return null
+  return `${Math.round((pace.maxHr * pct[0]) / 100)}–${Math.round((pace.maxHr * pct[1]) / 100)} bpm`
 }
 
 /** Session zone label → the allure whose pace band applies. */

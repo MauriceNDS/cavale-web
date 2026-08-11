@@ -1,4 +1,17 @@
 export default {
+  paceTable: {
+    title: 'Mes allures',
+    type: 'Type',
+    pace: 'Allure',
+    hr: 'FC',
+    fitted: 'Modèle ajusté sur {{count}} sorties récentes — il évolue en continu avec ta forme.',
+    coldStart: 'Pas encore assez de sorties : allures par défaut prudentes.',
+    thresholdAnchored: 'seuils ancrés sur ta vitesse critique',
+    maxHr: 'FC max {{hr}} bpm',
+    maxHrProfile: '(profil)',
+    maxHrObserved: '(observée sur tes sorties — modifiable dans le profil)',
+    climbCost: 'Allures données à plat : en côte, compte +{{cost}} s/km par 10 m de D+/km.',
+  },
   shoesLink: 'Chaussures',
   title: 'Statistiques',
   period: 'Période',
@@ -8,6 +21,7 @@ export default {
   drill: 'clic : voir les sorties',
   loadError: 'Impossible de charger les statistiques.',
   tabs: {
+    allures: 'Allures',
     charge: 'Charge',
     volume: 'Volume',
     physio: 'Physiologie',

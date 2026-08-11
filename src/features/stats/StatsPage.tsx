@@ -26,13 +26,14 @@ import {
 } from './charts'
 import { EvolutionCard } from './EvolutionCard'
 import { RecordsTab } from './RecordsTab'
+import { AlluresTab } from './AlluresTab'
 import { RunSafeCard } from './RunSafeCard'
 import { VerdictStrip } from './VerdictStrip'
 
 const RANGES = [1, 3, 6, 12, 'all'] as const
 type Range = (typeof RANGES)[number]
 
-const TABS = ['charge', 'volume', 'physio', 'records', 'renfo'] as const
+const TABS = ['charge', 'volume', 'physio', 'allures', 'records', 'renfo'] as const
 type StatsTab = (typeof TABS)[number]
 /** Tabs whose charts obey the period selector. */
 const PERIOD_TABS: StatsTab[] = ['charge', 'volume', 'physio']
@@ -129,6 +130,7 @@ export function StatsPage() {
       {tab === 'charge' && <ChargeTab stats={tabStats} months={months} />}
       {tab === 'volume' && <VolumeTab stats={tabStats} months={months} />}
       {tab === 'physio' && <PhysioTab stats={tabStats} months={months} />}
+      {tab === 'allures' && <AlluresTab />}
       {tab === 'records' && <RecordsTab stats={stats} />}
       {tab === 'renfo' && <GymStatsSection />}
     </div>
