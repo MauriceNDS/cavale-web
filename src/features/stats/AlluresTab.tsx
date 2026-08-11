@@ -60,11 +60,15 @@ export function AlluresTab() {
             : t('paceTable.coldStart')}
           {pace.thresholdAnchored && <> · {t('paceTable.thresholdAnchored')}</>}
         </p>
-        {pace.maxHr != null && (
-          <p>
-            {t('paceTable.maxHr', { hr: pace.maxHr })}{' '}
-            {pace.maxHrFromProfile ? t('paceTable.maxHrProfile') : t('paceTable.maxHrObserved')}
-          </p>
+        {pace.lthr != null ? (
+          <p>{t('paceTable.lthrAnchor', { hr: pace.lthr })}</p>
+        ) : (
+          pace.maxHr != null && (
+            <p>
+              {t('paceTable.maxHr', { hr: pace.maxHr })}{' '}
+              {pace.maxHrFromProfile ? t('paceTable.maxHrProfile') : t('paceTable.maxHrObserved')}
+            </p>
+          )
         )}
         <p>{t('paceTable.climbCost', { cost: Math.round(pace.climbSecPerMeter * 10) })}</p>
       </div>

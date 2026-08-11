@@ -8,6 +8,7 @@ export default {
     coldStart: 'Pas encore assez de sorties : allures par défaut prudentes.',
     thresholdAnchored: 'seuils ancrés sur ta vitesse critique',
     maxHr: 'FC max {{hr}} bpm',
+    lthrAnchor: 'Zones FC ancrées sur ta LTHR {{hr}} bpm (test — modifiable dans le profil).',
     maxHrProfile: '(profil)',
     maxHrObserved: '(observée sur tes sorties — modifiable dans le profil)',
     climbCost: 'Allures données à plat : en côte, compte +{{cost}} s/km par 10 m de D+/km.',

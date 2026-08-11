@@ -186,6 +186,7 @@ function ProfileCard() {
               birthDate: ((data.get('birthDate') as string) || '').trim() || null,
               maxHr: num('maxHr'),
               restingHr: num('restingHr'),
+              lthr: num('lthr'),
             })
           }}
         >
@@ -215,6 +216,13 @@ function ProfileCard() {
               <input name="restingHr" type="number" min="0" defaultValue={user.restingHr ?? ''} className={fieldClass} />
             </label>
           </div>
+          <label className="block">
+            <span className="text-sm font-medium">{t('profile.athlete.lthr')}</span>
+            <input name="lthr" type="number" min="0" defaultValue={user.lthr ?? ''} className={fieldClass} />
+            <span className="mt-0.5 block text-xs text-moss-500 dark:text-moss-400">
+              {t('profile.athlete.lthrHint')}
+            </span>
+          </label>
           {mutation.error instanceof ApiError && (
             <p role="alert" className="text-sm text-clay-500 sm:col-span-2 dark:text-clay-300">
               {mutation.error.message}

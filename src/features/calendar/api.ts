@@ -156,6 +156,8 @@ export interface PaceContextResponse {
   /** HR anchor for the zone bands — profile override, else observed max. */
   maxHr: number | null
   maxHrFromProfile: boolean
+  /** Lactate-threshold HR from a field test — preferred zone anchor when set. */
+  lthr: number | null
   roadContext: boolean
   goalPaceSecPerKm: number | null
 }

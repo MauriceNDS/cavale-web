@@ -8,6 +8,7 @@ export default {
     coldStart: 'Not enough runs yet: conservative default paces.',
     thresholdAnchored: 'thresholds anchored on your critical speed',
     maxHr: 'Max HR {{hr}} bpm',
+    lthrAnchor: 'HR zones anchored on your LTHR {{hr}} bpm (test — editable in the profile).',
     maxHrProfile: '(profile)',
     maxHrObserved: '(observed in your runs — editable in the profile)',
     climbCost: 'Paces are flat-ground: uphill, add ~{{cost}} s/km per 10 m of D+/km.',

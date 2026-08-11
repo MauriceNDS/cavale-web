@@ -122,6 +122,7 @@ export interface UpdateProfileRequest {
   birthDate?: string | null
   maxHr?: number | null
   restingHr?: number | null
+  lthr?: number | null
 }
 
 export function updateProfile(body: UpdateProfileRequest): Promise<UserResponse> {

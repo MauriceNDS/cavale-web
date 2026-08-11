@@ -26,6 +26,7 @@ export interface UserResponse {
   birthDate: string | null
   maxHr: number | null
   restingHr: number | null
+  lthr: number | null
   gymEnabled: boolean
   preferredLanguage: 'fr' | 'en'
   athleteStatus: AthleteStatus

@@ -10,6 +10,8 @@ export default {
       birthDate: 'Date de naissance',
       maxHr: 'FC max',
       restingHr: 'FC repos',
+      lthr: 'LTHR — FC au seuil (bpm)',
+      lthrHint: 'FC moyenne des 20 dernières minutes d\'un test de 30 min à fond. Ancre les zones FC (plus précis que la FC max).',
       saved: 'Profil enregistré ✓',
     },
     status: {

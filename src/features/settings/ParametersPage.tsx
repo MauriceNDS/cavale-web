@@ -78,7 +78,7 @@ function UsageCard() {
     mutationFn: (gymEnabled: boolean) =>
       updateProfile({ displayName: user!.displayName, weightKg: user!.weightKg,
         heightCm: user!.heightCm, birthDate: user!.birthDate, maxHr: user!.maxHr,
-        restingHr: user!.restingHr, gymEnabled }),
+        restingHr: user!.restingHr, lthr: user!.lthr, gymEnabled }),
     onSuccess: () => void refresh(),
   })
   // Two-option segmented radiogroup: 0 = running only, 1 = running + strength.
@@ -134,7 +134,7 @@ function LanguageCard() {
     mutationFn: (preferredLanguage: Language) =>
       updateProfile({ displayName: user!.displayName, weightKg: user!.weightKg,
         heightCm: user!.heightCm, birthDate: user!.birthDate, maxHr: user!.maxHr,
-        restingHr: user!.restingHr, preferredLanguage }),
+        restingHr: user!.restingHr, lthr: user!.lthr, preferredLanguage }),
     onSuccess: (updated) => {
       applyLanguage(updated.preferredLanguage)
       void refresh()

@@ -10,6 +10,8 @@ export default {
       birthDate: 'Birth date',
       maxHr: 'Max HR',
       restingHr: 'Resting HR',
+      lthr: 'LTHR — threshold HR (bpm)',
+      lthrHint: 'Average HR of the last 20 minutes of an all-out 30-min test. Anchors the HR zones (sharper than max HR).',
       saved: 'Profile saved ✓',
     },
     status: {

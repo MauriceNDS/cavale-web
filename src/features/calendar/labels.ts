@@ -222,8 +222,8 @@ export function allurePaceBand(
   return { label: paceBandLabel(sec, allure === 'EF' || allure === 'LENTE' ? 0.06 : 0.04), goal: false }
 }
 
-/** %HRmax band per allure — classic zone physiology, personal via maxHr. */
-const HR_PCT: Partial<Record<Allure, [number, number]>> = {
+/** %HRmax band per allure — the fallback when no LTHR test exists. */
+const HR_PCT_MAX: Partial<Record<Allure, [number, number]>> = {
   LENTE: [60, 70],
   EF: [65, 78],
   COURSE: [78, 88],
@@ -232,15 +232,34 @@ const HR_PCT: Partial<Record<Allure, [number, number]>> = {
   VMA: [92, 100],
 }
 
-/** The heart-rate band an allure should be run in — null without a max HR anchor. */
+/** %LTHR band per allure (Friel run zones) — sharper than %HRmax. */
+const HR_PCT_LTHR: Partial<Record<Allure, [number, number]>> = {
+  LENTE: [70, 84],
+  EF: [80, 89],
+  COURSE: [90, 94],
+  SEUIL60: [95, 99],
+  SEUIL30: [100, 103],
+  VMA: [104, 109],
+}
+
+/**
+ * The heart-rate band an allure should be run in. Anchored on the tested
+ * LTHR when the profile has one (Friel %LTHR zones), else on max HR; the
+ * top is always capped at max HR when known.
+ */
 export function allureHrBand(
   pace: PaceContextResponse | null | undefined,
   allure: Allure | null,
 ): string | null {
-  if (!pace?.maxHr || !allure) return null
-  const pct = HR_PCT[allure]
+  if (!pace || !allure) return null
+  const anchor = pace.lthr ?? pace.maxHr
+  if (!anchor) return null
+  const pct = (pace.lthr ? HR_PCT_LTHR : HR_PCT_MAX)[allure]
   if (!pct) return null
-  return `${Math.round((pace.maxHr * pct[0]) / 100)}–${Math.round((pace.maxHr * pct[1]) / 100)} bpm`
+  const cap = pace.maxHr ?? Number.MAX_SAFE_INTEGER
+  const low = Math.min(Math.round((anchor * pct[0]) / 100), cap)
+  const high = Math.min(Math.round((anchor * pct[1]) / 100), cap)
+  return `${low}–${high} bpm`
 }
 
 /** Session zone label → the allure whose pace band applies. */
