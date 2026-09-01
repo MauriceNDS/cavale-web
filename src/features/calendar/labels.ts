@@ -133,6 +133,31 @@ export const EFFORTS: PerceivedEffort[] = [
 ]
 
 /** Total execution time of a workout tree, in seconds. */
+/**
+ * The ONE prescribed duration a session shows, in seconds.
+ *
+ * A RUN carries two numbers — the flat `durationMin` the coach typed and the
+ * workout structure derived from the detail text — and they drift. Reading
+ * different fields in different places is what made the same session show 76′
+ * on its card and 80′ in the week ring. The server now settles it in
+ * `plannedDurationMin` (structure first, stored minutes as fallback); every
+ * view goes through here so a session has one duration, everywhere.
+ */
+export function plannedSeconds(session: SessionResponse): number {
+  if (session.plannedDurationMin != null) return session.plannedDurationMin * 60
+  // pre-`plannedDurationMin` payloads (a cached response mid-deploy)
+  if (session.workout.length > 0) return totalWorkoutSeconds(session.workout)
+  return (session.durationMin ?? 0) * 60
+}
+
+/** What the athlete actually did once the session is closed, else the prescription. */
+export function displaySeconds(session: SessionResponse): number {
+  if (session.status === 'DONE' && session.actualDurationMin != null) {
+    return session.actualDurationMin * 60
+  }
+  return plannedSeconds(session)
+}
+
 export function totalWorkoutSeconds(nodes: WorkoutNode[]): number {
   let total = 0
   for (const node of nodes) {

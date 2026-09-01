@@ -101,6 +101,7 @@ export default {
   charts: {
     actual: 'Actual',
     target: 'Target',
+    coachTarget: 'Plan target',
     planned: 'Planned',
     race: 'Race',
     weeklyAria: 'Weekly progress',

@@ -16,7 +16,9 @@ import {
   KIND_EDGE,
   kindLabel,
   cleanTitle,
+  plannedSeconds,
   formatDuration,
+  formatSeconds,
   isPending,
   trainingKind,
 } from './labels'
@@ -133,7 +135,7 @@ function SessionRow({ session }: { session: SessionResponse }) {
           <p className="truncate font-medium">{cleanTitle(session.title)}</p>
           <p className={`text-xs ${muted}`}>
             {kindLabel(kind)}
-            {session.durationMin != null && ` · ${formatDuration(session.durationMin)}`}
+            {plannedSeconds(session) > 0 && ` · ${formatSeconds(plannedSeconds(session))}`}
             {session.elevationM != null && ` · ${session.elevationM} m D+`}
           </p>
         </Link>

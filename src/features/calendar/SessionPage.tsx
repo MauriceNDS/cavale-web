@@ -40,7 +40,7 @@ import {
   isPending,
   formatDuration,
   formatSeconds,
-  totalWorkoutSeconds,
+  displaySeconds,
   zoneAllure,
 } from './labels'
 import { WorkoutTree } from './WorkoutView'
@@ -139,12 +139,7 @@ function SessionView({
   })
   const pace = paceQuery.data ?? null
 
-  const totalSec =
-    session.status === 'DONE' && session.actualDurationMin != null
-      ? session.actualDurationMin * 60
-      : session.workout.length > 0
-        ? totalWorkoutSeconds(session.workout)
-        : (session.durationMin ?? 0) * 60
+  const totalSec = displaySeconds(session)
   const isValidated = session.status === 'DONE' && session.activity != null
   const consignes = session.structureNotes ?? session.detail
 

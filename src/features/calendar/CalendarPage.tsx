@@ -53,7 +53,8 @@ import {
   formatDuration,
   formatSeconds,
   isPending,
-  totalWorkoutSeconds,
+  displaySeconds,
+  plannedSeconds,
   trainingKind,
 } from './labels'
 import { WorkoutBuilder, draftsError, draftsToNodes, type ItemDraft } from './WorkoutBuilder'
@@ -313,16 +314,16 @@ function WeekMetrics({ week, sessions }: { week: WeekResponse; sessions: Session
   // The time ring answers "did I do my running time?" — strength and
   // cross-training stay out of it (the load ring still counts them).
   const doneRuns = done.filter((s) => s.discipline === 'RUN')
-  const doneMinutes = doneRuns.reduce(
-    (sum, s) => sum + (s.actualDurationMin ?? s.durationMin ?? 0),
-    0,
+  // the ring reads the SAME duration the session cards show — reading
+  // durationMin here while the cards summed the workout structure is what
+  // made the week total disagree with the sessions inside it
+  const doneMinutes = Math.round(doneRuns.reduce((sum, s) => sum + displaySeconds(s), 0) / 60)
+  const plannedMinutes = Math.round(
+    sessions.filter((s) => s.discipline === 'RUN').reduce((sum, s) => sum + plannedSeconds(s), 0) / 60,
   )
-  const plannedMinutes = sessions
-    .filter((s) => s.discipline === 'RUN')
-    .reduce((sum, s) => sum + (s.durationMin ?? 0), 0)
   const doneLoad = done.reduce((sum, s) => {
     const rpe = s.rpeMin != null && s.rpeMax != null ? (s.rpeMin + s.rpeMax) / 2 : (s.rpeMin ?? 0)
-    return sum + rpe * (s.actualDurationMin ?? s.durationMin ?? 0)
+    return sum + (rpe * displaySeconds(s)) / 60
   }, 0)
 
   // The estimate (personal pace model over the prescribed times) is the honest
@@ -663,14 +664,8 @@ function DraggableSessionCard({ session, onClick }: { session: SessionResponse; 
     disabled: frozen,
   })
 
-  // total time shown ONCE: the real duration once done, else computed from
-  // the structure, else the planned duration
-  const totalSec =
-    session.status === 'DONE' && session.actualDurationMin != null
-      ? session.actualDurationMin * 60
-      : session.workout.length > 0
-        ? totalWorkoutSeconds(session.workout)
-        : (session.durationMin ?? 0) * 60
+  // total time shown ONCE, from the single shared duration rule
+  const totalSec = displaySeconds(session)
   const meta = [
     totalSec > 0 && formatSeconds(totalSec),
     session.elevationM != null && `${session.elevationM} m D+`,

@@ -77,7 +77,10 @@ export type Metric = 'volume' | 'elevation'
 const METRIC = {
   volume: {
     unit: 'km',
-    target: (w: WeekProgress) => w.targetVolumeKm ?? 0,
+    // the estimate (prescribed times at the athlete's paces) is what the table
+    // beside this chart and the calendar ring both show — the stored coach
+    // target only fills in when nothing is estimable
+    target: (w: WeekProgress) => w.estimatedVolumeKm ?? w.targetVolumeKm ?? 0,
     actual: (w: WeekProgress) => w.actualVolumeKm,
     round: (v: number) => Math.round(v * 10) / 10,
   },
@@ -250,6 +253,18 @@ export function WeeklyChart({ weeks, metric, races }: WeeklyChartProps) {
                     <dt className="text-moss-500 dark:text-moss-400">{t('charts.target')}</dt>
                     <dd>{m.round(m.target(week)).toLocaleString(numberLocale())} {m.unit}</dd>
                   </div>
+                  {metric === 'volume' &&
+                    week.estimatedVolumeKm != null &&
+                    week.targetVolumeKm != null && (
+                      <div className="flex justify-between">
+                        <dt className="text-moss-500 dark:text-moss-400">
+                          {t('charts.coachTarget')}
+                        </dt>
+                        <dd>
+                          {m.round(week.targetVolumeKm).toLocaleString(numberLocale())} {m.unit}
+                        </dd>
+                      </div>
+                    )}
                   <div className="flex justify-between">
                     <dt className="text-moss-500 dark:text-moss-400">{t('charts.sessions')}</dt>
                     <dd>

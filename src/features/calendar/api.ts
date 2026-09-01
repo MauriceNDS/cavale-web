@@ -68,6 +68,9 @@ export interface SessionResponse {
   comment: string | null
   zone: string | null
   durationMin: number | null
+  /** The duration to DISPLAY: the workout structure's own total for a RUN that
+   *  has blocks, else durationMin. Server-computed so views never pick a field. */
+  plannedDurationMin: number | null
   elevationM: number | null
   rpeMin: number | null
   rpeMax: number | null
