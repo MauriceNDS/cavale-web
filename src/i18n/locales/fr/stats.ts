@@ -186,6 +186,7 @@ export default {
     criticalSpeed: 'Vitesse critique',
     anaerobic: "Réserve anaérobie D'",
     criticalBasis: 'Ajustée sur {{count}} meilleurs efforts · R² {{r2}}',
+    criticalAnchored: 'Ancrée sur un test ou une course des 8 dernières semaines · fit {{count}} efforts, R² {{r2}}',
     summary: '≈ {{value}}',
   },
   durability: {

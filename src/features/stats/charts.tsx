@@ -548,12 +548,16 @@ export function CriticalPaceStat({ cp }: { cp: CriticalPace }) {
         <div className={statCard}>
           <p className={`text-xs ${muted}`}>{t('vo2max.anaerobic')}</p>
           <p className="mt-0.5 text-xl font-semibold">
-            {cp.anaerobicCapacityM}
-            <span className="text-sm font-normal"> m</span>
+            {cp.anaerobicCapacityM ?? '—'}
+            {cp.anaerobicCapacityM != null && <span className="text-sm font-normal"> m</span>}
           </p>
         </div>
       </div>
-      <p className={`mt-2 text-xs ${muted}`}>{t('vo2max.criticalBasis', { count: cp.samples, r2: cp.fitQuality.toFixed(2) })}</p>
+      <p className={`mt-2 text-xs ${muted}`}>
+        {cp.anchored
+          ? t('vo2max.criticalAnchored', { count: cp.samples, r2: cp.fitQuality.toFixed(2) })
+          : t('vo2max.criticalBasis', { count: cp.samples, r2: cp.fitQuality.toFixed(2) })}
+      </p>
     </>
   )
 }

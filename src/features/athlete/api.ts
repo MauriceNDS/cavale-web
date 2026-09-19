@@ -350,9 +350,11 @@ export interface Vo2maxPoint {
 export interface CriticalPace {
   criticalPaceSecPerKm: number
   criticalSpeedMps: number
-  anaerobicCapacityM: number
+  anaerobicCapacityM: number | null
   samples: number
   fitQuality: number
+  /** A recent race or field test set the pace directly, not the fit. */
+  anchored: boolean
 }
 
 export interface DurabilityPoint {
