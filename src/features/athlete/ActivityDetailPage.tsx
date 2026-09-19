@@ -20,6 +20,15 @@ function formatDuration(min: number): string {
   return rest === 0 ? `${h}h` : `${h}h${String(rest).padStart(2, '0')}`
 }
 
+/** To the second, the way the watch and Strava show it: "45:22", "1:07:05". */
+function formatExactDuration(sec: number): string {
+  const h = Math.floor(sec / 3600)
+  const m = Math.floor((sec % 3600) / 60)
+  const s = sec % 60
+  const ms = `${String(m).padStart(h > 0 ? 2 : 1, '0')}:${String(s).padStart(2, '0')}`
+  return h > 0 ? `${h}:${ms}` : ms
+}
+
 function formatPace(secPerKm: number): string {
   return `${Math.floor(secPerKm / 60)}:${String(secPerKm % 60).padStart(2, '0')} /km`
 }
@@ -65,10 +74,11 @@ export function ActivityDetailPage() {
   }
 
   const a = query.data
+  // Exact seconds when the source gave them — the minute figure rounds the
+  // average pace by up to 3 s/km either way.
+  const movingSec = a.durationSec ?? a.durationMin * 60
   const pace =
-    a.distanceKm != null && a.distanceKm > 0
-      ? Math.round((a.durationMin * 60) / a.distanceKm)
-      : null
+    a.distanceKm != null && a.distanceKm > 0 ? Math.round(movingSec / a.distanceKm) : null
 
   // km-effort (km + D+/100) IS the distance of a mountain run — promoted to
   // the primary row when the outing is genuinely hilly (≥ 25 m D+/km).
@@ -83,7 +93,10 @@ export function ActivityDetailPage() {
   const primaryTiles = [
     a.distanceKm != null && { label: t('activityDetail.distance'), value: `${a.distanceKm} km` },
     hilly && { label: t('activityDetail.kmEffort'), value: `${kmEffort} km-e` },
-    { label: t('activityDetail.time'), value: formatDuration(a.durationMin) },
+    {
+      label: t('activityDetail.time'),
+      value: a.durationSec != null ? formatExactDuration(a.durationSec) : formatDuration(a.durationMin),
+    },
     pace != null && { label: t('activityDetail.avgPace'), value: formatPace(pace) },
   ].filter(Boolean) as { label: string; value: string }[]
 

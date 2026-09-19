@@ -18,6 +18,8 @@ export interface ActivitySummary {
   source: 'MANUAL' | 'STRAVA'
   name: string | null
   durationMin: number
+  /** Exact moving seconds — null when the source only gave minutes. */
+  durationSec: number | null
   distanceKm: number | null
   elevationM: number | null
   avgHr: number | null
@@ -43,6 +45,27 @@ export interface ActivityStreams {
   vel: number[]
   /** Steps per minute (both legs). Absent on streams stored before cadence support. */
   cad?: number[]
+  /** The device's own laps — a workout step each on a Garmin. Absent until
+   *  the activity's laps have been fetched (or when the recorder made none). */
+  laps?: Lap[]
+}
+
+/** One lap as the watch recorded it: its own summary, not a re-slice of the streams. */
+export interface Lap {
+  /** Seconds since the activity started, pauses included. */
+  start: number
+  /** Wall-clock seconds the lap spanned. */
+  elapsed: number
+  /** Lap-timer seconds — what the watch counted (auto-pause excluded). */
+  moving: number
+  /** Metres. */
+  dist: number
+  hr: number | null
+  maxHr: number | null
+  /** Steps per minute (both legs). */
+  cad: number | null
+  /** Metres climbed. */
+  dplus: number
 }
 
 export type Allure = 'LENTE' | 'EF' | 'COURSE' | 'SEUIL60' | 'SEUIL30' | 'VMA' | 'SPRINT'

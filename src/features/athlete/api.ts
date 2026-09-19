@@ -218,6 +218,8 @@ export interface ActivityDetail {
   date: string
   sessionId: string | null
   durationMin: number
+  /** Exact moving seconds — null when the source only gave minutes. */
+  durationSec: number | null
   distanceKm: number | null
   elevationM: number | null
   avgHr: number | null

@@ -52,10 +52,24 @@ import {
   type ItemDraft,
 } from './WorkoutBuilder'
 
-function formatPace(durationMin: number, distanceKm: number | null): string | null {
+function formatPace(
+  durationMin: number,
+  distanceKm: number | null,
+  durationSec: number | null = null,
+): string | null {
   if (!distanceKm || distanceKm <= 0) return null
-  const secPerKm = Math.round((durationMin * 60) / distanceKm)
+  // Exact seconds when the source gave them — minutes round the pace by up to 3 s/km.
+  const secPerKm = Math.round((durationSec ?? durationMin * 60) / distanceKm)
   return `${Math.floor(secPerKm / 60)}:${String(secPerKm % 60).padStart(2, '0')} /km`
+}
+
+/** To the second, the way the watch and Strava show it: "45:22", "1:07:05". */
+function formatExactDuration(sec: number): string {
+  const h = Math.floor(sec / 3600)
+  const m = Math.floor((sec % 3600) / 60)
+  const s = sec % 60
+  const ms = `${String(m).padStart(h > 0 ? 2 : 1, '0')}:${String(s).padStart(2, '0')}`
+  return h > 0 ? `${h}:${ms}` : ms
 }
 
 /* ── Page ──────────────────────────────────────────────────────────── */
@@ -1020,10 +1034,16 @@ function ActivityReport({
 
   const tiles: { label: string; value: string }[] = [
     activity.distanceKm != null && { label: t('report.distance'), value: `${activity.distanceKm} km` },
-    { label: t('report.time'), value: formatDuration(activity.durationMin) ?? '—' },
+    {
+      label: t('report.time'),
+      value:
+        activity.durationSec != null
+          ? formatExactDuration(activity.durationSec)
+          : (formatDuration(activity.durationMin) ?? '—'),
+    },
     activity.distanceKm != null && {
       label: t('report.avgPace'),
-      value: formatPace(activity.durationMin, activity.distanceKm) ?? '—',
+      value: formatPace(activity.durationMin, activity.distanceKm, activity.durationSec) ?? '—',
     },
     activity.elevationM != null && { label: t('report.elevation'), value: `${activity.elevationM} m` },
     activity.avgHr != null && { label: t('report.avgHr'), value: `${activity.avgHr} bpm` },

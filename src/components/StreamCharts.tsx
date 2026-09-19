@@ -4,14 +4,16 @@ import { useMeasuredWidth } from '../lib/useMeasuredWidth'
 import { scrubSurface } from '../lib/ui'
 import { SegmentedControl } from './SegmentedControl'
 import { allureLabel } from '../features/calendar/labels'
-import type { ActivityStreams, Allure, Terrain, WorkoutNode } from '../features/calendar/api'
+import type { ActivityStreams, Allure, Lap, Terrain, WorkoutNode } from '../features/calendar/api'
 
 /* ── Activity analysis: km splits + stream charts ──────────────────────
    Shared by the session report and the standalone activity detail page.
    One chart visible at a time (phone-first): linear curves over distance
    (with the elevation profile as a muted backdrop), per-kilometre bars
-   derived from the splits, and — when the session prescribed a structured
-   workout — per-segment bars sliced on the planned step durations. */
+   derived from the splits, and per-segment bars: the watch's own laps when
+   the activity carries them (a workout step each on a Garmin), else — when
+   the session prescribed a structured workout — the streams sliced on the
+   planned step durations. */
 
 interface Point {
   x: number
@@ -203,7 +205,10 @@ function flattenWorkout(nodes: WorkoutNode[]): FlatStep[] | null {
 interface Segment {
   index: number
   allure: Allure | null
-  plannedSec: number
+  /** The segment's share of the timeline: the planned step length when the
+   *  streams were sliced on the plan, the lap timer when the watch cut it. */
+  durationSec: number
+  /** Wall-clock seconds, pauses included. */
   actualSec: number
   distKm: number
   /** Moving pace — stopped time is excluded (see {@link movingSeconds}). */
@@ -215,16 +220,73 @@ interface Segment {
   stoppedSec: number
 }
 
-/** Same fractional apportioning as computeSplits, but chopped on the
- *  cumulative planned-step time boundaries instead of km marks. Stream time
- *  beyond the last boundary (cool-down overshoot) is dropped. */
+/**
+ * Do the device laps follow the prescription step for step? True when each
+ * step's lap ran for the planned time on the lap timer (a Garmin ends a timed
+ * step on its own timer, so the match is exact to the second) — the last step
+ * may be cut short by a stopped workout, and laps after the last step (the
+ * athlete kept the timer running) are allowed.
+ */
+function lapsFollowPlan(laps: Lap[], steps: FlatStep[]): boolean {
+  if (laps.length < steps.length) return false
+  return steps.every((step, i) => {
+    const tolerance = Math.max(3, step.seconds * 0.05)
+    const drift = laps[i].moving - step.seconds
+    return i === steps.length - 1 ? drift <= tolerance : Math.abs(drift) <= tolerance
+  })
+}
+
+/** Auto-lap every km (or mile) says nothing the per-km view doesn't already. */
+function looksLikeAutoLaps(laps: Lap[]): boolean {
+  const full = laps.slice(0, -1) // the last lap is the leftover, any length
+  return (
+    full.length > 0 &&
+    full.every((lap) => Math.abs(lap.dist - 1000) <= 30 || Math.abs(lap.dist - 1609) <= 40)
+  )
+}
+
+/**
+ * Segments straight from the watch: each lap's own distance, timer, HR and
+ * cadence — the figures the athlete saw on the wrist, immune to pauses and
+ * to the stride of the downsampled streams. Labelled with the plan's allures
+ * when the laps follow the prescription, left unlabelled otherwise.
+ */
+function segmentsFromLaps(laps: Lap[], steps: FlatStep[] | null): Segment[] {
+  const labelled = steps != null && lapsFollowPlan(laps, steps)
+  if (!labelled && looksLikeAutoLaps(laps)) return []
+  return laps.map((lap, i) => {
+    const distKm = lap.dist / 1000
+    return {
+      index: i,
+      allure: labelled && steps != null && i < steps.length ? steps[i].allure : null,
+      durationSec: lap.moving,
+      actualSec: lap.elapsed,
+      distKm,
+      paceSecPerKm: distKm > 0.01 && lap.moving > 0 ? Math.round(lap.moving / distKm) : null,
+      avgHr: lap.hr,
+      avgCad: lap.cad != null ? Math.round(lap.cad) : null,
+      dplus: lap.dplus,
+      stoppedSec: Math.max(0, lap.elapsed - lap.moving),
+    }
+  })
+}
+
+/**
+ * Same fractional apportioning as computeSplits, but chopped on the
+ * cumulative planned-step boundaries instead of km marks. The boundaries
+ * advance on MOVING time (`mtime`) when the streams carry it: a watch runs
+ * its step timer only while the activity timer runs, so slicing on elapsed
+ * time shifted every step after a pause by the length of that pause. Stream
+ * time beyond the last boundary (cool-down overshoot) is dropped.
+ */
 function computeSegments(streams: ActivityStreams, steps: FlatStep[]): Segment[] {
   const { time, distance, hr, alt, cad } = streams
   const n = Math.min(time.length, distance.length)
   if (n < 2) return []
+  const clock = streams.mtime != null && streams.mtime.length === n ? streams.mtime : time
 
   const bounds: number[] = []
-  let acc = time[0]
+  let acc = clock[0]
   for (const step of steps) {
     acc += step.seconds
     bounds.push(acc)
@@ -252,18 +314,19 @@ function computeSegments(streams: ActivityStreams, steps: FlatStep[]): Segment[]
   }))
 
   const moving = movingSeconds(streams)
-  let k = 0 // current segment — boundaries and samples both advance in time
+  let k = 0 // current segment — boundaries and samples both advance on the clock
   for (let i = 1; i < n; i++) {
-    let t0 = time[i - 1]
-    const t1 = time[i]
-    if (t1 <= t0) continue
+    let t0 = clock[i - 1]
+    const t1 = clock[i]
+    if (t1 <= t0) continue // a pure pause has no width on the moving clock
     const distKm = Math.max(0, distance[i] - distance[i - 1]) / 1000
     const climb = alt?.[i] != null && alt?.[i - 1] != null ? Math.max(0, alt[i] - alt[i - 1]) : 0
     const sampleHr = hr?.[i] != null && hr[i] > 0 ? hr[i] : null
     // Cadence idles near zero while standing still; only count it while running.
     const sampleCad = cad?.[i] != null && cad[i] > 40 ? cad[i] : null
     const totalSec = t1 - t0
-    const intervalMoving = Math.min(moving[i], totalSec)
+    const elapsedSec = Math.max(totalSec, time[i] - time[i - 1])
+    const intervalMoving = Math.min(moving[i], elapsedSec)
 
     while (t0 < t1) {
       while (k < bounds.length && bounds[k] <= t0) k++
@@ -273,7 +336,7 @@ function computeSegments(streams: ActivityStreams, steps: FlatStep[]): Segment[]
       const fraction = sec / totalSec
       const movingSec = intervalMoving * fraction
       const a = accs[k]
-      a.actualSec += sec
+      a.actualSec += elapsedSec * fraction
       a.movingSec += movingSec
       a.distKm += distKm * fraction
       a.dplus += climb * fraction
@@ -294,7 +357,7 @@ function computeSegments(streams: ActivityStreams, steps: FlatStep[]): Segment[]
     return {
       index: i,
       allure: step.allure,
-      plannedSec: step.seconds,
+      durationSec: step.seconds,
       actualSec: Math.round(a.actualSec),
       distKm: a.distKm,
       paceSecPerKm: a.distKm > 0.01 && a.movingSec > 0 ? Math.round(a.movingSec / a.distKm) : null,
@@ -385,8 +448,9 @@ export function StreamCharts({
   onHoverX,
 }: {
   streams: ActivityStreams
-  /** Planned workout structure of the linked session — enables the
-   *  per-segment mode when the recorded duration matches the prescription. */
+  /** Planned workout structure of the linked session — labels the watch's
+   *  laps with their allures, or (without laps) slices the streams on the
+   *  plan when the recorded duration matches the prescription. */
   workout?: WorkoutNode[]
   /** Shared-cursor hook: the hovered distance (km), null when the cursor leaves.
    *  Lets the page sync external panels (the map marker) to the charts. */
@@ -424,13 +488,17 @@ export function StreamCharts({
   )
   const splits = useMemo(() => computeSplits(streams), [streams])
 
-  // Per-segment slicing only makes sense when every step is timed AND the
-  // recording roughly matches the plan (asymmetric band: athletes overshoot
-  // with extra cool-down more often than they cut a workout short).
+  // The watch's laps win whenever the activity has them. Slicing the streams
+  // on the plan is the fallback, and only makes sense when every step is
+  // timed AND the recording roughly matches the plan (asymmetric band:
+  // athletes overshoot with extra cool-down more often than they cut short).
   const segments = useMemo(() => {
-    const steps = workout && workout.length > 0 ? flattenWorkout(workout) : null
-    if (!steps || steps.length < 2) return []
-    const streamSec = streams.time[streams.time.length - 1] - streams.time[0]
+    const flat = workout && workout.length > 0 ? flattenWorkout(workout) : null
+    const steps = flat && flat.length >= 2 ? flat : null
+    if (streams.laps && streams.laps.length >= 2) return segmentsFromLaps(streams.laps, steps)
+    if (!steps) return []
+    const clock = streams.mtime != null && streams.mtime.length === streams.time.length ? streams.mtime : streams.time
+    const streamSec = clock[clock.length - 1] - clock[0]
     const plannedSec = steps.reduce((sum, s) => sum + s.seconds, 0)
     if (streamSec < 0.85 * plannedSec || streamSec > 1.25 * plannedSec) return []
     return computeSegments(streams, steps)
@@ -1018,13 +1086,13 @@ function SegmentBarChart({ segments, metric }: { segments: Segment[]; metric: Se
   const heightShare = (v: number) =>
     metric === 'dplus' ? (vMax > 0 ? v / vMax : 0) : 0.2 + 0.8 * ((v - vMin) / (vMax - vMin || 1))
 
-  const totalSec = segments.reduce((sum, s) => sum + s.plannedSec, 0)
+  const totalSec = segments.reduce((sum, s) => sum + s.durationSec, 0)
   const plotH = H - BAR_PAD.top - BAR_PAD.bottom
   const plotW = W - BAR_PAD.left - BAR_PAD.right
-  // Bar geometry mirrors the workout timeline: x = cumulative planned time.
+  // Bar geometry mirrors the workout timeline: x = cumulative segment time.
   let cursor = BAR_PAD.left
   const bars = segments.map((s) => {
-    const w = (s.plannedSec / (totalSec || 1)) * plotW
+    const w = (s.durationSec / (totalSec || 1)) * plotW
     const bar = { x: cursor, w }
     cursor += w
     return bar
@@ -1050,7 +1118,7 @@ function SegmentBarChart({ segments, metric }: { segments: Segment[]; metric: Se
         ...(selected.avgHr != null ? [`${selected.avgHr} bpm`] : []),
         ...(selected.avgCad != null ? [`${selected.avgCad} spm`] : []),
         ...(selected.dplus > 0 ? [`+${selected.dplus} m`] : []),
-        fmtSegDuration(selected.plannedSec),
+        fmtSegDuration(selected.durationSec),
         // Only worth the pixels once a stop is long enough to have skewed the pace.
         ...(selected.stoppedSec >= 5 ? [`⏸ ${fmtSegDuration(selected.stoppedSec)}`] : []),
       ].join(' · ')
